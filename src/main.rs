@@ -247,7 +247,31 @@ async fn main() {
                                 ui.label( node_status);
                                 ui.label( scheduling_status);
 
-                                let _ = ui.button("⚙");
+                                ui.menu_button("⚙", |ui| {
+                                    let node_name = item.name.clone();
+                                    if item.scheduling_disabled {
+                                        if ui.button("Uncordon").clicked() {
+                                            tokio::spawn(async move {
+                                                if let Err(err) = cordon_node(&node_name, false).await {
+                                                    eprintln!("Failed to uncordon node: {}", err);
+                                                }
+                                            });
+                                            ui.close_menu();
+                                        }
+                                    } else {
+                                        if ui.button("Cordon").clicked() {
+                                            tokio::spawn(async move {
+                                                if let Err(err) = cordon_node(&node_name, true).await {
+                                                    eprintln!("Failed to cordon node: {}", err);
+                                                }
+                                            });
+                                            ui.close_menu();
+                                        }
+                                    }
+                                    if ui.button("Drain").clicked() {
+                                        ui.close_menu();
+                                    }
+                                });
                                 ui.end_row();
                             }
                         });
