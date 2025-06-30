@@ -4,7 +4,7 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{Patch, PatchParams};
+use kube::api::{Patch, PatchParams, ListParams, DeleteParams};
 //use k8s_metrics::v1beta1::NodeMetrics;
 //use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
@@ -18,20 +18,49 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
 pub async fn cordon_node(node_name: &str, cordoned: bool) -> Result<(), kube::Error> {
     let client = Client::try_default().await?;
     let nodes: Api<Node> = Api::all(client);
-
-    let patch = json!({
-        "spec": {
-            "unschedulable": cordoned
-        }
-    });
-
-    nodes
-        .patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch))
-        .await?;
-
+    let patch = json!({ "spec": { "unschedulable": cordoned } });
+    nodes.patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
     Ok(())
 }
 
+pub async fn drain_node(node_name: &str) -> anyhow::Result<()> {
+    let client = Client::try_default().await?;
+
+    // Cordon node
+    let nodes: Api<Node> = Api::all(client.clone());
+    let patch = json!({ "spec": { "unschedulable": true } });
+    nodes.patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
+
+    // Evict pods
+    let pods: Api<Pod> = Api::all(client.clone());
+    let lp = ListParams::default().fields(&format!("spec.nodeName={}", node_name));
+    let pod_list = pods.list(&lp).await?;
+
+    for pod in pod_list.items {
+        let is_mirror = pod.metadata.annotations.as_ref()
+            .and_then(|a| a.get("kubernetes.io/config.mirror"))
+            .is_some();
+
+        let is_daemonset = pod.metadata.owner_references
+            .as_ref()
+            .map(|owners| owners.iter().any(|o| o.kind == "DaemonSet"))
+            .unwrap_or(false);
+
+        if is_mirror || is_daemonset {
+            continue;
+        }
+
+        if let Some(name) = pod.metadata.name {
+            let dp = DeleteParams {
+                grace_period_seconds: Some(30),
+                ..DeleteParams::default()
+            };
+            let _ = pods.delete(&name, &dp).await;
+        }
+    }
+
+    Ok(())
+}
 
 // fn parse_quantity_to_f64(q: &Quantity) -> Option<f64> {
 //     let s = &q.0;

@@ -58,7 +58,7 @@ async fn main() {
     title.push_str(env!("CARGO_PKG_VERSION"));
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 600.0])
+            .with_inner_size([1500.0, 600.0])
             .with_maximize_button(false),
         ..Default::default()
     };
@@ -248,9 +248,10 @@ async fn main() {
                                 ui.label( scheduling_status);
 
                                 ui.menu_button("⚙", |ui| {
+                                    ui.set_width(200.0);
                                     let node_name = item.name.clone();
                                     if item.scheduling_disabled {
-                                        if ui.button("Uncordon").clicked() {
+                                        if ui.button("▶ Uncordon").clicked() {
                                             tokio::spawn(async move {
                                                 if let Err(err) = cordon_node(&node_name, false).await {
                                                     eprintln!("Failed to uncordon node: {}", err);
@@ -259,7 +260,7 @@ async fn main() {
                                             ui.close_menu();
                                         }
                                     } else {
-                                        if ui.button("Cordon").clicked() {
+                                        if ui.button("⏸ Cordon").clicked() {
                                             tokio::spawn(async move {
                                                 if let Err(err) = cordon_node(&node_name, true).await {
                                                     eprintln!("Failed to cordon node: {}", err);
@@ -268,7 +269,13 @@ async fn main() {
                                             ui.close_menu();
                                         }
                                     }
-                                    if ui.button("Drain").clicked() {
+                                    if ui.button("♻ Drain").clicked() {
+                                        let node_name = item.name.clone();
+                                        tokio::spawn(async move {
+                                            if let Err(err) = drain_node(&node_name).await {
+                                                eprintln!("Failed to drain node: {}", err);
+                                            }
+                                        });
                                         ui.close_menu();
                                     }
                                 });
