@@ -87,6 +87,11 @@ async fn main() {
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
     let events_clone = Arc::clone(&events);
 
+    let mut filter_namespaces = String::new();
+    let mut filter_nodes = String::new();
+    let mut filter_pods = String::new();
+    let mut filter_events = String::new();
+
     tokio::spawn(async move {
         watch_events(events_clone).await;
     });
@@ -203,7 +208,14 @@ async fn main() {
                     ui.heading("Cluster (TODO)");
                 },
                 Category::Nodes => {
-                    ui.heading(format!("Nodes - {}", nodes.lock().unwrap().len()));
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Nodes - {}    ", nodes.lock().unwrap().len()));
+                        ui.add(egui::TextEdit::singleline(&mut filter_nodes).hint_text("Filter nodes...").desired_width(200.0));
+                        filter_nodes = filter_nodes.to_lowercase();
+                        if ui.button("ｘ").clicked() {
+                            filter_nodes.clear();
+                        }
+                    });
                     ui.separator();
 
                     let nodes = nodes.lock().unwrap();
@@ -220,72 +232,82 @@ async fn main() {
                             ui.label("Actions");
                             ui.end_row();
                             for item in nodes.iter() {
-                                ui.label(&item.name);
-                                ui.add(egui::ProgressBar::new(item.cpu_percent / 100.0).show_percentage());
-                                ui.add(egui::ProgressBar::new(item.mem_percent / 100.0).show_percentage());
-                                ui.label(&item.storage.as_ref().unwrap().to_string());
+                                let cur_item_name = &item.name;
+                                if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
+                                    ui.label(&item.name);
+                                    ui.add(egui::ProgressBar::new(item.cpu_percent / 100.0).show_percentage());
+                                    ui.add(egui::ProgressBar::new(item.mem_percent / 100.0).show_percentage());
+                                    ui.label(&item.storage.as_ref().unwrap().to_string());
 
-                                if let Some(taints) = &item.taints {
-                                    ui.label(taints.len().to_string())
-                                        .on_hover_cursor(CursorIcon::PointingHand)
-                                        .on_hover_text(format!("{:?}", taints));
-                                } else {
-                                    ui.label("0");
-                                }
-                                ui.label(format!("{}", item.roles.join(", ")));
-
-                                let node_status = egui::RichText::new(&item.status).color(match item.status.as_str() {
-                                    "Ready" => egui::Color32::GREEN,
-                                    "NotReady" => egui::Color32::RED,
-                                    _ => egui::Color32::YELLOW,
-                                });
-                                let scheduling_status = match item.scheduling_disabled {
-                                    true => egui::RichText::new("SchedulingDisabled").color(egui::Color32::ORANGE),
-                                    false => egui::RichText::new(""),
-                                };
-
-                                ui.label( node_status);
-                                ui.label( scheduling_status);
-
-                                ui.menu_button("⚙", |ui| {
-                                    ui.set_width(200.0);
-                                    let node_name = item.name.clone();
-                                    if item.scheduling_disabled {
-                                        if ui.button("▶ Uncordon").clicked() {
-                                            tokio::spawn(async move {
-                                                if let Err(err) = cordon_node(&node_name, false).await {
-                                                    eprintln!("Failed to uncordon node: {}", err);
-                                                }
-                                            });
-                                            ui.close_menu();
-                                        }
+                                    if let Some(taints) = &item.taints {
+                                        ui.label(taints.len().to_string())
+                                            .on_hover_cursor(CursorIcon::PointingHand)
+                                            .on_hover_text(format!("{:?}", taints));
                                     } else {
-                                        if ui.button("⏸ Cordon").clicked() {
+                                        ui.label("0");
+                                    }
+                                    ui.label(format!("{}", item.roles.join(", ")));
+
+                                    let node_status = egui::RichText::new(&item.status).color(match item.status.as_str() {
+                                        "Ready" => egui::Color32::GREEN,
+                                        "NotReady" => egui::Color32::RED,
+                                        _ => egui::Color32::YELLOW,
+                                    });
+                                    let scheduling_status = match item.scheduling_disabled {
+                                        true => egui::RichText::new("SchedulingDisabled").color(egui::Color32::ORANGE),
+                                        false => egui::RichText::new(""),
+                                    };
+
+                                    ui.label( node_status);
+                                    ui.label( scheduling_status);
+
+                                    ui.menu_button("⚙", |ui| {
+                                        ui.set_width(200.0);
+                                        let node_name = item.name.clone();
+                                        if item.scheduling_disabled {
+                                            if ui.button("▶ Uncordon").clicked() {
+                                                tokio::spawn(async move {
+                                                    if let Err(err) = cordon_node(&node_name, false).await {
+                                                        eprintln!("Failed to uncordon node: {}", err);
+                                                    }
+                                                });
+                                                ui.close_menu();
+                                            }
+                                        } else {
+                                            if ui.button("⏸ Cordon").clicked() {
+                                                tokio::spawn(async move {
+                                                    if let Err(err) = cordon_node(&node_name, true).await {
+                                                        eprintln!("Failed to cordon node: {}", err);
+                                                    }
+                                                });
+                                                ui.close_menu();
+                                            }
+                                        }
+                                        if ui.button("♻ Drain").clicked() {
+                                            let node_name = item.name.clone();
                                             tokio::spawn(async move {
-                                                if let Err(err) = cordon_node(&node_name, true).await {
-                                                    eprintln!("Failed to cordon node: {}", err);
+                                                if let Err(err) = drain_node(&node_name).await {
+                                                    eprintln!("Failed to drain node: {}", err);
                                                 }
                                             });
                                             ui.close_menu();
                                         }
-                                    }
-                                    if ui.button("♻ Drain").clicked() {
-                                        let node_name = item.name.clone();
-                                        tokio::spawn(async move {
-                                            if let Err(err) = drain_node(&node_name).await {
-                                                eprintln!("Failed to drain node: {}", err);
-                                            }
-                                        });
-                                        ui.close_menu();
-                                    }
-                                });
-                                ui.end_row();
+                                    });
+                                    ui.end_row();
+                                }
                             }
                         });
                     });
                 },
                 Category::Namespaces => {
-                    ui.heading(format!("Namespaces - {}", namespaces.lock().unwrap().len()));
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Namespaces - {}   ", namespaces.lock().unwrap().len()));
+                        ui.add(egui::TextEdit::singleline(&mut filter_namespaces).hint_text("Filter namespaces...").desired_width(200.0));
+                        filter_namespaces = filter_namespaces.to_lowercase();
+                        if ui.button("ｘ").clicked() {
+                            filter_namespaces.clear();
+                        }
+                    });
                     ui.separator();
 
                     let ns = namespaces.lock().unwrap();
@@ -295,11 +317,14 @@ async fn main() {
                             ui.label("Actions");
                             ui.end_row();
                             for item in ns.iter() {
-                                if ui.label(&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                    *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
+                                let cur_item_name = &item.name;
+                                if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
+                                    if ui.label(&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                        *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
+                                    }
+                                    let _ = ui.button("⚙");
+                                    ui.end_row();
                                 }
-                                let _ = ui.button("⚙");
-                                ui.end_row();
                             }
                         });
                     });
@@ -320,6 +345,11 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.add(egui::TextEdit::singleline(&mut filter_pods).hint_text("Filter pods...").desired_width(200.0));
+                        filter_pods = filter_pods.to_lowercase();
+                        if ui.button("ｘ").clicked() {
+                            filter_pods.clear();
+                        }
                     });
 
                     ui.separator();
@@ -330,9 +360,12 @@ async fn main() {
                             ui.label("Actions");
                             ui.end_row();
                             for item in pod.iter() {
-                                ui.label(&item.name);
-                                let _ = ui.button("⚙");
-                                ui.end_row();
+                                let cur_item_name = &item.name;
+                                if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
+                                    ui.label(&item.name);
+                                    let _ = ui.button("⚙");
+                                    ui.end_row();
+                                }
                             }
                         });
                     });
@@ -341,7 +374,14 @@ async fn main() {
                     ui.heading("Deployments (TODO)");
                 },
                 Category::Events => {
-                    ui.heading(format!("Events - {}", events.lock().unwrap().len()));
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Events - {}", events.lock().unwrap().len()));
+                        ui.add(egui::TextEdit::singleline(&mut filter_events).hint_text("Filter events...").desired_width(200.0));
+                        filter_events = filter_events.to_lowercase();
+                        if ui.button("ｘ").clicked() {
+                            filter_events.clear();
+                        }
+                    });
                     ui.separator();
 
                     let events_list = events.lock().unwrap();
@@ -355,19 +395,22 @@ async fn main() {
                             ui.label("Message");
                             ui.end_row();
                             for item in events_list.iter().rev().take(200) {
-                                ui.label(&item.timestamp);
-                                ui.label(
-                                    egui::RichText::new(&item.event_type).color(match item.event_type.as_str() {
-                                        "Warning" => egui::Color32::ORANGE,
-                                        "Normal" => egui::Color32::GREEN,
-                                        _ => egui::Color32::LIGHT_GRAY,
-                                    }),
-                                );
-                                ui.label(&item.namespace);
-                                ui.label(&item.reason);
-                                ui.label(&item.involved_object);
-                                ui.label(&item.message);
-                                ui.end_row();
+                                let cur_item_object = &item.involved_object;
+                                if filter_events.is_empty() || cur_item_object.contains(&filter_events) {
+                                    ui.label(&item.timestamp);
+                                    ui.label(
+                                        egui::RichText::new(&item.event_type).color(match item.event_type.as_str() {
+                                            "Warning" => egui::Color32::ORANGE,
+                                            "Normal" => egui::Color32::GREEN,
+                                            _ => egui::Color32::LIGHT_GRAY,
+                                        }),
+                                    );
+                                    ui.label(&item.namespace);
+                                    ui.label(&item.reason);
+                                    ui.label(&item.involved_object);
+                                    ui.label(&item.message);
+                                    ui.end_row();
+                                }
                             }
                         });
                     });
