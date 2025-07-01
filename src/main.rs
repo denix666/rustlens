@@ -75,6 +75,9 @@ async fn main() {
 
     //####################################################//
 
+    let ctx_info = get_current_context_info().unwrap();
+    let cluster_name = ctx_info.context.unwrap().cluster;
+    let user_name = ctx_info.name;
 
     let selected_category = Arc::new(Mutex::new(Category::ClusterOverview));
     let selected_category_ui = Arc::clone(&selected_category);
@@ -222,11 +225,13 @@ async fn main() {
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
                 Category::ClusterOverview => {
-                    ui.heading("Cluster Overview (TODO)");
+                    ui.heading("Cluster Overview");
                     ui.separator();
                     let cluster = cluster_info_ui.lock().unwrap().clone();
-                    ui.horizontal(|ui| {
-                        ui.label(format!("🔗 Connected to: {}", cluster.name));
+                    ui.vertical(|ui| {
+                        ui.label(format!("Connected to: {}", cluster.name));
+                        ui.label(format!("Cluster name: {}", cluster_name));
+                        ui.label(format!("User name: {}", user_name));
                         // if ui.button("🔄 Reconnect").clicked() {
                         //     let cluster_info_clone = Arc::clone(&cluster_info_ui);
                         //     tokio::spawn(async move {

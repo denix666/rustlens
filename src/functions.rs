@@ -1,4 +1,5 @@
 use kube::{Api, Client, Config};
+use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
 use std::sync::{Arc, Mutex};
@@ -13,6 +14,27 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(crate::egui::IconData { rgba, width, height })
+}
+
+pub fn get_current_context_info() -> Result<NamedContext, anyhow::Error> {
+    let home_path = match home::home_dir() {
+        Some(path) => path.to_string_lossy().to_string(),
+        None => panic!("Impossible to get your home dir!"),
+    };
+    let config_path = format!("{}/.kube/config", home_path);
+    let config = Kubeconfig::read_from(config_path)?;
+
+    let current_context = config
+        .current_context
+        .ok_or_else(|| anyhow::anyhow!("No current context set"))?;
+
+    let context = config
+        .contexts
+        .iter()
+        .find(|ctx| ctx.name == current_context)
+        .ok_or_else(|| anyhow::anyhow!("Context '{}' not found", current_context))?;
+
+    Ok(context.clone())
 }
 
 pub async fn get_cluster_name() -> Result<String, anyhow::Error> {
