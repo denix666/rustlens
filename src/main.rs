@@ -48,6 +48,12 @@ struct NamespaceItem {
 }
 
 #[derive(Clone)]
+struct ClusterInfo {
+    name: String,
+}
+
+
+#[derive(Clone)]
 struct PodItem {
     name: String,
 }
@@ -67,13 +73,8 @@ async fn main() {
         options.viewport = options.viewport.with_icon(icon);
     }
 
-    let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
-    let node_clone = Arc::clone(&nodes);
+    //####################################################//
 
-    let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-
-    let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
-    let ns_clone = Arc::clone(&namespaces);
 
     let selected_category = Arc::new(Mutex::new(Category::ClusterOverview));
     let selected_category_ui = Arc::clone(&selected_category);
@@ -81,29 +82,43 @@ async fn main() {
     let selected_namespace = Arc::new(Mutex::new(None::<String>));
     let selected_namespace_clone = Arc::clone(&selected_namespace);
 
-    let pod_watcher_ns = Arc::clone(&selected_namespace);
-    let pod_watcher_list = Arc::clone(&pods);
-
-    let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
-    let events_clone = Arc::clone(&events);
-
     let mut filter_namespaces = String::new();
     let mut filter_nodes = String::new();
     let mut filter_pods = String::new();
     let mut filter_events = String::new();
 
+    let cluster_info = Arc::new(Mutex::new(ClusterInfo {
+        name: "unknown".to_string(),
+    }));
+    let cluster_info_ui = Arc::clone(&cluster_info);
+    let cluster_info_bg = Arc::clone(&cluster_info);
+    tokio::spawn(async move {
+        if let Ok(name) = get_cluster_name().await {
+            *cluster_info_bg.lock().unwrap() = ClusterInfo { name };
+        }
+    });
+
+    let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
+    let events_clone = Arc::clone(&events);
     tokio::spawn(async move {
         watch_events(events_clone).await;
     });
 
+    let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
+    let node_clone = Arc::clone(&nodes);
     tokio::spawn(async move {
         watch_nodes(node_clone).await;
     });
 
+    let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
+    let ns_clone = Arc::clone(&namespaces);
     tokio::spawn(async move {
         watch_namespaces(ns_clone).await;
     });
 
+    let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
+    let pod_watcher_ns = Arc::clone(&selected_namespace);
+    let pod_watcher_list = Arc::clone(&pods);
     tokio::spawn(async move {
         let mut last_ns = String::new();
 
@@ -208,6 +223,19 @@ async fn main() {
             match *selected_category_ui.lock().unwrap() {
                 Category::ClusterOverview => {
                     ui.heading("Cluster Overview (TODO)");
+                    ui.separator();
+                    let cluster = cluster_info_ui.lock().unwrap().clone();
+                    ui.horizontal(|ui| {
+                        ui.label(format!("🔗 Connected to: {}", cluster.name));
+                        // if ui.button("🔄 Reconnect").clicked() {
+                        //     let cluster_info_clone = Arc::clone(&cluster_info_ui);
+                        //     tokio::spawn(async move {
+                        //         if let Ok(name) = get_cluster_name().await {
+                        //             *cluster_info_clone.lock().unwrap() = ClusterInfo { name };
+                        //         }
+                        //     });
+                        // }
+                    });
                 },
                 Category::Nodes => {
                     ui.horizontal(|ui| {

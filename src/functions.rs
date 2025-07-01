@@ -1,4 +1,4 @@
-use kube::{Api, Client};
+use kube::{Api, Client, Config};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
 use std::sync::{Arc, Mutex};
@@ -13,6 +13,11 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(crate::egui::IconData { rgba, width, height })
+}
+
+pub async fn get_cluster_name() -> Result<String, anyhow::Error> {
+    let config = Config::infer().await?;
+    Ok(config.cluster_url.host().unwrap_or("unknown").to_string())
 }
 
 pub async fn cordon_node(node_name: &str, cordoned: bool) -> Result<(), kube::Error> {
@@ -351,9 +356,7 @@ pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
                         });
                     }
                 }
-                watcher::Event::Delete(_) => {
-                    // we can ignore delete events
-                }
+                watcher::Event::Delete(_) => {}
             },
             Err(e) => {
                 eprintln!("Event watch error: {:?}", e);
