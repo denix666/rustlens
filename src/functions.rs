@@ -4,7 +4,7 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{Patch, PatchParams, ListParams, DeleteParams};
+use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy};
 //use k8s_metrics::v1beta1::NodeMetrics;
 //use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
@@ -20,6 +20,23 @@ pub async fn cordon_node(node_name: &str, cordoned: bool) -> Result<(), kube::Er
     let nodes: Api<Node> = Api::all(client);
     let patch = json!({ "spec": { "unschedulable": cordoned } });
     nodes.patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn delete_pod(pod_name: &str, namespace: Option<&str>, force: bool) -> Result<(), kube::Error> {
+    let client = Client::try_default().await?;
+    let ns = namespace.unwrap_or("default");
+    let pods: Api<Pod> = Api::namespaced(client, ns);
+    let dp = if force {
+        DeleteParams {
+            grace_period_seconds: Some(0),
+            propagation_policy: Some(PropagationPolicy::Background),
+            ..DeleteParams::default()
+        }
+    } else {
+        DeleteParams::default()
+    };
+    pods.delete(pod_name, &dp).await?;
     Ok(())
 }
 

@@ -12,7 +12,7 @@ const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 
 #[derive(PartialEq, Clone)]
 enum Category {
-    Cluster,
+    ClusterOverview,
     Nodes,
     Namespaces,
     Pods,
@@ -75,7 +75,7 @@ async fn main() {
     let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
     let ns_clone = Arc::clone(&namespaces);
 
-    let selected_category = Arc::new(Mutex::new(Category::Cluster));
+    let selected_category = Arc::new(Mutex::new(Category::ClusterOverview));
     let selected_category_ui = Arc::clone(&selected_category);
 
     let selected_namespace = Arc::new(Mutex::new(None::<String>));
@@ -153,19 +153,25 @@ async fn main() {
         egui::SidePanel::left("tasks panel").resizable(false).exact_width(280.0).show(ctx, |ui| {
             let current = selected_category_ui.lock().unwrap().clone();
 
-            if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Cluster,"☸ Cluster",).clicked() {
-                *selected_category_ui.lock().unwrap() = Category::Cluster;
-            }
+            egui::CollapsingHeader::new("☸ Cluster").default_open(true).show(ui, |ui| {
+                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::ClusterOverview,"🗠 Overview",).clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::ClusterOverview;
+                }
 
-            if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Nodes,"💻 Nodes",).clicked() {
-                *selected_category_ui.lock().unwrap() = Category::Nodes;
-            }
+                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Nodes,"💻 Nodes",).clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::Nodes;
+                }
 
-            if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Namespaces,"☰ Namespaces",).clicked() {
-                *selected_category_ui.lock().unwrap() = Category::Namespaces;
-            }
+                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Namespaces,"☰ Namespaces",).clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::Namespaces;
+                }
 
-            egui::CollapsingHeader::new("📦 Workloads").default_open(false).show(ui, |ui| {
+                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Events,"🕓 Events",).clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::Events;
+                }
+            });
+
+            egui::CollapsingHeader::new("📦 Workloads").default_open(true).show(ui, |ui| {
                 if ui.selectable_label(current == Category::Pods, "📚 Pods").clicked() {
                     *selected_category_ui.lock().unwrap() = Category::Pods;
                 }
@@ -175,37 +181,33 @@ async fn main() {
                 }
             });
 
-            egui::CollapsingHeader::new("🛠 Config").default_open(false).show(ui, |ui| {
+            egui::CollapsingHeader::new("🛠 Config").default_open(true).show(ui, |ui| {
                 ui.label("🗺 ConfigMaps");
                 ui.label("🕵 Secrets");
             });
 
-            egui::CollapsingHeader::new("🖧 Network").default_open(false).show(ui, |ui| {
+            egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
                 ui.label("💢 Services");
                 ui.label("⛺ Endpoints");
                 ui.label("⤵ Ingresses");
             });
 
-            egui::CollapsingHeader::new("🖴 Storage").default_open(false).show(ui, |ui| {
+            egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
                 ui.label("📃 PersistentVolumeClaims");
                 ui.label("🗄 PersistentVolumes");
                 ui.label("⛭ StorageClasses");
             });
 
-            egui::CollapsingHeader::new("⎈ Helm").default_open(false).show(ui, |ui| {
+            egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
                 ui.label("📰 Charts");
                 ui.label("📥 Releases");
             });
-
-            if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Events,"🕓 Events",).clicked() {
-                *selected_category_ui.lock().unwrap() = Category::Events;
-            }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
-                Category::Cluster => {
-                    ui.heading("Cluster (TODO)");
+                Category::ClusterOverview => {
+                    ui.heading("Cluster Overview (TODO)");
                 },
                 Category::Nodes => {
                     ui.horizontal(|ui| {
@@ -351,9 +353,10 @@ async fn main() {
                             filter_pods.clear();
                         }
                     });
-
                     ui.separator();
+
                     let pod = pods.lock().unwrap();
+
                     egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
                         egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -362,8 +365,20 @@ async fn main() {
                             for item in pod.iter() {
                                 let cur_item_name = &item.name;
                                 if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
+                                    let pod_name = item.name.clone();
                                     ui.label(&item.name);
-                                    let _ = ui.button("⚙");
+                                    ui.menu_button("⚙", |ui| {
+                                        ui.set_width(200.0);
+                                        if ui.button("🗑 Delete").clicked() {
+                                            let cur_ns = selected_ns.clone();
+                                            tokio::spawn(async move {
+                                                if let Err(err) = delete_pod(&pod_name, cur_ns.as_deref(), true).await {
+                                                    eprintln!("Failed to delete pod: {}", err);
+                                                }
+                                            });
+                                            ui.close_menu();
+                                        }
+                                    });
                                     ui.end_row();
                                 }
                             }
