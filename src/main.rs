@@ -4,6 +4,7 @@ use egui::{Context, Style, TextStyle, FontId};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 
 mod functions;
 use functions::*;
@@ -28,6 +29,7 @@ struct EventItem {
     event_type: String,
     timestamp: String,
     namespace: String,
+    creation_timestamp: Option<Time>,
 }
 
 #[derive(Clone)]
@@ -40,11 +42,13 @@ struct NodeItem {
     cpu_percent: f32,
     mem_percent: f32,
     storage: Option<String>,
+    creation_timestamp: Option<Time>,
 }
 
 #[derive(Clone)]
 struct NamespaceItem {
     name: String,
+    creation_timestamp: Option<Time>,
 }
 
 #[derive(Clone)]
@@ -56,6 +60,7 @@ struct ClusterInfo {
 #[derive(Clone)]
 struct PodItem {
     name: String,
+    start_time: Option<Time>,
 }
 
 #[tokio::main]
@@ -262,6 +267,7 @@ async fn main() {
                             ui.label("Storage");
                             ui.label("Taints");
                             ui.label("Role");
+                            ui.label("Age");
                             ui.label("Status");
                             ui.label("");
                             ui.label("Actions");
@@ -282,6 +288,7 @@ async fn main() {
                                         ui.label("0");
                                     }
                                     ui.label(format!("{}", item.roles.join(", ")));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
 
                                     let node_status = egui::RichText::new(&item.status).color(match item.status.as_str() {
                                         "Ready" => egui::Color32::GREEN,
@@ -349,6 +356,7 @@ async fn main() {
                     egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
                         egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
+                            ui.label("Age");
                             ui.label("Actions");
                             ui.end_row();
                             for item in ns.iter() {
@@ -357,6 +365,7 @@ async fn main() {
                                     if ui.label(&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
                                     }
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     let _ = ui.button("⚙");
                                     ui.end_row();
                                 }
@@ -393,6 +402,7 @@ async fn main() {
                     egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
                         egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
+                            ui.label("Age");
                             ui.label("Actions");
                             ui.end_row();
                             for item in pod.iter() {
@@ -400,6 +410,7 @@ async fn main() {
                                 if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
                                     let pod_name = item.name.clone();
                                     ui.label(&item.name);
+                                    ui.label(format_age(&item.start_time.as_ref().unwrap()));
                                     ui.menu_button("⚙", |ui| {
                                         ui.set_width(200.0);
                                         if ui.button("🗑 Delete").clicked() {
@@ -436,8 +447,9 @@ async fn main() {
                     egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
                         egui::Grid::new("events_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Time");
-                            ui.label("Namespace");
                             ui.label("Type");
+                            ui.label("Age");
+                            ui.label("Namespace");
                             ui.label("Reason");
                             ui.label("Object");
                             ui.label("Message");
@@ -453,6 +465,7 @@ async fn main() {
                                             _ => egui::Color32::LIGHT_GRAY,
                                         }),
                                     );
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.label(&item.namespace);
                                     ui.label(&item.reason);
                                     ui.label(&item.involved_object);

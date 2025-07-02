@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
 use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 //use k8s_metrics::v1beta1::NodeMetrics;
 //use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
@@ -123,6 +124,24 @@ pub async fn drain_node(node_name: &str) -> anyhow::Result<()> {
 //     ((used / allocatable) * 100.0).round().min(100.0) as u8
 // }
 
+pub fn format_age(ts: &Time) -> String {
+    use chrono::{Utc, DateTime};
+
+    let now = Utc::now();
+    let created: DateTime<Utc> = ts.0;
+    let duration = now - created;
+
+    if duration.num_days() > 0 {
+        format!("{}d", duration.num_days())
+    } else if duration.num_hours() > 0 {
+        format!("{}h", duration.num_hours())
+    } else if duration.num_minutes() > 0 {
+        format!("{}m", duration.num_minutes())
+    } else {
+        format!("{}s", duration.num_seconds())
+    }
+}
+
 pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
     let client = Client::try_default().await.unwrap();
     let api: Api<Node> = Api::all(client);
@@ -196,6 +215,8 @@ pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
                             .and_then(|res| res.get("ephemeral-storage"))
                             .map(|q| q.0.clone());
 
+                        let creation_timestamp = node.metadata.creation_timestamp.clone();
+
                         initial.push(super::NodeItem {
                             name,
                             status,
@@ -205,6 +226,7 @@ pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
                             cpu_percent,
                             mem_percent,
                             storage,
+                            creation_timestamp,
                         });
                     }
                 }
@@ -260,6 +282,8 @@ pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
                             .and_then(|res| res.get("ephemeral-storage"))
                                 .map(|q| q.0.clone());
 
+                        let creation_timestamp = node.metadata.creation_timestamp.clone();
+
                         if let Some(existing) = nodes.iter_mut().find(|n| n.name == name) {
                             // renew existing node
                             existing.status = status;
@@ -268,6 +292,7 @@ pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
                             existing.cpu_percent = cpu_percent;
                             existing.mem_percent = mem_percent;
                             existing.storage = storage;
+                            existing.creation_timestamp = creation_timestamp;
                             existing.scheduling_disabled = scheduling_disabled;
                         } else {
                             // add new node
@@ -280,6 +305,7 @@ pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
                                 cpu_percent,
                                 mem_percent,
                                 storage,
+                                creation_timestamp,
                             });
                         }
                     }
@@ -326,6 +352,7 @@ pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
                             .unwrap_or_else(|| "N/A".to_string());
 
                         let namespace = ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string());
+                        let creation_timestamp = ev.metadata.creation_timestamp.clone();
 
                         initial.push(super::EventItem {
                             message,
@@ -334,6 +361,7 @@ pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
                             event_type: type_,
                             timestamp,
                             namespace,
+                            creation_timestamp,
                         });
                     }
                 }
@@ -367,6 +395,7 @@ pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
                             list.drain(0..list_len - 499);
                         }
                         let namespace = ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string());
+                        let creation_timestamp = ev.metadata.creation_timestamp.clone();
 
                         list.push(super::EventItem {
                             message,
@@ -375,6 +404,7 @@ pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
                             event_type: type_,
                             timestamp,
                             namespace,
+                            creation_timestamp,
                         });
                     }
                 }
@@ -401,7 +431,11 @@ pub async fn watch_namespaces(ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
                 watcher::Event::Init => initial.clear(),
                 watcher::Event::InitApply(ns) => {
                     if let Some(name) = ns.metadata.name {
-                        initial.push(super::NamespaceItem { name });
+                        let creation_timestamp = ns.metadata.creation_timestamp.clone();
+                        initial.push(super::NamespaceItem {
+                            name,
+                            creation_timestamp,
+                        });
                     }
                 }
                 watcher::Event::InitDone => {
@@ -416,7 +450,11 @@ pub async fn watch_namespaces(ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
                     if let Some(name) = ns.metadata.name {
                         let mut ns_vec = ns_list.lock().unwrap();
                         if !ns_vec.iter().any(|n| n.name == name) {
-                            ns_vec.push(super::NamespaceItem { name });
+                            let creation_timestamp = ns.metadata.creation_timestamp.clone();
+                            ns_vec.push(super::NamespaceItem {
+                                name,
+                                creation_timestamp,
+                            });
                         }
                     }
                 }
@@ -448,7 +486,12 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                 watcher::Event::Init => initial.clear(),
                 watcher::Event::InitApply(pod) => {
                     if let Some(name) = pod.metadata.name {
-                        initial.push(super::PodItem { name });
+                        let start_time = pod.status.as_ref().and_then(|s| s.start_time.clone());
+
+                        initial.push(super::PodItem {
+                            name,
+                            start_time,
+                        });
                     }
                 }
                 watcher::Event::InitDone => {
@@ -463,7 +506,12 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                     if let Some(name) = pod.metadata.name {
                         let mut pods_vec = pods_list.lock().unwrap();
                         if !pods_vec.iter().any(|p| p.name == name) {
-                            pods_vec.push(super::PodItem { name });
+                            let start_time = pod.status.as_ref().and_then(|s| s.start_time.clone());
+
+                            pods_vec.push(super::PodItem {
+                                name,
+                                start_time,
+                            });
                         }
                     }
                 }
