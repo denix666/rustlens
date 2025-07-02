@@ -11,6 +11,12 @@ use functions::*;
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 
+#[derive(PartialEq)]
+enum SortBy {
+    Name,
+    Age,
+}
+
 #[derive(PartialEq, Clone)]
 enum Category {
     ClusterOverview,
@@ -60,7 +66,7 @@ struct ClusterInfo {
 #[derive(Clone)]
 struct PodItem {
     name: String,
-    start_time: Option<Time>,
+    creation_timestamp: Option<Time>,
 }
 
 #[tokio::main]
@@ -79,6 +85,8 @@ async fn main() {
     }
 
     //####################################################//
+    let mut sort_by = SortBy::Name;
+    let mut sort_asc = true;
 
     let ctx_info = get_current_context_info().unwrap();
     let cluster_name = ctx_info.context.unwrap().cluster;
@@ -261,18 +269,44 @@ async fn main() {
                     let nodes = nodes.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("node_scroll").hscroll(true).show(ui, |ui| {
                         egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
+                            if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                if sort_by == SortBy::Name {
+                                    sort_asc = !sort_asc;
+                                } else {
+                                    sort_by = SortBy::Name;
+                                    sort_asc = true;
+                                }
+                            }
                             ui.label("CPU");
                             ui.label("Memory");
                             ui.label("Storage");
                             ui.label("Taints");
                             ui.label("Role");
-                            ui.label("Age");
+                            if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                if sort_by == SortBy::Age {
+                                    sort_asc = !sort_asc;
+                                } else {
+                                    sort_by = SortBy::Age;
+                                    sort_asc = true;
+                                }
+                            }
                             ui.label("Status");
                             ui.label("");
                             ui.label("Actions");
                             ui.end_row();
-                            for item in nodes.iter() {
+                            let mut sorted_nodes = nodes.clone();
+                            sorted_nodes.sort_by(|a, b| {
+                                let ord = match sort_by {
+                                    SortBy::Name => a.name.cmp(&b.name),
+                                    SortBy::Age => {
+                                        let at = a.creation_timestamp.as_ref();
+                                        let bt = b.creation_timestamp.as_ref();
+                                        at.cmp(&bt)
+                                    }
+                                };
+                                if sort_asc { ord } else { ord.reverse() }
+                            });
+                            for item in sorted_nodes.iter() {
                                 let cur_item_name = &item.name;
                                 if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
                                     ui.label(&item.name);
@@ -355,11 +389,37 @@ async fn main() {
                     let ns = namespaces.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
                         egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Age");
+                            if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                if sort_by == SortBy::Name {
+                                    sort_asc = !sort_asc;
+                                } else {
+                                    sort_by = SortBy::Name;
+                                    sort_asc = true;
+                                }
+                            }
+                            if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                if sort_by == SortBy::Age {
+                                    sort_asc = !sort_asc;
+                                } else {
+                                    sort_by = SortBy::Age;
+                                    sort_asc = true;
+                                }
+                            }
                             ui.label("Actions");
                             ui.end_row();
-                            for item in ns.iter() {
+                            let mut sorted_ns = ns.clone();
+                            sorted_ns.sort_by(|a, b| {
+                                let ord = match sort_by {
+                                    SortBy::Name => a.name.cmp(&b.name),
+                                    SortBy::Age => {
+                                        let at = a.creation_timestamp.as_ref();
+                                        let bt = b.creation_timestamp.as_ref();
+                                        at.cmp(&bt)
+                                    }
+                                };
+                                if sort_asc { ord } else { ord.reverse() }
+                            });
+                            for item in sorted_ns.iter() {
                                 let cur_item_name = &item.name;
                                 if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
                                     if ui.label(&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -401,16 +461,42 @@ async fn main() {
 
                     egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
                         egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Age");
+                            if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                if sort_by == SortBy::Name {
+                                    sort_asc = !sort_asc;
+                                } else {
+                                    sort_by = SortBy::Name;
+                                    sort_asc = true;
+                                }
+                            }
+                            if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                if sort_by == SortBy::Age {
+                                    sort_asc = !sort_asc;
+                                } else {
+                                    sort_by = SortBy::Age;
+                                    sort_asc = true;
+                                }
+                            }
                             ui.label("Actions");
                             ui.end_row();
-                            for item in pod.iter() {
+                            let mut sorted_pods = pod.clone();
+                            sorted_pods.sort_by(|a, b| {
+                                let ord = match sort_by {
+                                    SortBy::Name => a.name.cmp(&b.name),
+                                    SortBy::Age => {
+                                        let at = a.creation_timestamp.as_ref();
+                                        let bt = b.creation_timestamp.as_ref();
+                                        at.cmp(&bt)
+                                    }
+                                };
+                                if sort_asc { ord } else { ord.reverse() }
+                            });
+                            for item in sorted_pods.iter() {
                                 let cur_item_name = &item.name;
                                 if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
                                     let pod_name = item.name.clone();
                                     ui.label(&item.name);
-                                    ui.label(format_age(&item.start_time.as_ref().unwrap()));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.menu_button("⚙", |ui| {
                                         ui.set_width(200.0);
                                         if ui.button("🗑 Delete").clicked() {

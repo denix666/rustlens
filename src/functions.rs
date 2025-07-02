@@ -486,11 +486,11 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                 watcher::Event::Init => initial.clear(),
                 watcher::Event::InitApply(pod) => {
                     if let Some(name) = pod.metadata.name {
-                        let start_time = pod.status.as_ref().and_then(|s| s.start_time.clone());
+                        let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
 
                         initial.push(super::PodItem {
                             name,
-                            start_time,
+                            creation_timestamp,
                         });
                     }
                 }
@@ -506,11 +506,11 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                     if let Some(name) = pod.metadata.name {
                         let mut pods_vec = pods_list.lock().unwrap();
                         if !pods_vec.iter().any(|p| p.name == name) {
-                            let start_time = pod.status.as_ref().and_then(|s| s.start_time.clone());
+                            let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
 
                             pods_vec.push(super::PodItem {
                                 name,
-                                start_time,
+                                creation_timestamp,
                             });
                         }
                     }
