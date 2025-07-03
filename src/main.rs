@@ -1,4 +1,4 @@
-use eframe::egui::CursorIcon;
+use eframe::egui::{CursorIcon};
 use eframe::*;
 use egui::{Context, Style, TextStyle, FontId};
 use std::sync::{Arc, Mutex};
@@ -274,19 +274,12 @@ async fn main() {
                         ui.label(format!("Connected to: {}", cluster.name));
                         ui.label(format!("Cluster name: {}", cluster_name));
                         ui.label(format!("User name: {}", user_name));
-                        // if ui.button("🔄 Reconnect").clicked() {
-                        //     let cluster_info_clone = Arc::clone(&cluster_info_ui);
-                        //     tokio::spawn(async move {
-                        //         if let Ok(name) = get_cluster_name().await {
-                        //             *cluster_info_clone.lock().unwrap() = ClusterInfo { name };
-                        //         }
-                        //     });
-                        // }
                     });
                 },
                 Category::Nodes => {
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Nodes - {}    ", nodes.lock().unwrap().len()));
+                        ui.heading(format!("Nodes - {}", nodes.lock().unwrap().len()));
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_nodes).hint_text("Filter nodes...").desired_width(200.0));
                         filter_nodes = filter_nodes.to_lowercase();
                         if ui.button("ｘ").clicked() {
@@ -294,7 +287,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-
                     let nodes = nodes.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("node_scroll").hscroll(true).show(ui, |ui| {
                         egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
@@ -406,12 +398,14 @@ async fn main() {
                 },
                 Category::Namespaces => {
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Namespaces - {}   ", namespaces.lock().unwrap().len()));
+                        ui.heading(format!("Namespaces - {}", namespaces.lock().unwrap().len()));
+                        ui.separator();
                         if ui.button("➕ Add new").clicked() {
                             new_resource_window.resource_type = ResourceType::NameSpace;
                             new_resource_window.content.clear();
                             new_resource_window.show = true;
                         }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_namespaces).hint_text("Filter namespaces...").desired_width(200.0));
                         filter_namespaces = filter_namespaces.to_lowercase();
                         if ui.button("ｘ").clicked() {
@@ -419,7 +413,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-
                     let ns = namespaces.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
                         egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
@@ -472,7 +465,9 @@ async fn main() {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Pods - {}     |     Namespace - ", pods.lock().unwrap().len()));
+                        ui.heading(format!("Pods - {}", pods.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
                             for item in ns.iter() {
                                 let ns_name = &item.name;
@@ -483,6 +478,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button("➕ Add new").clicked() {
+                            new_resource_window.resource_type = ResourceType::Pod;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_pods).hint_text("Filter pods...").desired_width(200.0));
                         filter_pods = filter_pods.to_lowercase();
                         if ui.button("ｘ").clicked() {
@@ -490,9 +492,7 @@ async fn main() {
                         }
                     });
                     ui.separator();
-
                     let pod = pods.lock().unwrap();
-
                     egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
                         egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -555,6 +555,7 @@ async fn main() {
                 Category::Events => {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Events - {}", events.lock().unwrap().len()));
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_events).hint_text("Filter events...").desired_width(200.0));
                         filter_events = filter_events.to_lowercase();
                         if ui.button("ｘ").clicked() {
@@ -562,7 +563,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-
                     let events_list = events.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
                         egui::Grid::new("events_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
@@ -601,7 +601,7 @@ async fn main() {
 
         // New resource creation window
         if new_resource_window.show {
-            egui::Window::new("Create New Resource").collapsible(false).resizable(true).open(&mut true).show(ctx, |ui| {
+            egui::Window::new("Create New Resource").collapsible(false).resizable(true).show(ctx, |ui| {
                 if new_resource_window.content.is_empty() {
                     new_resource_window.content = match new_resource_window.resource_type {
                         ResourceType::NameSpace => NAMESPACE_TEMPLATE.to_string(),
@@ -634,17 +634,20 @@ async fn main() {
                             };
                         });
                 });
-
-                ui.add(egui::TextEdit::multiline(&mut new_resource_window.content)
-                    .font(egui::TextStyle::Monospace)
-                    .code_editor()
-                    .desired_rows(10)
-                    .lock_focus(true)
-                    .desired_width(f32::INFINITY),
-                );
-
+                ui.separator();
+                egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                    ui.add(egui::TextEdit::multiline(&mut new_resource_window.content)
+                        .font(egui::TextStyle::Monospace)
+                        .code_editor()
+                        .text_color(egui::Color32::LIGHT_YELLOW)
+                        .desired_rows(25)
+                        .lock_focus(true)
+                        .desired_width(f32::INFINITY),
+                    );
+                });
+                ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button("Apply").clicked() {
+                    if ui.button(egui::RichText::new("✔ Apply").size(16.0).color(egui::Color32::GREEN)).clicked() {
                         let yaml = new_resource_window.content.clone();
                         tokio::spawn(async move {
                             if let Err(e) = apply_yaml(&yaml).await {
@@ -654,7 +657,7 @@ async fn main() {
                         new_resource_window.show = false;
                     }
 
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(egui::RichText::new("🗙 Cancel").size(16.0).color(egui::Color32::RED)).clicked() {
                         new_resource_window.show = false;
                     }
                 });
