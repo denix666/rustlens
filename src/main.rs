@@ -9,6 +9,9 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 mod functions;
 use functions::*;
 
+mod templates;
+use templates::*;
+
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 
 #[derive(PartialEq)]
@@ -69,6 +72,30 @@ struct PodItem {
     creation_timestamp: Option<Time>,
 }
 
+#[derive(PartialEq)]
+enum ResourceType {
+    Blank,
+    NameSpace,
+    PersistenceVolumeClaim,
+    Pod,
+}
+
+struct NewResourceWindow {
+    resource_type: ResourceType,
+    content: String,
+    show: bool,
+}
+
+impl NewResourceWindow {
+    fn new() -> Self {
+        Self {
+            resource_type: ResourceType::Blank,
+            content: String::new(),
+            show: false,
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let mut title = String::from("RustLens v");
@@ -83,6 +110,8 @@ async fn main() {
     if let Ok(icon) = load_embedded_icon() {
         options.viewport = options.viewport.with_icon(icon);
     }
+
+    let mut new_resource_window = NewResourceWindow::new();
 
     //####################################################//
     let mut sort_by = SortBy::Name;
@@ -378,6 +407,11 @@ async fn main() {
                 Category::Namespaces => {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Namespaces - {}   ", namespaces.lock().unwrap().len()));
+                        if ui.button("➕ Add new").clicked() {
+                            new_resource_window.resource_type = ResourceType::NameSpace;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
                         ui.add(egui::TextEdit::singleline(&mut filter_namespaces).hint_text("Filter namespaces...").desired_width(200.0));
                         filter_namespaces = filter_namespaces.to_lowercase();
                         if ui.button("ｘ").clicked() {
@@ -564,6 +598,68 @@ async fn main() {
                 },
             }
         });
+
+        // New resource creation window
+        if new_resource_window.show {
+            egui::Window::new("Create New Resource").collapsible(false).resizable(true).open(&mut true).show(ctx, |ui| {
+                if new_resource_window.content.is_empty() {
+                    new_resource_window.content = match new_resource_window.resource_type {
+                        ResourceType::NameSpace => NAMESPACE_TEMPLATE.to_string(),
+                        ResourceType::Pod => POD_TEMPLATE.to_string(),
+                        ResourceType::PersistenceVolumeClaim => PVC_TEMPLATE.to_string(),
+                        ResourceType::Blank => "".to_string(),
+                    };
+                }
+
+                ui.horizontal(|ui| {
+                    ui.label("YAML Template:");
+                    egui::ComboBox::from_id_salt("templates_combo").width(150.0)
+                        .selected_text(match new_resource_window.resource_type {
+                            ResourceType::NameSpace => "NameSpace",
+                            ResourceType::Pod => "Pod",
+                            ResourceType::PersistenceVolumeClaim => "PersistenceVolumeClaim",
+                            ResourceType::Blank => "Blank",
+                        }).show_ui(ui, |ui| {
+                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::NameSpace, "NameSpace",).clicked() {
+                                new_resource_window.content = NAMESPACE_TEMPLATE.to_string();
+                            };
+                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Pod, "Pod",).clicked() {
+                                new_resource_window.content = POD_TEMPLATE.to_string();
+                            };
+                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::PersistenceVolumeClaim,"PersistenceVolumeClaim",).clicked() {
+                                new_resource_window.content = PVC_TEMPLATE.to_string();
+                            };
+                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Blank,"Blank",).clicked() {
+                                new_resource_window.content = "".to_string();
+                            };
+                        });
+                });
+
+                ui.add(egui::TextEdit::multiline(&mut new_resource_window.content)
+                    .font(egui::TextStyle::Monospace)
+                    .code_editor()
+                    .desired_rows(10)
+                    .lock_focus(true)
+                    .desired_width(f32::INFINITY),
+                );
+
+                ui.horizontal(|ui| {
+                    if ui.button("Apply").clicked() {
+                        let yaml = new_resource_window.content.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = apply_yaml(&yaml).await {
+                                println!("Error applying YAML: {:?}", e);
+                            }
+                        });
+                        new_resource_window.show = false;
+                    }
+
+                    if ui.button("Cancel").clicked() {
+                        new_resource_window.show = false;
+                    }
+                });
+            });
+        }
 
         ctx.request_repaint();
     })

@@ -5,7 +5,7 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy};
+use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy, PostParams};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 //use k8s_metrics::v1beta1::NodeMetrics;
 //use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
@@ -15,6 +15,17 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(crate::egui::IconData { rgba, width, height })
+}
+
+pub async fn apply_yaml(yaml: &str) -> Result<(), anyhow::Error> {
+    let client = Client::try_default().await?;
+    let value: serde_yaml::Value = serde_yaml::from_str(yaml)?;
+    let obj: Namespace = serde_yaml::from_value(value)?;
+
+    let api: Api<Namespace> = Api::all(client);
+    api.create(&PostParams::default(), &obj).await?;
+
+    Ok(())
 }
 
 pub fn get_current_context_info() -> Result<NamedContext, anyhow::Error> {
