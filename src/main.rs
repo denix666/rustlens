@@ -79,6 +79,7 @@ struct PodItem {
     containers: Vec<ContainerStatusItem>,
     restart_count: i32,
     node_name: Option<String>,
+    pod_has_crashloop: bool,
 }
 
 #[derive(Clone)]
@@ -575,16 +576,57 @@ async fn main() {
                                 if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
                                     let pod_name = item.name.clone();
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(&item.phase.clone().unwrap_or("-".to_string()));
+                                    let status;
+                                    let mut ready_color: Color32;
+                                    let cur_phase: &str;
+                                    if item.pod_has_crashloop {
+                                        cur_phase = "CrashLoopBackOff";
+                                    } else {
+                                        cur_phase = item.phase.as_ref().unwrap();
+                                    }
+                                    match cur_phase {
+                                        "Running" => {
+                                            status = "✅ Running".to_string();
+                                            ready_color = Color32::from_rgb(100, 255, 100); // green
+                                        },
+                                        "Pending" => {
+                                            status = "⏳ Pending".to_string();
+                                            ready_color = Color32::from_rgb(255, 165, 0); // orange
+                                        },
+                                        "Succeeded" => {
+                                            status = "✅ Completed".to_string();
+                                            ready_color = Color32::from_rgb(0, 255, 176); // green
+                                        },
+                                        "Failed" => {
+                                            status = "❌ Failed".to_string();
+                                            ready_color = Color32::from_rgb(255, 0, 0); // red
+                                        },
+                                        "CrashLoopBackOff" => {
+                                            status = "💥 CrashLoop".to_string();
+                                            ready_color = Color32::from_rgb(255, 0, 0); // red
+                                        },
+                                        "Cancelled" => {
+                                            status = "🚫 Cancelled".to_string();
+                                            ready_color = Color32::from_rgb(128, 128, 128); // gray
+                                        },
+                                        _ => {
+                                            status = "❓ Unknown".to_string();
+                                            ready_color = Color32::GRAY;
+                                        },
+                                    };
+
+                                    ui.label(egui::RichText::new(status).color(ready_color));
                                     let ready = item.ready_containers;
                                     let total = item.total_containers;
-                                    let ready_color = if ready == total {
+
+                                    ready_color = if ready == total {
                                         Color32::from_rgb(100, 255, 100) // green
                                     } else if ready == 0 {
                                         Color32::from_rgb(255, 100, 100) // red
                                     } else {
                                         Color32::from_rgb(255, 165, 0) // orange
                                     };
+
                                     ui.colored_label(ready_color, format!("{}/{}", ready, total)).on_hover_cursor(CursorIcon::PointingHand).on_hover_ui(|ui| {
                                         for container in &item.containers {
                                             let icon = match container.state.as_deref() {

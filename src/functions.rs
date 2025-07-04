@@ -517,6 +517,7 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                             let mut containers = vec![];
                             let mut ready = 0;
                             let mut restart_count = 0;
+                            let mut pod_has_crashloop = false;
                             for cs in statuses {
                                 let state = cs.state.as_ref().and_then(|s| {
                                     if s.running.is_some() {
@@ -529,6 +530,15 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                                         None
                                     }
                                 });
+
+                                let is_crashloop = cs.state.as_ref()
+                                    .and_then(|s| s.waiting.as_ref())
+                                    .and_then(|w| w.reason.clone())
+                                    .map(|r| r == "CrashLoopBackOff")
+                                    .unwrap_or(false);
+                                if is_crashloop {
+                                    pod_has_crashloop = true;
+                                }
 
                                 restart_count += cs.restart_count;
 
@@ -562,6 +572,7 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                                 containers,
                                 restart_count,
                                 node_name,
+                                pod_has_crashloop,
                             });
                         }
                     }
@@ -633,6 +644,7 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                                     let mut containers = vec![];
                                     let mut ready = 0;
                                     let mut restart_count = 0;
+                                    let mut pod_has_crashloop = false;
                                     for cs in statuses {
                                         let state = cs.state.as_ref().and_then(|s| {
                                             if s.running.is_some() {
@@ -645,6 +657,15 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                                                 None
                                             }
                                         });
+
+                                        let is_crashloop = cs.state.as_ref()
+                                            .and_then(|s| s.waiting.as_ref())
+                                            .and_then(|w| w.reason.clone())
+                                            .map(|r| r == "CrashLoopBackOff")
+                                            .unwrap_or(false);
+                                        if is_crashloop {
+                                            pod_has_crashloop = true;
+                                        }
 
                                         restart_count += cs.restart_count;
 
@@ -678,6 +699,7 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                                         containers,
                                         restart_count,
                                         node_name,
+                                        pod_has_crashloop,
                                     });
                                 }
                             }
