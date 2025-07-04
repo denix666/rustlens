@@ -6,6 +6,8 @@ It's a free and open-source user interface designed for managing Kubernetes clus
 ## Screenshot
 ![screenshot](screenshots/main_interface.png)
 
+![screenshot](screenshots/namespaces.png)
+
 ## Contributing
 Anyone is welcome to collaborate to advance the Rustlens project.
 

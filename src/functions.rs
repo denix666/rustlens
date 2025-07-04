@@ -443,9 +443,16 @@ pub async fn watch_namespaces(ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
                 watcher::Event::InitApply(ns) => {
                     if let Some(name) = ns.metadata.name {
                         let creation_timestamp = ns.metadata.creation_timestamp.clone();
+                        let phase = ns
+                            .status
+                            .as_ref()
+                            .and_then(|s| s.phase.clone());
+                        let labels = ns.metadata.labels.clone();
                         initial.push(super::NamespaceItem {
                             name,
                             creation_timestamp,
+                            phase,
+                            labels,
                         });
                     }
                 }
@@ -462,9 +469,16 @@ pub async fn watch_namespaces(ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
                         let mut ns_vec = ns_list.lock().unwrap();
                         if !ns_vec.iter().any(|n| n.name == name) {
                             let creation_timestamp = ns.metadata.creation_timestamp.clone();
+                            let phase = ns
+                                .status
+                                .as_ref()
+                                .and_then(|s| s.phase.clone());
+                            let labels = ns.metadata.labels.clone();
                             ns_vec.push(super::NamespaceItem {
                                 name,
                                 creation_timestamp,
+                                phase,
+                                labels,
                             });
                         }
                     }

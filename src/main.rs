@@ -1,6 +1,6 @@
 use eframe::egui::{CursorIcon};
 use eframe::*;
-use egui::{Context, Style, TextStyle, FontId};
+use egui::{Context, Style, TextStyle, FontId, Color32};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -58,6 +58,8 @@ struct NodeItem {
 struct NamespaceItem {
     name: String,
     creation_timestamp: Option<Time>,
+    phase: Option<String>,
+    labels: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Clone)]
@@ -397,6 +399,14 @@ async fn main() {
                     });
                 },
                 Category::Namespaces => {
+                    fn phase_color(phase: &str) -> Color32 {
+                        match phase {
+                            "Active" => Color32::GREEN,
+                            "Terminating" => Color32::RED,
+                            _ => Color32::from_rgb(0x90, 0xA4, 0xAE),          // gray (default)
+                        }
+                    }
+
                     ui.horizontal(|ui| {
                         ui.heading(format!("Namespaces - {}", namespaces.lock().unwrap().len()));
                         ui.separator();
@@ -424,6 +434,8 @@ async fn main() {
                                     sort_asc = true;
                                 }
                             }
+                            ui.label("Phase");
+                            ui.label("Labels");
                             if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 if sort_by == SortBy::Age {
                                     sort_asc = !sort_asc;
@@ -449,8 +461,22 @@ async fn main() {
                             for item in sorted_ns.iter() {
                                 let cur_item_name = &item.name;
                                 if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
-                                    if ui.label(&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if ui.colored_label(Color32::WHITE,&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
+                                    }
+                                    if let Some(phase) = &item.phase {
+                                        ui.colored_label(phase_color(phase), phase);
+                                    } else {
+                                        ui.colored_label(Color32::LIGHT_GRAY, "-");
+                                    }
+                                    if let Some(labels) = &item.labels {
+                                        let label_str = labels.iter()
+                                            .map(|(k, v)| format!("{}={}", k, v))
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        ui.label(label_str);
+                                    } else {
+                                        ui.label("-");
                                     }
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     let _ = ui.button("⚙");
