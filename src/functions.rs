@@ -512,11 +512,58 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                 watcher::Event::InitApply(pod) => {
                     if let Some(name) = pod.metadata.name {
                         let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
+                        let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
+                        if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
+                            let mut containers = vec![];
+                            let mut ready = 0;
+                            let mut restart_count = 0;
+                            for cs in statuses {
+                                let state = cs.state.as_ref().and_then(|s| {
+                                    if s.running.is_some() {
+                                        Some("Running".to_string())
+                                    } else if s.waiting.is_some() {
+                                        Some("Waiting".to_string())
+                                    } else if s.terminated.is_some() {
+                                        Some("Terminated".to_string())
+                                    } else {
+                                        None
+                                    }
+                                });
 
-                        initial.push(super::PodItem {
-                            name,
-                            creation_timestamp,
-                        });
+                                restart_count += cs.restart_count;
+
+                                let message = cs.state.as_ref().and_then(|s| {
+                                    if let Some(waiting) = &s.waiting {
+                                        waiting.message.clone()
+                                    } else if let Some(terminated) = &s.terminated {
+                                        terminated.message.clone()
+                                    } else {
+                                        None
+                                    }
+                                });
+
+                                if cs.ready {
+                                    ready += 1;
+                                }
+
+                                containers.push(super::ContainerStatusItem {
+                                    name: cs.name,
+                                    state,
+                                    message,
+                                });
+                            }
+
+                            initial.push(super::PodItem {
+                                name,
+                                phase: pod.status.as_ref().and_then(|s| s.phase.clone()),
+                                creation_timestamp,
+                                ready_containers: ready,
+                                total_containers: containers.len() as u32,
+                                containers,
+                                restart_count,
+                                node_name,
+                            });
+                        }
                     }
                 }
                 watcher::Event::InitDone => {
@@ -530,14 +577,112 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
                     }
                     if let Some(name) = pod.metadata.name {
                         let mut pods_vec = pods_list.lock().unwrap();
-                        if !pods_vec.iter().any(|p| p.name == name) {
-                            let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
+                        match pods_vec.iter_mut().find(|p| p.name == name) {
+                            Some(existing_pod) => {
+                                // renew
+                                existing_pod.phase = pod.status.as_ref().and_then(|s| s.phase.clone());
+                                existing_pod.creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
+                                if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
+                                    let mut containers = vec![];
+                                    let mut ready = 0;
 
-                            pods_vec.push(super::PodItem {
-                                name,
-                                creation_timestamp,
-                            });
+                                    for cs in statuses {
+                                        let state = cs.state.as_ref().and_then(|s| {
+                                            if s.running.is_some() {
+                                                Some("Running".to_string())
+                                            } else if s.waiting.is_some() {
+                                                Some("Waiting".to_string())
+                                            } else if s.terminated.is_some() {
+                                                Some("Terminated".to_string())
+                                            } else {
+                                                None
+                                            }
+                                        });
+
+                                        let message = cs.state.as_ref().and_then(|s| {
+                                            if let Some(waiting) = &s.waiting {
+                                                waiting.message.clone()
+                                            } else if let Some(terminated) = &s.terminated {
+                                                terminated.message.clone()
+                                            } else {
+                                                None
+                                            }
+                                        });
+
+                                        if cs.ready {
+                                            ready += 1;
+                                        }
+
+                                        containers.push(super::ContainerStatusItem {
+                                            name: cs.name,
+                                            state,
+                                            message,
+                                        });
+                                    }
+
+                                    existing_pod.ready_containers = ready;
+                                    existing_pod.total_containers = containers.len() as u32;
+                                    existing_pod.containers = containers;
+                                }
+                            }
+                            None => {
+                                // add new
+                                let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
+                                let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
+                                if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
+                                    let mut containers = vec![];
+                                    let mut ready = 0;
+                                    let mut restart_count = 0;
+                                    for cs in statuses {
+                                        let state = cs.state.as_ref().and_then(|s| {
+                                            if s.running.is_some() {
+                                                Some("Running".to_string())
+                                            } else if s.waiting.is_some() {
+                                                Some("Waiting".to_string())
+                                            } else if s.terminated.is_some() {
+                                                Some("Terminated".to_string())
+                                            } else {
+                                                None
+                                            }
+                                        });
+
+                                        restart_count += cs.restart_count;
+
+                                        let message = cs.state.as_ref().and_then(|s| {
+                                            if let Some(waiting) = &s.waiting {
+                                                waiting.message.clone()
+                                            } else if let Some(terminated) = &s.terminated {
+                                                terminated.message.clone()
+                                            } else {
+                                                None
+                                            }
+                                        });
+
+                                        if cs.ready {
+                                            ready += 1;
+                                        }
+
+                                        containers.push(super::ContainerStatusItem {
+                                            name: cs.name,
+                                            state,
+                                            message,
+                                        });
+                                    }
+
+                                    pods_vec.push(super::PodItem {
+                                        name,
+                                        phase: pod.status.as_ref().and_then(|s| s.phase.clone()),
+                                        creation_timestamp,
+                                        ready_containers: ready,
+                                        total_containers: containers.len() as u32,
+                                        containers,
+                                        restart_count,
+                                        node_name,
+                                    });
+                                }
+                            }
                         }
+
                     }
                 }
                 watcher::Event::Delete(pod) => {

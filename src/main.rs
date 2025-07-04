@@ -13,6 +13,8 @@ mod templates;
 use templates::*;
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
+const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50);
+const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36);
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -67,11 +69,23 @@ struct ClusterInfo {
     name: String,
 }
 
-
 #[derive(Clone)]
 struct PodItem {
     name: String,
     creation_timestamp: Option<Time>,
+    phase: Option<String>,
+    ready_containers: u32,
+    total_containers: u32,
+    containers: Vec<ContainerStatusItem>,
+    restart_count: i32,
+    node_name: Option<String>,
+}
+
+#[derive(Clone)]
+struct ContainerStatusItem {
+    name: String,
+    state: Option<String>, // e.g. "Running", "Terminated", "Waiting"
+    message: Option<String>,
 }
 
 #[derive(PartialEq)]
@@ -410,7 +424,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Namespaces - {}", namespaces.lock().unwrap().len()));
                         ui.separator();
-                        if ui.button("➕ Add new").clicked() {
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
                             new_resource_window.resource_type = ResourceType::NameSpace;
                             new_resource_window.content.clear();
                             new_resource_window.show = true;
@@ -418,7 +432,7 @@ async fn main() {
                         ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_namespaces).hint_text("Filter namespaces...").desired_width(200.0));
                         filter_namespaces = filter_namespaces.to_lowercase();
-                        if ui.button("ｘ").clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
                             filter_namespaces.clear();
                         }
                     });
@@ -505,7 +519,7 @@ async fn main() {
                             }
                         });
                         ui.separator();
-                        if ui.button("➕ Add new").clicked() {
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
                             new_resource_window.resource_type = ResourceType::Pod;
                             new_resource_window.content.clear();
                             new_resource_window.show = true;
@@ -513,7 +527,7 @@ async fn main() {
                         ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_pods).hint_text("Filter pods...").desired_width(200.0));
                         filter_pods = filter_pods.to_lowercase();
-                        if ui.button("ｘ").clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
                             filter_pods.clear();
                         }
                     });
@@ -529,6 +543,8 @@ async fn main() {
                                     sort_asc = true;
                                 }
                             }
+                            ui.label("Status");
+                            ui.label("Containers");
                             if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 if sort_by == SortBy::Age {
                                     sort_asc = !sort_asc;
@@ -537,6 +553,8 @@ async fn main() {
                                     sort_asc = true;
                                 }
                             }
+                            ui.label("Restarts");
+                            ui.label("Node");
                             ui.label("Actions");
                             ui.end_row();
                             let mut sorted_pods = pod.clone();
@@ -553,10 +571,53 @@ async fn main() {
                             });
                             for item in sorted_pods.iter() {
                                 let cur_item_name = &item.name;
-                                if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
+                                let running_on_node = &item.node_name.as_ref().unwrap();
+                                if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
                                     let pod_name = item.name.clone();
-                                    ui.label(&item.name);
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(&item.phase.clone().unwrap_or("-".to_string()));
+                                    let ready = item.ready_containers;
+                                    let total = item.total_containers;
+                                    let ready_color = if ready == total {
+                                        Color32::from_rgb(100, 255, 100) // green
+                                    } else if ready == 0 {
+                                        Color32::from_rgb(255, 100, 100) // red
+                                    } else {
+                                        Color32::from_rgb(255, 165, 0) // orange
+                                    };
+                                    ui.colored_label(ready_color, format!("{}/{}", ready, total)).on_hover_cursor(CursorIcon::PointingHand).on_hover_ui(|ui| {
+                                        for container in &item.containers {
+                                            let icon = match container.state.as_deref() {
+                                                Some("Running") => "✅",
+                                                Some("Waiting") => "⏳",
+                                                Some("Terminated") => "❌",
+                                                _ => "❔",
+                                            };
+
+                                            let state_str = container.state.as_deref().unwrap_or("Unknown");
+
+                                            ui.horizontal(|ui| {
+                                                ui.label(format!("{} {}", icon, container.name));
+                                                ui.label(egui::RichText::new(state_str).color(match state_str {
+                                                    "Running" => egui::Color32::GREEN,
+                                                    "Waiting" => egui::Color32::YELLOW,
+                                                    "Terminated" => egui::Color32::RED,
+                                                    _ => egui::Color32::LIGHT_GRAY,
+                                                }));
+                                            });
+
+                                            if let Some(msg) = &container.message {
+                                                ui.label(egui::RichText::new(format!("💬 {}", msg)).italics().color(egui::Color32::GRAY));
+                                            }
+                                        }
+                                    });
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    if item.restart_count > 0 {
+                                        ui.label(egui::RichText::new(format!("{}", item.restart_count)).color(egui::Color32::ORANGE));
+                                    } else {
+                                        ui.label(egui::RichText::new(format!("Never")).color(egui::Color32::GRAY));
+                                    }
+                                    ui.label(item.node_name.clone().unwrap_or("-".into()));
                                     ui.menu_button("⚙", |ui| {
                                         ui.set_width(200.0);
                                         if ui.button("🗑 Delete").clicked() {
@@ -584,7 +645,7 @@ async fn main() {
                         ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_events).hint_text("Filter events...").desired_width(200.0));
                         filter_events = filter_events.to_lowercase();
-                        if ui.button("ｘ").clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
                             filter_events.clear();
                         }
                     });
