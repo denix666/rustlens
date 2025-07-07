@@ -97,6 +97,32 @@ enum ResourceType {
     Pod,
 }
 
+struct LogWindow {
+    // pod_name: String,
+    // containers: Vec<ContainerStatusItem>,
+    show: bool,
+    // namespace: String,
+    // selected_container: String,
+    buffer: Arc<Mutex<String>>,
+    // last_container: Option<String>,
+    // task_handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl LogWindow {
+    fn new() -> Self {
+        Self {
+            // pod_name: String::new(),
+            // containers: Vec::new(),
+            // selected_container: String::new(),
+            // namespace: String::new(),
+            show: false,
+            buffer: Arc::new(Mutex::new(String::new())),
+            // last_container: None,
+            // task_handle: None,
+        }
+    }
+}
+
 struct NewResourceWindow {
     resource_type: ResourceType,
     content: String,
@@ -119,7 +145,7 @@ async fn main() {
     title.push_str(env!("CARGO_PKG_VERSION"));
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1500.0, 600.0])
+            .with_inner_size([1600.0, 600.0])
             .with_maximize_button(false),
         ..Default::default()
     };
@@ -129,6 +155,7 @@ async fn main() {
     }
 
     let mut new_resource_window = NewResourceWindow::new();
+    let mut log_window = LogWindow::new();
 
     //####################################################//
     let mut sort_by = SortBy::Name;
@@ -574,7 +601,6 @@ async fn main() {
                                 let cur_item_name = &item.name;
                                 let running_on_node = &item.node_name.as_ref().unwrap();
                                 if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
-                                    let pod_name = item.name.clone();
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     let status;
                                     let mut ready_color: Color32;
@@ -662,12 +688,25 @@ async fn main() {
                                     ui.label(item.node_name.clone().unwrap_or("-".into()));
                                     ui.menu_button("⚙", |ui| {
                                         ui.set_width(200.0);
+                                        let cur_pod = item.name.clone();
+                                        let cur_ns = selected_ns.clone();
                                         if ui.button("🗑 Delete").clicked() {
-                                            let cur_ns = selected_ns.clone();
                                             tokio::spawn(async move {
-                                                if let Err(err) = delete_pod(&pod_name, cur_ns.as_deref(), true).await {
+                                                if let Err(err) = delete_pod(&cur_pod.clone(), cur_ns.as_deref(), true).await {
                                                     eprintln!("Failed to delete pod: {}", err);
                                                 }
+                                            });
+                                            ui.close_menu();
+                                        }
+                                        if ui.button("📃 Logs").clicked() {
+                                            log_window.buffer = Arc::new(Mutex::new(String::new()));
+                                            let buf_clone = Arc::clone(&log_window.buffer);
+                                            log_window.show = true;
+                                            tokio::spawn(async move {
+                                                fetch_logs(
+                                                "monitoring",
+                                                 "gen-dashboard-app-0",
+                                                "gen-dashboard-app-container", buf_clone).await;
                                             });
                                             ui.close_menu();
                                         }
@@ -790,6 +829,41 @@ async fn main() {
                         new_resource_window.show = false;
                     }
                 });
+            });
+        }
+
+        if log_window.show {
+            egui::Window::new("Logs")
+                .show(ctx, |ui| {
+                    // ui.horizontal(|ui| {
+                    //     ui.label("Container:");
+                    //     egui::ComboBox::from_id_salt("containers_combo")
+                    //         .selected_text(&log_window.selected_container)
+                    //         .width(150.0)
+                    //         .show_ui(ui, |ui| {
+                    //             for container in &log_window.containers {
+                    //                 ui.selectable_value(
+                    //                     &mut log_window.selected_container,
+                    //                     container.name.clone(),
+                    //                     &container.name,
+                    //                 );
+                    //             }
+                    //         });
+                    // });
+
+                    let mut buf = log_window.buffer.lock().unwrap();
+                    ui.add(
+                        egui::TextEdit::multiline(&mut *buf)
+                            .font(egui::TextStyle::Monospace)
+                            .desired_rows(20)
+                            .desired_width(f32::INFINITY)
+                            .code_editor(),
+                    );
+
+                    ui.separator();
+                    if ui.button("🗙 Close").clicked() {
+                        log_window.show = false;
+                    }
             });
         }
 

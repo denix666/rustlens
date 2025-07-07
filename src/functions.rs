@@ -1,3 +1,4 @@
+use futures::AsyncBufReadExt;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
@@ -5,10 +6,8 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy, PostParams};
+use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy, PostParams, LogParams};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-//use k8s_metrics::v1beta1::NodeMetrics;
-//use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let img = image::load_from_memory(super::ICON_BYTES).map_err(|e| e.to_string())?.into_rgba8();
@@ -716,6 +715,31 @@ pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns:
             },
             Err(e) => {
                 eprintln!("Pods watch error: {:?}", e);
+            }
+        }
+    }
+}
+
+pub async fn fetch_logs(namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
+    let client = Client::try_default().await.unwrap();
+    let pods: Api<Pod> = Api::namespaced(client, namespace);
+
+    let mut log_lines = pods.log_stream(&pod_name, &LogParams {
+        follow: true,
+        container: Some(container_name.to_string()),
+        ..Default::default()
+    }).await.unwrap().lines();
+
+    while let Some(line) = log_lines.next().await {
+        match line {
+            Ok(text) => {
+                let mut buf = buffer.lock().unwrap();
+                buf.push_str(&text);
+                buf.push('\n');
+            }
+            Err(e) => {
+                eprintln!("log error: {:?}", e);
+                break;
             }
         }
     }
