@@ -3,10 +3,12 @@ use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
+use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy, PostParams, LogParams};
+use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
+use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 
 
@@ -492,6 +494,66 @@ pub async fn watch_namespaces(ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
             },
             Err(e) => {
                 eprintln!("Namespace watch error: {:?}", e);
+            }
+        }
+    }
+}
+
+fn convert_deployment_to_item(deploy: Deployment) -> super::DeploymentItem {
+    let name = deploy.metadata.name.unwrap_or_default();
+    let namespace = deploy.metadata.namespace.unwrap_or_else(|| "default".to_string());
+    let status = deploy.status.unwrap_or_default();
+
+    super::DeploymentItem {
+        name,
+        namespace,
+        ready_replicas: status.ready_replicas.unwrap_or(0),
+        available_replicas: status.available_replicas.unwrap_or(0),
+        updated_replicas: status.updated_replicas.unwrap_or(0),
+        replicas: status.replicas.unwrap_or(0),
+        creation_timestamp: deploy.metadata.creation_timestamp,
+    }
+}
+
+pub async fn watch_deployments(deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>, selected_ns: String) {
+    let client = Client::try_default().await.unwrap();
+    let api: Api<Deployment> = Api::namespaced(client, &selected_ns);
+    let mut watcher_stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = watcher_stream.next().await {
+        match event {
+            Ok(watch_event) => match watch_event {
+                WatcherEvent::Init => initial.clear(),
+
+                WatcherEvent::InitApply(deploy) => {
+                    let item = convert_deployment_to_item(deploy);
+                    initial.push(item);
+                }
+
+                WatcherEvent::InitDone => {
+                    let mut list = deployments_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+
+                WatcherEvent::Apply(deploy) => {
+                    if !initialized {
+                        continue;
+                    }
+
+                    let item = convert_deployment_to_item(deploy);
+                    let mut list = deployments_list.lock().unwrap();
+
+                    list.push(item);
+                }
+
+                WatcherEvent::Delete(_) => {}
+            },
+            Err(e) => {
+                eprintln!("Deployment watch error: {:?}", e);
             }
         }
     }

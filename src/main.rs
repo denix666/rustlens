@@ -45,6 +45,17 @@ struct EventItem {
 }
 
 #[derive(Clone)]
+pub struct DeploymentItem {
+    pub name: String,
+    pub namespace: String,
+    pub ready_replicas: i32,
+    pub available_replicas: i32,
+    pub updated_replicas: i32,
+    pub replicas: i32,
+    pub creation_timestamp: Option<Time>,
+}
+
+#[derive(Clone)]
 struct NodeItem {
     name: String,
     status: String, // "Ready", "NotReady", "Unknown"
@@ -174,6 +185,7 @@ async fn main() {
     let mut filter_nodes = String::new();
     let mut filter_pods = String::new();
     let mut filter_events = String::new();
+    let mut filter_deployments = String::new();
 
     let cluster_info = Arc::new(Mutex::new(ClusterInfo {
         name: "unknown".to_string(),
@@ -190,6 +202,39 @@ async fn main() {
     let events_clone = Arc::clone(&events);
     tokio::spawn(async move {
         watch_events(events_clone).await;
+    });
+
+    let deployments = Arc::new(Mutex::new(Vec::new()));
+    let deployments_clone = Arc::clone(&deployments);
+    let deployments_watcher_ns = Arc::clone(&selected_namespace);
+    tokio::spawn(async move {
+        let mut last_ns = String::new();
+
+        loop {
+            // get current namespace or "default"
+            let ns = deployments_watcher_ns
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_else(|| "default".to_string());
+
+            if ns != last_ns {
+                // clear old deployments
+                deployments_clone.lock().unwrap().clear();
+
+                // run new watcher
+                let deployments_clone = Arc::clone(&deployments_clone);
+                let ns_clone = ns.clone();
+
+                tokio::spawn(async move {
+                    watch_deployments(deployments_clone ,ns_clone).await;
+                });
+
+                last_ns = ns;
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
     });
 
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
@@ -730,7 +775,51 @@ async fn main() {
                     });
                 },
                 Category::Deployments => {
-                    ui.heading("Deployments (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Deployments - {}", events.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_deployments).hint_text("Filter deployments...").desired_width(200.0));
+                        filter_deployments = filter_deployments.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_deployments.clear();
+                        }
+                    });
+                    ui.separator();
+                    let deployments_list = deployments.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
+                        egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Ready");
+                            ui.label("Desired");
+                            ui.label("Up-to-date");
+                            ui.label("Available");
+                            ui.end_row();
+                            for item in deployments_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+                                    ui.label(format!("{}", &item.replicas));
+                                    ui.label(format!("{}", &item.updated_replicas));
+                                    ui.label(format!("{}", &item.available_replicas));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::Events => {
                     ui.horizontal(|ui| {
