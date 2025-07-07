@@ -155,8 +155,7 @@ pub fn format_age(ts: &Time) -> String {
     }
 }
 
-pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
-    let client = Client::try_default().await.unwrap();
+pub async fn watch_nodes(client: Client, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
     let api: Api<Node> = Api::all(client);
     let mut node_stream = watcher(api, watcher::Config::default()).boxed();
 
@@ -337,8 +336,8 @@ pub async fn watch_nodes(nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
     }
 }
 
-pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
-    let client = Client::try_default().await.unwrap();
+pub async fn watch_events(client: Client, events_list: Arc<Mutex<Vec<super::EventItem>>>) {
+    //let client = Client::try_default().await.unwrap();
     let api: Api<Event> = Api::all(client);
     let mut event_stream = watcher(api, watcher::Config::default()).boxed();
 
@@ -430,8 +429,7 @@ pub async fn watch_events(events_list: Arc<Mutex<Vec<super::EventItem>>>) {
     }
 }
 
-pub async fn watch_namespaces(ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
-    let client = Client::try_default().await.unwrap();
+pub async fn watch_namespaces(client: Client, ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
     let api: Api<Namespace> = Api::all(client);
     let mut ns_stream = watcher(api, watcher::Config::default()).boxed();
 
@@ -636,8 +634,7 @@ pub async fn watch_secrets(secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, sel
     }
 }
 
-pub async fn watch_pods(pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns: String) {
-    let client = Client::try_default().await.unwrap();
+pub async fn watch_pods(client: Client, pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns: String) {
     let api: Api<Pod> = Api::namespaced(client, &selected_ns);
     let mut pod_stream = watcher(api, watcher::Config::default()).boxed();
 

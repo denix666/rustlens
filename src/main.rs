@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use kube::Client;
 
 mod functions;
 use functions::*;
@@ -198,6 +199,8 @@ async fn main() {
     let mut filter_deployments = String::new();
     let mut filter_secrets = String::new();
 
+    let k8_client = Client::try_default().await.expect("Failed to create k8s client");
+
     let cluster_info = Arc::new(Mutex::new(ClusterInfo {
         name: "unknown".to_string(),
     }));
@@ -211,8 +214,9 @@ async fn main() {
 
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
     let events_clone = Arc::clone(&events);
+    let client_clone = k8_client.clone();
     tokio::spawn(async move {
-        watch_events(events_clone).await;
+        watch_events(client_clone, events_clone).await;
     });
 
     let deployments = Arc::new(Mutex::new(Vec::new()));
@@ -271,7 +275,7 @@ async fn main() {
                 let ns_clone = ns.clone();
 
                 tokio::spawn(async move {
-                    watch_secrets(secrets_clone ,ns_clone).await;
+                    watch_secrets(secrets_clone, ns_clone).await;
                 });
 
                 last_ns = ns;
@@ -283,15 +287,18 @@ async fn main() {
 
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
     let node_clone = Arc::clone(&nodes);
+    let client_clone = k8_client.clone();
     tokio::spawn(async move {
-        watch_nodes(node_clone).await;
+        watch_nodes(client_clone, node_clone).await;
     });
 
     let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
     let ns_clone = Arc::clone(&namespaces);
+    let client_clone = k8_client.clone();
     tokio::spawn(async move {
-        watch_namespaces(ns_clone).await;
+        watch_namespaces(client_clone, ns_clone).await;
     });
+
 
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
     let pod_watcher_ns = Arc::clone(&selected_namespace);
@@ -315,8 +322,9 @@ async fn main() {
                 let pod_list_clone = Arc::clone(&pod_watcher_list);
                 let ns_clone = ns.clone();
 
+                let client_clone = k8_client.clone();
                 tokio::spawn(async move {
-                    watch_pods(pod_list_clone, ns_clone).await;
+                    watch_pods(client_clone, pod_list_clone, ns_clone).await;
                 });
 
                 last_ns = ns;
