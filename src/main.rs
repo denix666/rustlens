@@ -27,10 +27,20 @@ enum SortBy {
 enum Category {
     ClusterOverview,
     Nodes,
+    Secrets,
     Namespaces,
     Pods,
     Deployments,
     Events,
+}
+
+#[derive(Clone, Debug)]
+pub struct SecretItem {
+    pub name: String,
+    pub labels: String,
+    pub keys: String,
+    pub type_: String,
+    pub age: String,
 }
 
 #[derive(Clone)]
@@ -186,6 +196,7 @@ async fn main() {
     let mut filter_pods = String::new();
     let mut filter_events = String::new();
     let mut filter_deployments = String::new();
+    let mut filter_secrets = String::new();
 
     let cluster_info = Arc::new(Mutex::new(ClusterInfo {
         name: "unknown".to_string(),
@@ -228,6 +239,39 @@ async fn main() {
 
                 tokio::spawn(async move {
                     watch_deployments(deployments_clone ,ns_clone).await;
+                });
+
+                last_ns = ns;
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+
+    let secrets = Arc::new(Mutex::new(Vec::new()));
+    let secrets_clone = Arc::clone(&secrets);
+    let secrets_watcher_ns = Arc::clone(&selected_namespace);
+    tokio::spawn(async move {
+        let mut last_ns = String::new();
+
+        loop {
+            // get current namespace or "default"
+            let ns = secrets_watcher_ns
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_else(|| "default".to_string());
+
+            if ns != last_ns {
+                // clear old secrets
+                secrets_clone.lock().unwrap().clear();
+
+                // run new watcher
+                let secrets_clone = Arc::clone(&secrets_clone);
+                let ns_clone = ns.clone();
+
+                tokio::spawn(async move {
+                    watch_secrets(secrets_clone ,ns_clone).await;
                 });
 
                 last_ns = ns;
@@ -331,7 +375,9 @@ async fn main() {
 
             egui::CollapsingHeader::new("🛠 Config").default_open(true).show(ui, |ui| {
                 ui.label("🗺 ConfigMaps");
-                ui.label("🕵 Secrets");
+                if ui.selectable_label(current == Category::Secrets, "🕵 Secrets").clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::Secrets;
+                }
             });
 
             egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
@@ -815,6 +861,53 @@ async fn main() {
                                     ui.label(format!("{}", &item.replicas));
                                     ui.label(format!("{}", &item.updated_replicas));
                                     ui.label(format!("{}", &item.available_replicas));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
+                },
+                Category::Secrets => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Secrets - {}", events.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter secrets...").desired_width(200.0));
+                        filter_secrets = filter_secrets.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_secrets.clear();
+                        }
+                    });
+                    ui.separator();
+                    let secrets_list = secrets.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
+                        egui::Grid::new("v_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Labels");
+                            ui.label("Keys");
+                            ui.label("Type");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in secrets_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.name));
+                                    ui.label(format!("{}", &item.labels));
+                                    ui.label(format!("{}", &item.keys));
+                                    ui.label(format!("{}", &item.age));
                                     ui.end_row();
                                 }
                             }

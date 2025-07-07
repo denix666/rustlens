@@ -1,8 +1,9 @@
 use futures::AsyncBufReadExt;
+use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
-use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event};
+use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret};
 use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
@@ -10,6 +11,7 @@ use serde_json::json;
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use chrono::{Utc, DateTime};
 
 
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
@@ -138,8 +140,6 @@ pub async fn drain_node(node_name: &str) -> anyhow::Result<()> {
 // }
 
 pub fn format_age(ts: &Time) -> String {
-    use chrono::{Utc, DateTime};
-
     let now = Utc::now();
     let created: DateTime<Utc> = ts.0;
     let duration = now - created;
@@ -555,6 +555,83 @@ pub async fn watch_deployments(deployments_list: Arc<Mutex<Vec<super::Deployment
             Err(e) => {
                 eprintln!("Deployment watch error: {:?}", e);
             }
+        }
+    }
+}
+
+fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
+    let name = secret.name().unwrap().to_string();
+    let labels = secret
+        .metadata
+        .labels
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let keys = secret
+        .data
+        .as_ref()
+        .map(|d| d.keys().cloned().collect::<Vec<_>>().join(", "))
+        .unwrap_or_else(|| "-".into());
+
+    let type_ = secret.type_.unwrap_or_else(|| "-".into());
+
+    let age = secret
+        .metadata
+        .creation_timestamp
+        .as_ref()
+        .map(|ts| {
+            let now: DateTime<Utc> = Utc::now();
+            let duration = now - ts.0;
+            format!("{}d", duration.num_days())
+        })
+        .unwrap_or_else(|| "-".into());
+
+    Some(super::SecretItem {
+        name,
+        labels,
+        keys,
+        type_,
+        age,
+    })
+}
+
+pub async fn watch_secrets(secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, selected_ns: String) {
+    let client = Client::try_default().await.unwrap();
+    let secrets: Api<Secret> = Api::namespaced(client, &selected_ns);
+    let mut stream = watcher(secrets, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                watcher::Event::Init => initial.clear(),
+                watcher::Event::InitApply(secret) => {
+                    if let Some(item) = convert_secret(secret) {
+                        initial.push(item);
+                    }
+                }
+                watcher::Event::InitDone => {
+                    let mut list = secrets_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                watcher::Event::Apply(secret) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_secret(secret) {
+                        let mut list = secrets_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                watcher::Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("Secret watch error: {:?}", e),
         }
     }
 }
