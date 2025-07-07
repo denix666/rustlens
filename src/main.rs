@@ -325,7 +325,7 @@ async fn main() {
                         ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_nodes).hint_text("Filter nodes...").desired_width(200.0));
                         filter_nodes = filter_nodes.to_lowercase();
-                        if ui.button("ｘ").clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
                             filter_nodes.clear();
                         }
                     });
@@ -890,7 +890,7 @@ async fn main() {
                     });
 
                     ui.separator();
-                    if ui.button("🗙 Close").clicked() {
+                    if ui.button(egui::RichText::new("🗙 Close logs window").size(16.0).color(egui::Color32::WHITE)).clicked() {
                         log_window.show = false;
                     }
             });

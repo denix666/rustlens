@@ -9,6 +9,7 @@ use serde_json::json;
 use kube::api::{Patch, PatchParams, ListParams, DeleteParams, PropagationPolicy, PostParams, LogParams};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 
+
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let img = image::load_from_memory(super::ICON_BYTES).map_err(|e| e.to_string())?.into_rgba8();
     let (width, height) = img.dimensions();
@@ -724,11 +725,22 @@ pub async fn fetch_logs(namespace: &str, pod_name: &str, container_name: &str, b
     let client = Client::try_default().await.unwrap();
     let pods: Api<Pod> = Api::namespaced(client, namespace);
 
-    let mut log_lines = pods.log_stream(&pod_name, &LogParams {
-        follow: true,
-        container: Some(container_name.to_string()),
-        ..Default::default()
-    }).await.unwrap().lines();
+    let lp = &LogParams { tail_lines: Some(super::MAX_LOG_LINES as i64), container: Some(container_name.to_string()),..Default::default() };
+    match pods.logs(pod_name, lp).await {
+        Ok(initial) => {
+            buffer.lock().unwrap().clear();
+            let mut buf = buffer.lock().unwrap();
+            *buf = initial;
+            buf.push('\n');
+        }
+        Err(e) => eprintln!("failed to get initial logs: {:?}", e),
+    }
+
+    let lp = &LogParams { follow: true, container: Some(container_name.to_string()), since_seconds: Some(1), ..Default::default() };
+    let mut log_lines = pods.log_stream(pod_name, lp)
+        .await
+        .unwrap()
+        .lines();
 
     while let Some(line) = log_lines.next().await {
         match line {
@@ -736,16 +748,14 @@ pub async fn fetch_logs(namespace: &str, pod_name: &str, container_name: &str, b
                 let mut buf = buffer.lock().unwrap();
                 let mut lines: Vec<&str> = buf.lines().collect();
                 lines.push(&text);
-
                 if lines.len() > super::MAX_LOG_LINES {
                     lines = lines[lines.len() - super::MAX_LOG_LINES..].to_vec();
                 }
-
                 *buf = lines.join("\n");
                 buf.push('\n');
             }
             Err(e) => {
-                eprintln!("log error: {:?}", e);
+                eprintln!("log stream error: {:?}", e);
                 break;
             }
         }
