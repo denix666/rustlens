@@ -1,6 +1,6 @@
 use eframe::egui::{CursorIcon};
 use eframe::*;
-use egui::{Context, Style, TextStyle, FontId, Color32};
+use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -15,6 +15,7 @@ use templates::*;
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50);
 const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36);
+const MAX_LOG_LINES: usize = 7;
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -98,27 +99,25 @@ enum ResourceType {
 }
 
 struct LogWindow {
-    // pod_name: String,
-    // containers: Vec<ContainerStatusItem>,
+    pod_name: String,
+    containers: Vec<ContainerStatusItem>,
     show: bool,
-    // namespace: String,
-    // selected_container: String,
+    namespace: String,
+    selected_container: String,
     buffer: Arc<Mutex<String>>,
-    // last_container: Option<String>,
-    // task_handle: Option<tokio::task::JoinHandle<()>>,
+    last_container: Option<String>,
 }
 
 impl LogWindow {
     fn new() -> Self {
         Self {
-            // pod_name: String::new(),
-            // containers: Vec::new(),
-            // selected_container: String::new(),
-            // namespace: String::new(),
+            pod_name: String::new(),
+            containers: Vec::new(),
+            selected_container: String::new(),
+            namespace: String::new(),
             show: false,
             buffer: Arc::new(Mutex::new(String::new())),
-            // last_container: None,
-            // task_handle: None,
+            last_container: None,
         }
     }
 }
@@ -688,9 +687,10 @@ async fn main() {
                                     ui.label(item.node_name.clone().unwrap_or("-".into()));
                                     ui.menu_button("⚙", |ui| {
                                         ui.set_width(200.0);
-                                        let cur_pod = item.name.clone();
-                                        let cur_ns = selected_ns.clone();
                                         if ui.button("🗑 Delete").clicked() {
+                                            let cur_pod = item.name.clone();
+                                            let cur_ns = selected_ns.clone();
+
                                             tokio::spawn(async move {
                                                 if let Err(err) = delete_pod(&cur_pod.clone(), cur_ns.as_deref(), true).await {
                                                     eprintln!("Failed to delete pod: {}", err);
@@ -699,14 +699,26 @@ async fn main() {
                                             ui.close_menu();
                                         }
                                         if ui.button("📃 Logs").clicked() {
+                                            let cur_pod = item.name.clone();
+                                            log_window.pod_name = item.name.clone();
+
+                                            let cur_ns = selected_ns.clone();
+                                            log_window.namespace = selected_ns.clone().unwrap();
+
+                                            let cur_container = item.containers[0].name.clone();
+                                            log_window.selected_container = item.containers[0].name.clone();
+                                            log_window.last_container = None;
+
+                                            log_window.containers = item.containers.clone();
+
                                             log_window.buffer = Arc::new(Mutex::new(String::new()));
                                             let buf_clone = Arc::clone(&log_window.buffer);
                                             log_window.show = true;
                                             tokio::spawn(async move {
                                                 fetch_logs(
-                                                "monitoring",
-                                                 "gen-dashboard-app-0",
-                                                "gen-dashboard-app-container", buf_clone).await;
+                                                cur_ns.unwrap().as_str(),
+                                                 cur_pod.as_str(),
+                                                cur_container.as_str(), buf_clone).await;
                                             });
                                             ui.close_menu();
                                         }
@@ -835,30 +847,47 @@ async fn main() {
         if log_window.show {
             egui::Window::new("Logs")
                 .show(ctx, |ui| {
-                    // ui.horizontal(|ui| {
-                    //     ui.label("Container:");
-                    //     egui::ComboBox::from_id_salt("containers_combo")
-                    //         .selected_text(&log_window.selected_container)
-                    //         .width(150.0)
-                    //         .show_ui(ui, |ui| {
-                    //             for container in &log_window.containers {
-                    //                 ui.selectable_value(
-                    //                     &mut log_window.selected_container,
-                    //                     container.name.clone(),
-                    //                     &container.name,
-                    //                 );
-                    //             }
-                    //         });
-                    // });
+                    ui.horizontal(|ui| {
+                        ui.label("Container:");
+                        egui::ComboBox::from_id_salt("containers_combo")
+                            .selected_text(&log_window.selected_container)
+                            .width(150.0)
+                            .show_ui(ui, |ui| {
+                                for container in &log_window.containers {
+                                    ui.selectable_value(
+                                        &mut log_window.selected_container,
+                                        container.name.clone(),
+                                        &container.name,
+                                    );
+                                }
+                            });
+                    });
 
-                    let mut buf = log_window.buffer.lock().unwrap();
-                    ui.add(
-                        egui::TextEdit::multiline(&mut *buf)
-                            .font(egui::TextStyle::Monospace)
-                            .desired_rows(20)
-                            .desired_width(f32::INFINITY)
-                            .code_editor(),
-                    );
+                    if log_window.last_container.as_ref() != Some(&log_window.selected_container) {
+                        log_window.last_container = Some(log_window.selected_container.clone());
+                        let buf_clone = Arc::clone(&log_window.buffer);
+                        let cur_ns = log_window.namespace.clone();
+                        let cur_pod = log_window.pod_name.clone();
+                        let cur_container = log_window.selected_container.clone();
+                        tokio::spawn(async move {
+                            fetch_logs(
+                            &cur_ns,
+                             &cur_pod,
+                            &cur_container, buf_clone).await;
+                        });
+                    }
+
+                    ScrollArea::vertical().show(ui, |ui| {
+                        if let Ok(logs) = log_window.buffer.lock() {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut logs.clone())
+                                    .font(TextStyle::Monospace)
+                                    .desired_rows(MAX_LOG_LINES)
+                                    .desired_width(f32::INFINITY)
+                                    .code_editor()
+                            );
+                        }
+                    });
 
                     ui.separator();
                     if ui.button("🗙 Close").clicked() {

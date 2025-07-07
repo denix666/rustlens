@@ -734,7 +734,14 @@ pub async fn fetch_logs(namespace: &str, pod_name: &str, container_name: &str, b
         match line {
             Ok(text) => {
                 let mut buf = buffer.lock().unwrap();
-                buf.push_str(&text);
+                let mut lines: Vec<&str> = buf.lines().collect();
+                lines.push(&text);
+
+                if lines.len() > super::MAX_LOG_LINES {
+                    lines = lines[lines.len() - super::MAX_LOG_LINES..].to_vec();
+                }
+
+                *buf = lines.join("\n");
                 buf.push('\n');
             }
             Err(e) => {
