@@ -35,6 +35,12 @@ enum Category {
     Events,
     ConfigMaps,
     StatefulSets,
+    ReplicaSets,
+    Jobs,
+    CronJobs,
+    Services,
+    Endpoints,
+    Ingresses,
 }
 
 #[derive(Debug, Clone)]
@@ -345,65 +351,87 @@ async fn main() {
         ctx.set_style(style);
 
         egui::SidePanel::left("tasks panel").resizable(false).exact_width(280.0).show(ctx, |ui| {
-            let current = selected_category_ui.lock().unwrap().clone();
+            egui::ScrollArea::vertical().id_salt("menu_scroll").show(ui, |ui| {
+                let current = selected_category_ui.lock().unwrap().clone();
 
-            egui::CollapsingHeader::new("☸ Cluster").default_open(true).show(ui, |ui| {
-                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::ClusterOverview,"🗠 Overview",).clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::ClusterOverview;
-                }
+                egui::CollapsingHeader::new("☸ Cluster").default_open(true).show(ui, |ui| {
+                    if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::ClusterOverview,"🗠 Overview",).clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ClusterOverview;
+                    }
 
-                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Nodes,"💻 Nodes",).clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::Nodes;
-                }
+                    if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Nodes,"💻 Nodes",).clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Nodes;
+                    }
 
-                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Namespaces,"☰ Namespaces",).clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::Namespaces;
-                }
+                    if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Namespaces,"☰ Namespaces",).clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Namespaces;
+                    }
 
-                if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Events,"🕓 Events",).clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::Events;
-                }
-            });
+                    if ui.selectable_label(*selected_category_ui.lock().unwrap() == Category::Events,"🕓 Events",).clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Events;
+                    }
+                });
 
-            egui::CollapsingHeader::new("📦 Workloads").default_open(true).show(ui, |ui| {
-                if ui.selectable_label(current == Category::Pods, "📚 Pods").clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::Pods;
-                }
+                egui::CollapsingHeader::new("📦 Workloads").default_open(true).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::Pods, "📚 Pods").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Pods;
+                    }
 
-                if ui.selectable_label(current == Category::Deployments, "📃 Deployments").clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::Deployments;
-                }
+                    if ui.selectable_label(current == Category::Deployments, "📃 Deployments").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Deployments;
+                    }
 
-                if ui.selectable_label(current == Category::StatefulSets, "📚 StatefulSets").clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::StatefulSets;
-                }
-            });
+                    if ui.selectable_label(current == Category::StatefulSets, "📚 StatefulSets").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::StatefulSets;
+                    }
 
-            egui::CollapsingHeader::new("🛠 Config").default_open(true).show(ui, |ui| {
-                if ui.selectable_label(current == Category::ConfigMaps, "🗺 ConfigMaps").clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::ConfigMaps;
-                }
+                    if ui.selectable_label(current == Category::ReplicaSets, "📜 ReplicaSets").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ReplicaSets;
+                    }
 
-                if ui.selectable_label(current == Category::Secrets, "🕵 Secrets").clicked() {
-                    *selected_category_ui.lock().unwrap() = Category::Secrets;
-                }
-            });
+                    if ui.selectable_label(current == Category::Jobs, "💼 Jobs").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Jobs;
+                    }
 
-            egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
-                ui.label("💢 Services");
-                ui.label("⛺ Endpoints");
-                ui.label("⤵ Ingresses");
-            });
+                    if ui.selectable_label(current == Category::CronJobs, "📅 CronJobs").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::CronJobs;
+                    }
+                });
 
-            egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
-                ui.label("⛃ PersistentVolumeClaims");
-                ui.label("🗄 PersistentVolumes");
-                ui.label("⛭ StorageClasses");
-            });
+                egui::CollapsingHeader::new("🛠 Config").default_open(true).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::ConfigMaps, "🗺 ConfigMaps").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ConfigMaps;
+                    }
 
-            egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
-                ui.label("📰 Charts");
-                ui.label("📥 Releases");
+                    if ui.selectable_label(current == Category::Secrets, "🕵 Secrets").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Secrets;
+                    }
+                });
+
+                egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::Services, "💢 Services").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Services;
+                    }
+
+                    if ui.selectable_label(current == Category::Endpoints, "⛺ Endpoints").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Endpoints;
+                    }
+
+                    if ui.selectable_label(current == Category::Ingresses, "⤵ Ingresses").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Ingresses;
+                    }
+                });
+
+                egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
+                    ui.label("⛃ PersistentVolumeClaims");
+                    ui.label("🗄 PersistentVolumes");
+                    ui.label("⛭ StorageClasses");
+                });
+
+                egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
+                    ui.label("📰 Charts");
+                    ui.label("📥 Releases");
+                });
             });
         });
 
@@ -418,6 +446,24 @@ async fn main() {
                         ui.label(format!("Cluster name: {}", cluster_name));
                         ui.label(format!("User name: {}", user_name));
                     });
+                },
+                Category::ReplicaSets => {
+                    ui.heading("ReplicaSets (TODO)");
+                },
+                Category::Ingresses => {
+                    ui.heading("Ingresses (TODO)");
+                },
+                Category::Endpoints => {
+                    ui.heading("Endpoints (TODO)");
+                },
+                Category::Jobs => {
+                    ui.heading("Jobs (TODO)");
+                },
+                Category::Services => {
+                    ui.heading("Services (TODO)");
+                },
+                Category::CronJobs => {
+                    ui.heading("CronJobs (TODO)");
                 },
                 Category::StatefulSets => {
                     let ns = namespaces.lock().unwrap();
