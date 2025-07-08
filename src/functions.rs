@@ -12,6 +12,8 @@ use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostPar
 use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
+use std::{time::Duration};
+use tokio::{time::sleep};
 
 
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
@@ -155,8 +157,8 @@ pub fn format_age(ts: &Time) -> String {
     }
 }
 
-pub async fn watch_nodes(client: Client, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
-    let api: Api<Node> = Api::all(client);
+pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
+    let api: Api<Node> = Api::all(client.as_ref().clone());
     let mut node_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -336,9 +338,8 @@ pub async fn watch_nodes(client: Client, nodes_list: Arc<Mutex<Vec<super::NodeIt
     }
 }
 
-pub async fn watch_events(client: Client, events_list: Arc<Mutex<Vec<super::EventItem>>>) {
-    //let client = Client::try_default().await.unwrap();
-    let api: Api<Event> = Api::all(client);
+pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super::EventItem>>>) {
+    let api: Api<Event> = Api::all(client.as_ref().clone());
     let mut event_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -429,8 +430,8 @@ pub async fn watch_events(client: Client, events_list: Arc<Mutex<Vec<super::Even
     }
 }
 
-pub async fn watch_namespaces(client: Client, ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
-    let api: Api<Namespace> = Api::all(client);
+pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
+    let api: Api<Namespace> = Api::all(client.as_ref().clone());
     let mut ns_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -513,9 +514,8 @@ fn convert_deployment_to_item(deploy: Deployment) -> super::DeploymentItem {
     }
 }
 
-pub async fn watch_deployments(deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>, selected_ns: String) {
-    let client = Client::try_default().await.unwrap();
-    let api: Api<Deployment> = Api::namespaced(client, &selected_ns);
+pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>, selected_ns: String) {
+    let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), &selected_ns);
     let mut watcher_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -596,9 +596,49 @@ fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
     })
 }
 
-pub async fn watch_secrets(secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, selected_ns: String) {
-    let client = Client::try_default().await.unwrap();
-    let secrets: Api<Secret> = Api::namespaced(client, &selected_ns);
+type WatchFn<T> = Arc<dyn Fn(Arc<Client>, Arc<T>, String) + Send + Sync>;
+pub fn spawn_namespace_watcher_loop<T: Send + Sync + 'static>(
+    client: Arc<Client>,
+    data: Arc<T>,
+    selected_namespace: Arc<Mutex<Option<String>>>,
+    watch_fn: WatchFn<T>,
+    interval: Duration,
+) {
+    let data_outer = Arc::clone(&data);
+    let namespace_outer = Arc::clone(&selected_namespace);
+    let client_outer = Arc::clone(&client);
+    let watch_fn = Arc::clone(&watch_fn);
+
+    tokio::spawn(async move {
+        let mut last_ns = String::new();
+
+        loop {
+            let ns = namespace_outer
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_else(|| "default".to_string());
+
+            if ns != last_ns {
+                let data_clone = Arc::clone(&data_outer);
+                let client_clone = Arc::clone(&client_outer);
+                let fn_clone = Arc::clone(&watch_fn);
+                let ns_clone = ns.clone();
+
+                tokio::spawn(async move {
+                    (fn_clone)(client_clone, data_clone, ns_clone);
+                });
+
+                last_ns = ns;
+            }
+
+            sleep(interval).await;
+        }
+    });
+}
+
+pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, selected_ns: String) {
+    let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), &selected_ns);
     let mut stream = watcher(secrets, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -634,8 +674,8 @@ pub async fn watch_secrets(secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, sel
     }
 }
 
-pub async fn watch_pods(client: Client, pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns: String) {
-    let api: Api<Pod> = Api::namespaced(client, &selected_ns);
+pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns: String) {
+    let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), &selected_ns);
     let mut pod_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -857,9 +897,9 @@ pub async fn watch_pods(client: Client, pods_list: Arc<Mutex<Vec<super::PodItem>
     }
 }
 
-pub async fn fetch_logs(namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
-    let client = Client::try_default().await.unwrap();
-    let pods: Api<Pod> = Api::namespaced(client, namespace);
+pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
+    //let client = Client::try_default().await.unwrap();
+    let pods: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);
 
     let lp = &LogParams { tail_lines: Some(super::MAX_LOG_LINES as i64), container: Some(container_name.to_string()),..Default::default() };
     match pods.logs(pod_name, lp).await {

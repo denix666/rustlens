@@ -3,7 +3,6 @@ use eframe::*;
 use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::time::sleep;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use kube::Client;
 
@@ -199,7 +198,8 @@ async fn main() {
     let mut filter_deployments = String::new();
     let mut filter_secrets = String::new();
 
-    let k8_client = Client::try_default().await.expect("Failed to create k8s client");
+    // Client connection
+    let client = Arc::new(Client::try_default().await.unwrap());
 
     let cluster_info = Arc::new(Mutex::new(ClusterInfo {
         name: "unknown".to_string(),
@@ -212,127 +212,72 @@ async fn main() {
         }
     });
 
+    // EVENTS
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
     let events_clone = Arc::clone(&events);
-    let client_clone = k8_client.clone();
+    let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
         watch_events(client_clone, events_clone).await;
     });
 
+    // DEPLOYMENTS
     let deployments = Arc::new(Mutex::new(Vec::new()));
-    let deployments_clone = Arc::clone(&deployments);
-    let deployments_watcher_ns = Arc::clone(&selected_namespace);
-    tokio::spawn(async move {
-        let mut last_ns = String::new();
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&deployments),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, deployments, ns| {
+            tokio::spawn(async move {
+                watch_deployments(client, deployments, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
 
-        loop {
-            // get current namespace or "default"
-            let ns = deployments_watcher_ns
-                .lock()
-                .unwrap()
-                .clone()
-                .unwrap_or_else(|| "default".to_string());
-
-            if ns != last_ns {
-                // clear old deployments
-                deployments_clone.lock().unwrap().clear();
-
-                // run new watcher
-                let deployments_clone = Arc::clone(&deployments_clone);
-                let ns_clone = ns.clone();
-
-                tokio::spawn(async move {
-                    watch_deployments(deployments_clone ,ns_clone).await;
-                });
-
-                last_ns = ns;
-            }
-
-            sleep(Duration::from_secs(1)).await;
-        }
-    });
-
+    // SECRETS
     let secrets = Arc::new(Mutex::new(Vec::new()));
-    let secrets_clone = Arc::clone(&secrets);
-    let secrets_watcher_ns = Arc::clone(&selected_namespace);
-    tokio::spawn(async move {
-        let mut last_ns = String::new();
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&secrets),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, secrets, ns| {
+            tokio::spawn(async move {
+                watch_secrets(client, secrets, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
 
-        loop {
-            // get current namespace or "default"
-            let ns = secrets_watcher_ns
-                .lock()
-                .unwrap()
-                .clone()
-                .unwrap_or_else(|| "default".to_string());
-
-            if ns != last_ns {
-                // clear old secrets
-                secrets_clone.lock().unwrap().clear();
-
-                // run new watcher
-                let secrets_clone = Arc::clone(&secrets_clone);
-                let ns_clone = ns.clone();
-
-                tokio::spawn(async move {
-                    watch_secrets(secrets_clone, ns_clone).await;
-                });
-
-                last_ns = ns;
-            }
-
-            sleep(Duration::from_secs(1)).await;
-        }
-    });
-
+    // NODES
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
     let node_clone = Arc::clone(&nodes);
-    let client_clone = k8_client.clone();
+    let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
         watch_nodes(client_clone, node_clone).await;
     });
 
+    // NAMESPACES
     let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
     let ns_clone = Arc::clone(&namespaces);
-    let client_clone = k8_client.clone();
+    let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
         watch_namespaces(client_clone, ns_clone).await;
     });
 
 
+    // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    let pod_watcher_ns = Arc::clone(&selected_namespace);
-    let pod_watcher_list = Arc::clone(&pods);
-    tokio::spawn(async move {
-        let mut last_ns = String::new();
-
-        loop {
-            // get current namespace or "default"
-            let ns = pod_watcher_ns
-                .lock()
-                .unwrap()
-                .clone()
-                .unwrap_or_else(|| "default".to_string());
-
-            if ns != last_ns {
-                // clear old pods
-                pod_watcher_list.lock().unwrap().clear();
-
-                // run new watcher
-                let pod_list_clone = Arc::clone(&pod_watcher_list);
-                let ns_clone = ns.clone();
-
-                let client_clone = k8_client.clone();
-                tokio::spawn(async move {
-                    watch_pods(client_clone, pod_list_clone, ns_clone).await;
-                });
-
-                last_ns = ns;
-            }
-
-            sleep(Duration::from_secs(1)).await;
-        }
-    });
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&pods),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, pods, ns| {
+            tokio::spawn(async move {
+                watch_pods(client, pods, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         // Setup style
@@ -813,8 +758,9 @@ async fn main() {
                                             log_window.buffer = Arc::new(Mutex::new(String::new()));
                                             let buf_clone = Arc::clone(&log_window.buffer);
                                             log_window.show = true;
+                                            let client_clone = Arc::clone(&client);
                                             tokio::spawn(async move {
-                                                fetch_logs(
+                                                fetch_logs(client_clone,
                                                 cur_ns.unwrap().as_str(),
                                                  cur_pod.as_str(),
                                                 cur_container.as_str(), buf_clone).await;
@@ -1059,8 +1005,9 @@ async fn main() {
                         let cur_ns = log_window.namespace.clone();
                         let cur_pod = log_window.pod_name.clone();
                         let cur_container = log_window.selected_container.clone();
+                        let client_clone = Arc::clone(&client);
                         tokio::spawn(async move {
-                            fetch_logs(
+                            fetch_logs(client_clone,
                             &cur_ns,
                              &cur_pod,
                             &cur_container, buf_clone).await;
