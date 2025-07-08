@@ -3,7 +3,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
-use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret};
+use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap};
 use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
@@ -635,6 +635,63 @@ pub fn spawn_namespace_watcher_loop<T: Send + Sync + 'static>(
             sleep(interval).await;
         }
     });
+}
+
+pub fn convert_configmap(cm: ConfigMap) -> Option<super::ConfigMapItem> {
+    let age = cm
+        .metadata
+        .creation_timestamp
+        .as_ref()
+        .map(|ts| {
+            let now: DateTime<Utc> = Utc::now();
+            let duration = now - ts.0;
+            format!("{}d", duration.num_days())
+        })
+        .unwrap_or_else(|| "-".into());
+    Some(super::ConfigMapItem {
+        name: cm.metadata.name.clone()?,
+        labels: cm.metadata.labels.unwrap_or_default(),
+        keys: cm.data.as_ref().map(|d| d.keys().cloned().collect()).unwrap_or_default(),
+        type_: "Opaque".to_string(),
+        age: age,
+    })
+}
+
+pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Vec<super::ConfigMapItem>>>, selected_ns: String) {
+    let cms: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(cms, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                watcher::Event::Init => initial.clear(),
+                watcher::Event::InitApply(cm) => {
+                    if let Some(item) = convert_configmap(cm) {
+                        initial.push(item);
+                    }
+                }
+                watcher::Event::InitDone => {
+                    let mut list = configmaps_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                watcher::Event::Apply(cm) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_configmap(cm) {
+                        let mut list = configmaps_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                watcher::Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("ConfigMap watch error: {:?}", e),
+        }
+    }
 }
 
 pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, selected_ns: String) {

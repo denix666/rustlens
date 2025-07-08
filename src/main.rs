@@ -1,6 +1,7 @@
 use eframe::egui::{CursorIcon};
 use eframe::*;
 use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
@@ -32,15 +33,26 @@ enum Category {
     Pods,
     Deployments,
     Events,
+    ConfigMaps,
+    StatefulSets,
 }
 
 #[derive(Clone, Debug)]
 pub struct SecretItem {
-    pub name: String,
-    pub labels: String,
-    pub keys: String,
-    pub type_: String,
-    pub age: String,
+    name: String,
+    labels: String,
+    keys: String,
+    type_: String,
+    age: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigMapItem {
+    name: String,
+    labels: BTreeMap<String, String>,
+    keys: Vec<String>,
+    type_: String,
+    age: String,
 }
 
 #[derive(Clone)]
@@ -56,13 +68,13 @@ struct EventItem {
 
 #[derive(Clone)]
 pub struct DeploymentItem {
-    pub name: String,
-    pub namespace: String,
-    pub ready_replicas: i32,
-    pub available_replicas: i32,
-    pub updated_replicas: i32,
-    pub replicas: i32,
-    pub creation_timestamp: Option<Time>,
+    name: String,
+    namespace: String,
+    ready_replicas: i32,
+    available_replicas: i32,
+    updated_replicas: i32,
+    replicas: i32,
+    creation_timestamp: Option<Time>,
 }
 
 #[derive(Clone)]
@@ -248,6 +260,20 @@ async fn main() {
         Duration::from_secs(1),
     );
 
+    // CONFIGMAPS
+    let configmaps = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&configmaps),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, configmaps, ns| {
+            tokio::spawn(async move {
+                watch_configmaps(client, configmaps, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
     // NODES
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
     let node_clone = Arc::clone(&nodes);
@@ -324,10 +350,17 @@ async fn main() {
                 if ui.selectable_label(current == Category::Deployments, "📃 Deployments").clicked() {
                     *selected_category_ui.lock().unwrap() = Category::Deployments;
                 }
+
+                if ui.selectable_label(current == Category::StatefulSets, "📚 StatefulSets").clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::StatefulSets;
+                }
             });
 
             egui::CollapsingHeader::new("🛠 Config").default_open(true).show(ui, |ui| {
-                ui.label("🗺 ConfigMaps");
+                if ui.selectable_label(current == Category::ConfigMaps, "🗺 ConfigMaps").clicked() {
+                    *selected_category_ui.lock().unwrap() = Category::ConfigMaps;
+                }
+
                 if ui.selectable_label(current == Category::Secrets, "🕵 Secrets").clicked() {
                     *selected_category_ui.lock().unwrap() = Category::Secrets;
                 }
@@ -340,7 +373,7 @@ async fn main() {
             });
 
             egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
-                ui.label("📃 PersistentVolumeClaims");
+                ui.label("⛃ PersistentVolumeClaims");
                 ui.label("🗄 PersistentVolumes");
                 ui.label("⛭ StorageClasses");
             });
@@ -362,6 +395,9 @@ async fn main() {
                         ui.label(format!("Cluster name: {}", cluster_name));
                         ui.label(format!("User name: {}", user_name));
                     });
+                },
+                Category::StatefulSets => {
+                    ui.heading("TODO");
                 },
                 Category::Nodes => {
                     ui.horizontal(|ui| {
@@ -778,7 +814,7 @@ async fn main() {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Deployments - {}", events.lock().unwrap().len()));
+                        ui.heading(format!("Deployments - {}", deployments.lock().unwrap().len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -802,19 +838,23 @@ async fn main() {
                     egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
                         egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
+                            ui.label("NameSpace");
                             ui.label("Ready");
                             ui.label("Desired");
                             ui.label("Up-to-date");
                             ui.label("Available");
+                            ui.label("Age");
                             ui.end_row();
                             for item in deployments_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.namespace));
                                     ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                     ui.label(format!("{}", &item.replicas));
                                     ui.label(format!("{}", &item.updated_replicas));
                                     ui.label(format!("{}", &item.available_replicas));
+                                    ui.label(format!("{:?}", &item.creation_timestamp));
                                     ui.end_row();
                                 }
                             }
@@ -825,7 +865,7 @@ async fn main() {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Secrets - {}", events.lock().unwrap().len()));
+                        ui.heading(format!("Secrets - {}", secrets.lock().unwrap().len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -847,7 +887,7 @@ async fn main() {
                     ui.separator();
                     let secrets_list = secrets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
-                        egui::Grid::new("v_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                        egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
                             ui.label("Labels");
                             ui.label("Keys");
@@ -858,9 +898,56 @@ async fn main() {
                                 let cur_item_object = &item.name;
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.name));
                                     ui.label(format!("{}", &item.labels));
                                     ui.label(format!("{}", &item.keys));
+                                    ui.label(format!("{}", &item.type_));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
+                },
+                Category::ConfigMaps => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("ConfigMaps - {}", configmaps.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter configmaps...").desired_width(200.0));
+                        filter_secrets = filter_secrets.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_secrets.clear();
+                        }
+                    });
+                    ui.separator();
+                    let configmaps_list = configmaps.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
+                        egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Labels");
+                            ui.label("Keys");
+                            ui.label("Type");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in configmaps_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{:?}", &item.labels));
+                                    ui.label(format!("{}", &item.keys.join(", ")));
+                                    ui.label(format!("{}", &item.type_));
                                     ui.label(format!("{}", &item.age));
                                     ui.end_row();
                                 }
