@@ -4,23 +4,30 @@ use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap};
-use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::apps::v1::{Deployment, StatefulSet};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
+use kube::api::{DeleteParams, ListParams, LogParams, ObjectMeta, Patch, PatchParams, PostParams, PropagationPolicy};
 use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
 use std::{time::Duration};
 use tokio::{time::sleep};
 
-
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let img = image::load_from_memory(super::ICON_BYTES).map_err(|e| e.to_string())?.into_rgba8();
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(crate::egui::IconData { rgba, width, height })
+}
+
+fn get_age(metadata: ObjectMeta) -> String {
+    metadata.creation_timestamp.as_ref().map(|ts| {
+        let now: DateTime<Utc> = Utc::now();
+        let duration = now - ts.0;
+        format!("{}d", duration.num_days())
+    }).unwrap_or_else(|| "-".into())
 }
 
 pub async fn apply_yaml(yaml: &str) -> Result<(), anyhow::Error> {
@@ -498,6 +505,56 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
     }
 }
 
+pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
+    let age = get_age(ss.metadata.clone());
+    Some(super::StatefulSetItem {
+        name: ss.metadata.name.clone()?,
+        labels: ss.metadata.labels.unwrap_or_default(),
+        replicas: ss.spec.as_ref()?.replicas.unwrap_or(0),
+        ready_replicas: ss.status.as_ref()?.ready_replicas.unwrap_or(0),
+        age: age,
+    })
+}
+
+pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<super::StatefulSetItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+
+    let api: Api<StatefulSet> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(ss) => {
+                    if let Some(item) = convert_statefulset(ss) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = ss_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(ss) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_statefulset(ss) {
+                        let mut list = ss_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("StatefulSet watch error: {:?}", e),
+        }
+    }
+}
+
 fn convert_deployment_to_item(deploy: Deployment) -> super::DeploymentItem {
     let name = deploy.metadata.name.unwrap_or_default();
     let namespace = deploy.metadata.namespace.unwrap_or_else(|| "default".to_string());
@@ -638,16 +695,7 @@ pub fn spawn_namespace_watcher_loop<T: Send + Sync + 'static>(
 }
 
 pub fn convert_configmap(cm: ConfigMap) -> Option<super::ConfigMapItem> {
-    let age = cm
-        .metadata
-        .creation_timestamp
-        .as_ref()
-        .map(|ts| {
-            let now: DateTime<Utc> = Utc::now();
-            let duration = now - ts.0;
-            format!("{}d", duration.num_days())
-        })
-        .unwrap_or_else(|| "-".into());
+    let age = get_age(cm.metadata.clone());
     Some(super::ConfigMapItem {
         name: cm.metadata.name.clone()?,
         labels: cm.metadata.labels.unwrap_or_default(),
@@ -955,7 +1003,6 @@ pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::Pod
 }
 
 pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
-    //let client = Client::try_default().await.unwrap();
     let pods: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);
 
     let lp = &LogParams { tail_lines: Some(super::MAX_LOG_LINES as i64), container: Some(container_name.to_string()),..Default::default() };

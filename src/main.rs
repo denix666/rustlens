@@ -37,6 +37,15 @@ enum Category {
     StatefulSets,
 }
 
+#[derive(Debug, Clone)]
+pub struct StatefulSetItem {
+    name: String,
+    labels: BTreeMap<String, String>,
+    replicas: i32,
+    ready_replicas: i32,
+    age: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct SecretItem {
     name: String,
@@ -232,6 +241,20 @@ async fn main() {
         watch_events(client_clone, events_clone).await;
     });
 
+    // STATEFULSETS
+    let statefulsets = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&statefulsets),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, ss, ns| {
+            tokio::spawn(async move {
+                watch_statefulsets(client, ss, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
     // DEPLOYMENTS
     let deployments = Arc::new(Mutex::new(Vec::new()));
     spawn_namespace_watcher_loop(
@@ -397,7 +420,49 @@ async fn main() {
                     });
                 },
                 Category::StatefulSets => {
-                    ui.heading("TODO");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("StatefulSets - {}", statefulsets.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter statefulsets...").desired_width(200.0));
+                        filter_secrets = filter_secrets.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_secrets.clear();
+                        }
+                    });
+                    ui.separator();
+                    let secrets_list = statefulsets.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
+                        egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Ready");
+                            ui.label("Age");
+                            ui.label("Labels");
+                            ui.end_row();
+                            for item in secrets_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format!("{:?}", &item.labels));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::Nodes => {
                     ui.horizontal(|ui| {
@@ -889,19 +954,19 @@ async fn main() {
                     egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
                         egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
-                            ui.label("Labels");
-                            ui.label("Keys");
                             ui.label("Type");
                             ui.label("Age");
+                            ui.label("Labels");
+                            ui.label("Keys");
                             ui.end_row();
                             for item in secrets_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.labels));
-                                    ui.label(format!("{}", &item.keys));
                                     ui.label(format!("{}", &item.type_));
                                     ui.label(format!("{}", &item.age));
+                                    ui.label(format!("{}", &item.labels));
+                                    ui.label(format!("{}", &item.keys));
                                     ui.end_row();
                                 }
                             }
@@ -936,19 +1001,19 @@ async fn main() {
                     egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
                         egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
-                            ui.label("Labels");
-                            ui.label("Keys");
                             ui.label("Type");
                             ui.label("Age");
+                            ui.label("Labels");
+                            ui.label("Keys");
                             ui.end_row();
                             for item in configmaps_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{:?}", &item.labels));
-                                    ui.label(format!("{}", &item.keys.join(", ")));
                                     ui.label(format!("{}", &item.type_));
                                     ui.label(format!("{}", &item.age));
+                                    ui.label(format!("{:?}", &item.labels));
+                                    ui.label(format!("{}", &item.keys.join(", ")));
                                     ui.end_row();
                                 }
                             }
