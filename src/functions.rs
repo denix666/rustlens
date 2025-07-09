@@ -4,7 +4,7 @@ use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap};
-use k8s_openapi::api::apps::v1::{Deployment, StatefulSet};
+use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -505,12 +505,64 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
     }
 }
 
+pub fn convert_replicaset(rs: ReplicaSet) -> Option<super::ReplicaSetItem> {
+    let age = get_age(rs.metadata.clone());
+    Some(super::ReplicaSetItem {
+        name: rs.metadata.name.clone()?,
+        labels: rs.metadata.labels.unwrap_or_default(),
+        desired: rs.spec.as_ref()?.replicas.unwrap_or(0),
+        current: rs.status.as_ref()?.replicas,
+        ready: rs.status.as_ref()?.ready_replicas.unwrap_or(0),
+        age: age,
+    })
+}
+
+pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super::ReplicaSetItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(rs) => {
+                    if let Some(item) = convert_replicaset(rs) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = rs_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(rs) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_replicaset(rs) {
+                        let mut list = rs_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("ReplicaSet watch error: {:?}", e),
+        }
+    }
+}
+
 pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
     let age = get_age(ss.metadata.clone());
+    let spec = ss.spec.unwrap();
     Some(super::StatefulSetItem {
         name: ss.metadata.name.clone()?,
         labels: ss.metadata.labels.unwrap_or_default(),
-        replicas: ss.spec.as_ref()?.replicas.unwrap_or(0),
+        service_name: spec.service_name.unwrap_or("-".to_string()),
+        replicas: spec.replicas.unwrap_or(0),
         ready_replicas: ss.status.as_ref()?.ready_replicas.unwrap_or(0),
         age: age,
     })

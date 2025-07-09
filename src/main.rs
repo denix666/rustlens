@@ -46,9 +46,20 @@ enum Category {
 #[derive(Debug, Clone)]
 pub struct StatefulSetItem {
     name: String,
-    labels: BTreeMap<String, String>,
+    pub labels: BTreeMap<String, String>,
     replicas: i32,
+    service_name: String,
     ready_replicas: i32,
+    age: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplicaSetItem {
+    name: String,
+    pub labels: BTreeMap<String, String>,
+    desired: i32,
+    current: i32,
+    ready: i32,
     age: String,
 }
 
@@ -223,7 +234,9 @@ async fn main() {
     let mut filter_pods = String::new();
     let mut filter_events = String::new();
     let mut filter_deployments = String::new();
+    let mut filter_replicasets = String::new();
     let mut filter_secrets = String::new();
+    let mut filter_statefulsets = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -256,6 +269,20 @@ async fn main() {
         Arc::new(|client, ss, ns| {
             tokio::spawn(async move {
                 watch_statefulsets(client, ss, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
+    // REPLICASETS
+    let replicasets = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&replicasets),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, rs, ns| {
+            tokio::spawn(async move {
+                watch_replicasets(client, rs, ns).await;
             });
         }),
         Duration::from_secs(1),
@@ -448,7 +475,51 @@ async fn main() {
                     });
                 },
                 Category::ReplicaSets => {
-                    ui.heading("ReplicaSets (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("ReplicaSets - {}", replicasets.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_replicasets).hint_text("Filter replicasets...").desired_width(200.0));
+                        filter_replicasets = filter_replicasets.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_replicasets.clear();
+                        }
+                    });
+                    ui.separator();
+                    let replicasets_list = replicasets.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("replicasets_scroll").show(ui, |ui| {
+                        egui::Grid::new("replicasets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Desired");
+                            ui.label("Current");
+                            ui.label("Ready");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in replicasets_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_replicasets.is_empty() || cur_item_object.contains(&filter_replicasets) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.desired));
+                                    ui.label(format!("{}", &item.current));
+                                    ui.label(format!("{}", &item.ready));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::Ingresses => {
                     ui.heading("Ingresses (TODO)");
@@ -482,28 +553,28 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter statefulsets...").desired_width(200.0));
-                        filter_secrets = filter_secrets.to_lowercase();
+                        ui.add(egui::TextEdit::singleline(&mut filter_statefulsets).hint_text("Filter statefulsets...").desired_width(200.0));
+                        filter_statefulsets = filter_statefulsets.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
-                            filter_secrets.clear();
+                            filter_statefulsets.clear();
                         }
                     });
                     ui.separator();
-                    let secrets_list = statefulsets.lock().unwrap();
+                    let statefulsets_list = statefulsets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
                         egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
                             ui.label("Ready");
+                            ui.label("Service name");
                             ui.label("Age");
-                            ui.label("Labels");
                             ui.end_row();
-                            for item in secrets_list.iter().rev().take(200) {
+                            for item in statefulsets_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
-                                if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                if filter_statefulsets.is_empty() || cur_item_object.contains(&filter_statefulsets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+                                    ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
                                     ui.label(format!("{}", &item.age));
-                                    ui.label(format!("{:?}", &item.labels));
                                     ui.end_row();
                                 }
                             }
