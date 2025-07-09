@@ -473,7 +473,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.desired));
                                     ui.label(format!("{}", &item.current));
                                     ui.label(format!("{}", &item.ready));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -512,7 +512,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.reclaim_policy));
                                     ui.label(format!("{}", &item.volume_binding_mode));
                                     ui.label(format!("{}", &item.is_default));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -549,7 +549,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.capacity));
                                     ui.label(format!("{}", &item.claim));
                                     ui.label(format!("{}", &item.status));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -598,7 +598,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.volume_name));
                                     ui.label(format!("{}", &item.size));
                                     ui.label(format!("{}", &item.status));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -646,7 +646,7 @@ async fn main() {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     ui.label(format!("{}", &item.completions));
                                     ui.label(format!("{:?}", &item.conditions));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -697,7 +697,7 @@ async fn main() {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                     ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -877,8 +877,8 @@ async fn main() {
                                 let ord = match sort_by {
                                     SortBy::Name => a.name.cmp(&b.name),
                                     SortBy::Age => {
-                                        let at = a.creation_timestamp.as_ref();
-                                        let bt = b.creation_timestamp.as_ref();
+                                        let at = &a.creation_timestamp;
+                                        let bt = &b.creation_timestamp;
                                         at.cmp(&bt)
                                     }
                                 };
@@ -1159,7 +1159,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.replicas));
                                     ui.label(format!("{}", &item.updated_replicas));
                                     ui.label(format!("{}", &item.available_replicas));
-                                    ui.label(format!("{:?}", &item.creation_timestamp));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
                             }
@@ -1204,7 +1204,7 @@ async fn main() {
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     ui.label(format!("{}", &item.type_));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.label(format!("{}", &item.labels));
                                     ui.label(format!("{}", &item.keys));
                                     ui.end_row();
@@ -1251,7 +1251,7 @@ async fn main() {
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     ui.label(format!("{}", &item.type_));
-                                    ui.label(format!("{}", &item.age));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.label(format!("{:?}", &item.labels));
                                     ui.label(format!("{}", &item.keys.join(", ")));
                                     ui.end_row();

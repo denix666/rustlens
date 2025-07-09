@@ -10,7 +10,7 @@ use k8s_openapi::api::batch::v1::{Job};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
-use kube::api::{DeleteParams, ListParams, LogParams, ObjectMeta, Patch, PatchParams, PostParams, PropagationPolicy};
+use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
@@ -24,12 +24,61 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     Ok(crate::egui::IconData { rgba, width, height })
 }
 
-fn get_age(metadata: ObjectMeta) -> String {
-    metadata.creation_timestamp.as_ref().map(|ts| {
-        let now: DateTime<Utc> = Utc::now();
-        let duration = now - ts.0;
+type WatchFn<T> = Arc<dyn Fn(Arc<Client>, Arc<T>, String) + Send + Sync>;
+pub fn spawn_namespace_watcher_loop<T: Send + Sync + 'static>(
+    client: Arc<Client>,
+    data: Arc<T>,
+    selected_namespace: Arc<Mutex<Option<String>>>,
+    watch_fn: WatchFn<T>,
+    interval: Duration,
+) {
+    let data_outer = Arc::clone(&data);
+    let namespace_outer = Arc::clone(&selected_namespace);
+    let client_outer = Arc::clone(&client);
+    let watch_fn = Arc::clone(&watch_fn);
+
+    tokio::spawn(async move {
+        let mut last_ns = String::new();
+
+        loop {
+            let ns = namespace_outer
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_else(|| "default".to_string());
+
+            if ns != last_ns {
+                let data_clone = Arc::clone(&data_outer);
+                let client_clone = Arc::clone(&client_outer);
+                let fn_clone = Arc::clone(&watch_fn);
+                let ns_clone = ns.clone();
+
+                tokio::spawn(async move {
+                    (fn_clone)(client_clone, data_clone, ns_clone);
+                });
+
+                last_ns = ns;
+            }
+
+            sleep(interval).await;
+        }
+    });
+}
+
+pub fn format_age(ts: &Time) -> String {
+    let now = Utc::now();
+    let created: DateTime<Utc> = ts.0;
+    let duration = now - created;
+
+    if duration.num_days() > 0 {
         format!("{}d", duration.num_days())
-    }).unwrap_or_else(|| "-".into())
+    } else if duration.num_hours() > 0 {
+        format!("{}h", duration.num_hours())
+    } else if duration.num_minutes() > 0 {
+        format!("{}m", duration.num_minutes())
+    } else {
+        format!("{}s", duration.num_seconds())
+    }
 }
 
 pub async fn apply_yaml(yaml: &str) -> Result<(), anyhow::Error> {
@@ -149,22 +198,6 @@ pub async fn drain_node(node_name: &str) -> anyhow::Result<()> {
 // fn percentage(used: f64, allocatable: f64) -> u8 {
 //     ((used / allocatable) * 100.0).round().min(100.0) as u8
 // }
-
-pub fn format_age(ts: &Time) -> String {
-    let now = Utc::now();
-    let created: DateTime<Utc> = ts.0;
-    let duration = now - created;
-
-    if duration.num_days() > 0 {
-        format!("{}d", duration.num_days())
-    } else if duration.num_hours() > 0 {
-        format!("{}h", duration.num_hours())
-    } else if duration.num_minutes() > 0 {
-        format!("{}m", duration.num_minutes())
-    } else {
-        format!("{}s", duration.num_seconds())
-    }
-}
 
 pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
     let api: Api<Node> = Api::all(client.as_ref().clone());
@@ -347,6 +380,24 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
     }
 }
 
+pub fn convert_event(ev: Event) -> Option<super::EventItem> {
+    let involved_object = format!(
+        "{}/{}",
+        ev.involved_object.kind.clone().unwrap_or_else(|| "Unknown".to_string()),
+        ev.involved_object.name.clone().unwrap_or_else(|| "Unknown".to_string())
+    );
+    Some(super::EventItem {
+        creation_timestamp: ev.metadata.creation_timestamp,
+        message: ev.message.clone().unwrap(),
+        reason: ev.reason.clone().unwrap_or_else(|| "Unknown".to_string()),
+        involved_object,
+        event_type: ev.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        timestamp: ev.event_time.as_ref().map(|t| t.0.to_rfc3339()).or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()))
+            .unwrap_or_else(|| "N/A".to_string()),
+        namespace: ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string()),
+    })
+}
+
 pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super::EventItem>>>) {
     let api: Api<Event> = Api::all(client.as_ref().clone());
     let mut event_stream = watcher(api, watcher::Config::default()).boxed();
@@ -359,32 +410,8 @@ pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super:
             Ok(ev) => match ev {
                 watcher::Event::Init => initial.clear(),
                 watcher::Event::InitApply(ev) => {
-                    if let Some(message) = ev.message.clone() {
-                        let reason = ev.reason.clone().unwrap_or_else(|| "Unknown".to_string());
-                        let involved = format!(
-                            "{}/{}",
-                            ev.involved_object.kind.clone().unwrap_or_else(|| "Unknown".to_string()),
-                            ev.involved_object.name.clone().unwrap_or_else(|| "Unknown".to_string())
-                        );
-                        let type_ = ev.type_.clone().unwrap_or_else(|| "Normal".to_string());
-                        let timestamp = ev.event_time
-                            .as_ref()
-                            .map(|t| t.0.to_rfc3339())
-                            .or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()))
-                            .unwrap_or_else(|| "N/A".to_string());
-
-                        let namespace = ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string());
-                        let creation_timestamp = ev.metadata.creation_timestamp.clone();
-
-                        initial.push(super::EventItem {
-                            message,
-                            reason,
-                            involved_object: involved,
-                            event_type: type_,
-                            timestamp,
-                            namespace,
-                            creation_timestamp,
-                        });
+                    if let Some(item) = convert_event(ev) {
+                        initial.push(item);
                     }
                 }
                 watcher::Event::InitDone => {
@@ -396,38 +423,9 @@ pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super:
                     if !initialized {
                         continue;
                     }
-                    if let Some(message) = ev.message.clone() {
-                        let reason = ev.reason.clone().unwrap_or_else(|| "Unknown".to_string());
-                        let involved = format!(
-                            "{}/{}",
-                            ev.involved_object.kind.clone().unwrap_or_else(|| "Unknown".to_string()),
-                            ev.involved_object.name.clone().unwrap_or_else(|| "Unknown".to_string())
-                        );
-                        let type_ = ev.type_.clone().unwrap_or_else(|| "Normal".to_string());
-                        let timestamp = ev.event_time
-                            .as_ref()
-                            .map(|t| t.0.to_rfc3339())
-                            .or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()))
-                            .unwrap_or_else(|| "N/A".to_string());
-
+                    if let Some(item) = convert_event(ev) {
                         let mut list = events_list.lock().unwrap();
-                        // check and clear length before adding
-                        let list_len = list.len();
-                        if list_len >= 500 {
-                            list.drain(0..list_len - 499);
-                        }
-                        let namespace = ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string());
-                        let creation_timestamp = ev.metadata.creation_timestamp.clone();
-
-                        list.push(super::EventItem {
-                            message,
-                            reason,
-                            involved_object: involved,
-                            event_type: type_,
-                            timestamp,
-                            namespace,
-                            creation_timestamp,
-                        });
+                        list.push(item);
                     }
                 }
                 watcher::Event::Delete(_) => {}
@@ -437,6 +435,15 @@ pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super:
             }
         }
     }
+}
+
+pub fn convert_namespace(ns: Namespace) -> Option<super::NamespaceItem> {
+    Some(super::NamespaceItem {
+        creation_timestamp: ns.metadata.creation_timestamp,
+        phase: ns.status.as_ref().and_then(|s| s.phase.clone()),
+        labels: ns.metadata.labels.clone(),
+        name: ns.metadata.name.unwrap(),
+    })
 }
 
 pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
@@ -451,19 +458,8 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
             Ok(ev) => match ev {
                 watcher::Event::Init => initial.clear(),
                 watcher::Event::InitApply(ns) => {
-                    if let Some(name) = ns.metadata.name {
-                        let creation_timestamp = ns.metadata.creation_timestamp.clone();
-                        let phase = ns
-                            .status
-                            .as_ref()
-                            .and_then(|s| s.phase.clone());
-                        let labels = ns.metadata.labels.clone();
-                        initial.push(super::NamespaceItem {
-                            name,
-                            creation_timestamp,
-                            phase,
-                            labels,
-                        });
+                    if let Some(item) = convert_namespace(ns) {
+                        initial.push(item);
                     }
                 }
                 watcher::Event::InitDone => {
@@ -475,22 +471,9 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
                     if !initialized {
                         continue;
                     }
-                    if let Some(name) = ns.metadata.name {
-                        let mut ns_vec = ns_list.lock().unwrap();
-                        if !ns_vec.iter().any(|n| n.name == name) {
-                            let creation_timestamp = ns.metadata.creation_timestamp.clone();
-                            let phase = ns
-                                .status
-                                .as_ref()
-                                .and_then(|s| s.phase.clone());
-                            let labels = ns.metadata.labels.clone();
-                            ns_vec.push(super::NamespaceItem {
-                                name,
-                                creation_timestamp,
-                                phase,
-                                labels,
-                            });
-                        }
+                    if let Some(item) = convert_namespace(ns) {
+                        let mut list = ns_list.lock().unwrap();
+                        list.push(item);
                     }
                 }
                 watcher::Event::Delete(ns) => {
@@ -508,7 +491,6 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
 }
 
 pub fn convert_pv(pv: PersistentVolume) -> Option<super::PvItem> {
-    let age = get_age(pv.metadata.clone());
     Some(super::PvItem {
         name: pv.metadata.name.clone()?,
         labels: pv.metadata.labels.clone().unwrap_or_default(),
@@ -535,7 +517,7 @@ pub fn convert_pv(pv: PersistentVolume) -> Option<super::PvItem> {
             .as_ref()
             .and_then(|s| s.phase.clone())
             .unwrap_or_else(|| "Unknown".to_string()),
-        age: age,
+        creation_timestamp: pv.metadata.creation_timestamp,
     })
 }
 
@@ -578,7 +560,6 @@ pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem
 }
 
 pub fn convert_storage_class(sc: StorageClass) -> Option<super::StorageClassItem> {
-    let age = get_age(sc.metadata.clone());
     Some(super::StorageClassItem {
         name: sc.metadata.name.clone()?,
         labels: sc.metadata.labels.clone().unwrap_or_default(),
@@ -605,7 +586,7 @@ pub fn convert_storage_class(sc: StorageClass) -> Option<super::StorageClassItem
             }
             None => "no".to_string(),
         },
-        age: age,
+        creation_timestamp: sc.metadata.creation_timestamp,
     })
 }
 
@@ -648,7 +629,6 @@ pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<s
 }
 
 pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<super::PvcItem> {
-    let age = get_age(pvc.metadata.clone());
     Some(super::PvcItem {
         name: pvc.metadata.name.clone()?,
         labels: pvc.metadata.labels.clone().unwrap_or_default(),
@@ -670,7 +650,7 @@ pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<super::PvcItem> {
             .as_ref()
             .and_then(|s| s.phase.clone())
             .unwrap_or_else(|| "Unknown".to_string()),
-        age: age,
+        creation_timestamp: pvc.metadata.creation_timestamp,
     })
 }
 
@@ -714,14 +694,13 @@ pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcI
 
 
 pub fn convert_replicaset(rs: ReplicaSet) -> Option<super::ReplicaSetItem> {
-    let age = get_age(rs.metadata.clone());
     Some(super::ReplicaSetItem {
         name: rs.metadata.name.clone()?,
         labels: rs.metadata.labels.unwrap_or_default(),
         desired: rs.spec.as_ref()?.replicas.unwrap_or(0),
         current: rs.status.as_ref()?.replicas,
         ready: rs.status.as_ref()?.ready_replicas.unwrap_or(0),
-        age: age,
+        creation_timestamp: rs.metadata.creation_timestamp,
     })
 }
 
@@ -764,7 +743,6 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super
 }
 
 pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
-    let age = get_age(ss.metadata.clone());
     let spec = ss.spec.unwrap();
     Some(super::StatefulSetItem {
         name: ss.metadata.name.clone()?,
@@ -772,7 +750,7 @@ pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
         service_name: spec.service_name.unwrap_or("-".to_string()),
         replicas: spec.replicas.unwrap_or(0),
         ready_replicas: ss.status.as_ref()?.ready_replicas.unwrap_or(0),
-        age: age,
+        creation_timestamp: ss.metadata.creation_timestamp,
     })
 }
 
@@ -816,7 +794,6 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<supe
 }
 
 pub fn convert_job(job: Job) -> Option<super::JobItem> {
-    let age = get_age(job.metadata.clone());
     Some(super::JobItem {
         name: job.metadata.name.clone()?,
         labels: job.metadata.labels.unwrap_or_default(),
@@ -835,7 +812,7 @@ pub fn convert_job(job: Job) -> Option<super::JobItem> {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default(),
-        age: age,
+        creation_timestamp: job.metadata.creation_timestamp,
     })
 }
 
@@ -877,12 +854,11 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::Job
     }
 }
 
-fn convert_deployment_to_item(deploy: Deployment) -> super::DeploymentItem {
+fn convert_deployment(deploy: Deployment) -> Option<super::DeploymentItem> {
     let name = deploy.metadata.name.unwrap_or_default();
     let namespace = deploy.metadata.namespace.unwrap_or_else(|| "default".to_string());
     let status = deploy.status.unwrap_or_default();
-
-    super::DeploymentItem {
+    Some(super::DeploymentItem {
         name,
         namespace,
         ready_replicas: status.ready_replicas.unwrap_or(0),
@@ -890,7 +866,7 @@ fn convert_deployment_to_item(deploy: Deployment) -> super::DeploymentItem {
         updated_replicas: status.updated_replicas.unwrap_or(0),
         replicas: status.replicas.unwrap_or(0),
         creation_timestamp: deploy.metadata.creation_timestamp,
-    }
+    })
 }
 
 pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>, selected_ns: String) {
@@ -906,8 +882,9 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                 WatcherEvent::Init => initial.clear(),
 
                 WatcherEvent::InitApply(deploy) => {
-                    let item = convert_deployment_to_item(deploy);
-                    initial.push(item);
+                    if let Some(item) = convert_deployment(deploy) {
+                        initial.push(item);
+                    }
                 }
 
                 WatcherEvent::InitDone => {
@@ -920,11 +897,10 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                     if !initialized {
                         continue;
                     }
-
-                    let item = convert_deployment_to_item(deploy);
-                    let mut list = deployments_list.lock().unwrap();
-
-                    list.push(item);
+                    if let Some(item) = convert_deployment(deploy) {
+                        let mut list = deployments_list.lock().unwrap();
+                        list.push(item);
+                    }
                 }
 
                 WatcherEvent::Delete(_) => {}
@@ -936,94 +912,13 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
     }
 }
 
-fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
-    let name = secret.name().unwrap().to_string();
-    let labels = secret
-        .metadata
-        .labels
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(k, v)| format!("{}={}", k, v))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let keys = secret
-        .data
-        .as_ref()
-        .map(|d| d.keys().cloned().collect::<Vec<_>>().join(", "))
-        .unwrap_or_else(|| "-".into());
-
-    let type_ = secret.type_.unwrap_or_else(|| "-".into());
-
-    let age = secret
-        .metadata
-        .creation_timestamp
-        .as_ref()
-        .map(|ts| {
-            let now: DateTime<Utc> = Utc::now();
-            let duration = now - ts.0;
-            format!("{}d", duration.num_days())
-        })
-        .unwrap_or_else(|| "-".into());
-
-    Some(super::SecretItem {
-        name,
-        labels,
-        keys,
-        type_,
-        age,
-    })
-}
-
-type WatchFn<T> = Arc<dyn Fn(Arc<Client>, Arc<T>, String) + Send + Sync>;
-pub fn spawn_namespace_watcher_loop<T: Send + Sync + 'static>(
-    client: Arc<Client>,
-    data: Arc<T>,
-    selected_namespace: Arc<Mutex<Option<String>>>,
-    watch_fn: WatchFn<T>,
-    interval: Duration,
-) {
-    let data_outer = Arc::clone(&data);
-    let namespace_outer = Arc::clone(&selected_namespace);
-    let client_outer = Arc::clone(&client);
-    let watch_fn = Arc::clone(&watch_fn);
-
-    tokio::spawn(async move {
-        let mut last_ns = String::new();
-
-        loop {
-            let ns = namespace_outer
-                .lock()
-                .unwrap()
-                .clone()
-                .unwrap_or_else(|| "default".to_string());
-
-            if ns != last_ns {
-                let data_clone = Arc::clone(&data_outer);
-                let client_clone = Arc::clone(&client_outer);
-                let fn_clone = Arc::clone(&watch_fn);
-                let ns_clone = ns.clone();
-
-                tokio::spawn(async move {
-                    (fn_clone)(client_clone, data_clone, ns_clone);
-                });
-
-                last_ns = ns;
-            }
-
-            sleep(interval).await;
-        }
-    });
-}
-
 pub fn convert_configmap(cm: ConfigMap) -> Option<super::ConfigMapItem> {
-    let age = get_age(cm.metadata.clone());
     Some(super::ConfigMapItem {
         name: cm.metadata.name.clone()?,
         labels: cm.metadata.labels.unwrap_or_default(),
         keys: cm.data.as_ref().map(|d| d.keys().cloned().collect()).unwrap_or_default(),
         type_: "Opaque".to_string(),
-        age: age,
+        creation_timestamp: cm.metadata.creation_timestamp,
     })
 }
 
@@ -1062,6 +957,17 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
             Err(e) => eprintln!("ConfigMap watch error: {:?}", e),
         }
     }
+}
+
+fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
+    let name = secret.name().unwrap().to_string();
+    Some(super::SecretItem {
+        name,
+        labels: secret.metadata.labels.unwrap_or_default().into_iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "),
+        keys: secret.data.as_ref().map(|d| d.keys().cloned().collect::<Vec<_>>().join(", ")).unwrap_or_else(|| "-".into()),
+        type_: secret.type_.unwrap_or_else(|| "-".into()),
+        creation_timestamp: secret.metadata.creation_timestamp,
+    })
 }
 
 pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, selected_ns: String) {

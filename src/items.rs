@@ -41,7 +41,7 @@ pub struct JobItem {
     pub labels: BTreeMap<String, String>,
     pub completions: i32,
     pub conditions: Vec<String>,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[allow(dead_code)]
@@ -52,7 +52,7 @@ pub struct ReplicaSetItem {
     pub desired: i32,
     pub current: i32,
     pub ready: i32,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[allow(dead_code)]
@@ -64,7 +64,7 @@ pub struct StorageClassItem {
     pub reclaim_policy: String,
     pub volume_binding_mode: String,
     pub is_default: String,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[allow(dead_code)]
@@ -76,7 +76,7 @@ pub struct PvcItem {
     pub size: String,
     pub volume_name: String,
     pub status: String,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[allow(dead_code)]
@@ -88,7 +88,7 @@ pub struct PvItem {
     pub capacity: String,
     pub claim: String,
     pub status: String,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[allow(dead_code)]
@@ -99,7 +99,7 @@ pub struct StatefulSetItem {
     pub replicas: i32,
     pub service_name: String,
     pub ready_replicas: i32,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[derive(Clone, Debug)]
@@ -108,7 +108,7 @@ pub struct SecretItem {
     pub labels: String,
     pub keys: String,
     pub type_: String,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[derive(Debug, Clone)]
@@ -117,7 +117,7 @@ pub struct ConfigMapItem {
     pub labels: BTreeMap<String, String>,
     pub keys: Vec<String>,
     pub type_: String,
-    pub age: String,
+    pub creation_timestamp: Option<Time>,
 }
 
 #[derive(Clone)]
