@@ -34,6 +34,16 @@ pub struct PodItem {
     pub pod_has_crashloop: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct CSIDriverItem {
+    pub name: String,
+    pub attach_required: String,
+    pub pod_info_on_mount: String,
+    pub storage_capacity: String,
+    pub fs_group_policy: String,
+    pub creation_timestamp: Option<Time>,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct JobItem {
@@ -53,6 +63,18 @@ pub struct ReplicaSetItem {
     pub current: i32,
     pub ready: i32,
     pub creation_timestamp: Option<Time>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ServiceItem {
+    pub name: String,
+    pub svc_type: String,
+    pub cluster_ip: String,
+    pub ports: String,
+    pub external_ip: String,
+    pub selector: String,
+    pub creation_timestamp: Option<Time>,
+    pub status: String,
 }
 
 #[allow(dead_code)]

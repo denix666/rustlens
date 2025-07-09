@@ -3,9 +3,9 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
-use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume};
+use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
-use k8s_openapi::api::storage::v1::StorageClass;
+use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{Job};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
@@ -376,6 +376,171 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
             Err(e) => {
                 eprintln!("Node watch error: {:?}", e);
             }
+        }
+    }
+}
+
+pub fn convert_service(svc: Service) -> Option<super::ServiceItem> {
+    let metadata = &svc.metadata;
+    let spec = svc.spec.as_ref()?;
+
+    let name = metadata.name.clone()?;
+    let svc_type = spec.type_.clone().unwrap_or_else(|| "ClusterIP".to_string());
+    let cluster_ip = spec.cluster_ip.clone().unwrap_or_else(|| "None".to_string());
+
+    let ports = spec
+        .ports
+        .as_ref()
+        .map(|ports| {
+            ports
+                .iter()
+                .map(|p| {
+                    let port = p.port;
+                    let target_port = p.target_port.as_ref().unwrap();
+                    let protocol = p.protocol.as_ref().map_or("TCP".to_string(), |s| s.clone());
+                    format!("{}/{}→{:?}", port, protocol, target_port)
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|| "-".to_string());
+
+    let external_ip = if let Some(eips) = &spec.external_ips {
+        eips.join(", ")
+    } else if let Some(lb) = &svc.status.and_then(|s| s.load_balancer) {
+        if let Some(ing) = &lb.ingress {
+            ing.iter()
+                .map(|i| {
+                    i.ip.clone().or_else(|| i.hostname.clone()).unwrap_or_default()
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        } else {
+            "None".to_string()
+        }
+    } else {
+        "None".to_string()
+    };
+
+    let selector = spec
+        .selector
+        .as_ref()
+        .map(|s| {
+            s.iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|| "-".to_string());
+
+    Some(super::ServiceItem {
+        name,
+        svc_type,
+        cluster_ip,
+        ports,
+        external_ip,
+        selector,
+        creation_timestamp: svc.metadata.creation_timestamp,
+        status: "OK".to_string(), // можно позже дополнить проверкой наличия endpoints
+    })
+}
+
+pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<super::ServiceItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<Service> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(svc) => {
+                    if let Some(item) = convert_service(svc) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = services_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(svc) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_service(svc) {
+                        let mut list = services_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("Service watch error: {:?}", e),
+        }
+    }
+}
+
+pub fn convert_csi_driver(driver: CSIDriver) -> Option<super::CSIDriverItem> {
+    Some(super::CSIDriverItem {
+        name: driver.metadata.name.clone()?,
+        attach_required: driver
+            .spec
+            .attach_required
+            .map_or("Unknown".to_string(), |b| if b { "Yes" } else { "No" }.to_string()),
+        pod_info_on_mount: driver
+            .spec
+            .pod_info_on_mount
+            .map_or("Unknown".to_string(), |b| if b { "Yes" } else { "No" }.to_string()),
+        storage_capacity: driver
+            .spec
+            .storage_capacity
+            .map_or("Unknown".to_string(), |b| if b { "Yes" } else { "No" }.to_string()),
+        fs_group_policy: driver
+            .spec
+            .fs_group_policy
+            .as_ref()
+            .map_or("Unknown".to_string(), |s| s.clone()),
+        creation_timestamp: driver.metadata.creation_timestamp,
+    })
+}
+
+pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<super::CSIDriverItem>>>) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<CSIDriver> = Api::all(client.as_ref().clone());
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(driver) => {
+                    if let Some(item) = convert_csi_driver(driver) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = csi_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(driver) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_csi_driver(driver) {
+                        let mut list = csi_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("CSIDriver watch error: {:?}", e),
         }
     }
 }

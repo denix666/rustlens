@@ -15,8 +15,8 @@ mod items;
 use items::*;
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
-const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50);
-const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36);
+const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50); // green
+const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36); // red
 const MAX_LOG_LINES: usize = 7; // DEBUG
 
 #[derive(PartialEq)]
@@ -45,6 +45,7 @@ enum Category {
     PersistentVolumeClaims,
     PersistentVolumes,
     StorageClasses,
+    CSIDrivers,
 }
 
 #[derive(Clone)]
@@ -144,6 +145,8 @@ async fn main() {
     let mut filter_pvcs = String::new();
     let mut filter_pvs = String::new();
     let mut filter_scs = String::new();
+    let mut filter_csi_drivers = String::new();
+    let mut filter_services = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -157,6 +160,28 @@ async fn main() {
         if let Ok(name) = get_cluster_name().await {
             *cluster_info_bg.lock().unwrap() = ClusterInfo { name };
         }
+    });
+
+    // SERVICES
+    let services = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&services),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_services(client, list, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
+    // CSI DRIVERS
+    let csi_drivers = Arc::new(Mutex::new(Vec::new()));
+    let csi_clone = Arc::clone(&csi_drivers);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_csi_drivers(client_clone, csi_clone).await;
     });
 
     // PVC
@@ -387,7 +412,7 @@ async fn main() {
                 });
 
                 egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
-                    if ui.selectable_label(current == Category::Services, "💢 Services").clicked() {
+                    if ui.selectable_label(current == Category::Services, "🔗 Services").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::Services;
                     }
 
@@ -411,6 +436,10 @@ async fn main() {
 
                     if ui.selectable_label(current == Category::StorageClasses, "⛭ StorageClasses").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::StorageClasses;
+                    }
+
+                    if ui.selectable_label(current == Category::CSIDrivers, "🔌 CSI Drivers").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::CSIDrivers;
                     }
                 });
 
@@ -482,6 +511,42 @@ async fn main() {
                 },
                 Category::Ingresses => {
                     ui.heading("Ingresses (TODO)");
+                },
+                Category::CSIDrivers => {
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("CSI Drivers - {}", csi_drivers.lock().unwrap().len()));
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_csi_drivers).hint_text("Filter csi drivers...").desired_width(200.0));
+                        filter_csi_drivers = filter_csi_drivers.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_csi_drivers.clear();
+                        }
+                    });
+                    ui.separator();
+                    let csi_drivers_list = csi_drivers.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("csi_drivers_scroll").show(ui, |ui| {
+                        egui::Grid::new("csi_drivers_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Attach Required");
+                            ui.label("Pod Info On Mount");
+                            ui.label("Storage Capacity");
+                            ui.label("FSGroupPolicy");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in csi_drivers_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_csi_drivers.is_empty() || cur_item_object.contains(&filter_csi_drivers) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.attach_required));
+                                    ui.label(format!("{}", &item.pod_info_on_mount));
+                                    ui.label(format!("{}", &item.storage_capacity));
+                                    ui.label(format!("{}", &item.fs_group_policy));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::StorageClasses => {
                     ui.horizontal(|ui| {
@@ -654,7 +719,57 @@ async fn main() {
                     });
                 },
                 Category::Services => {
-                    ui.heading("Services (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Services - {}", services.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_services).hint_text("Filter services...").desired_width(200.0));
+                        filter_services = filter_services.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_services.clear();
+                        }
+                    });
+                    ui.separator();
+                    let services_list = services.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
+                        egui::Grid::new("services_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Type");
+                            ui.label("Cluster IP");
+                            ui.label("External IP");
+                            ui.label("Status");
+                            ui.label("Age");
+                            ui.label("Ports");
+                            ui.label("Selector");
+                            ui.end_row();
+                            for item in services_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_services.is_empty() || cur_item_object.contains(&filter_services) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.svc_type));
+                                    ui.label(format!("{:?}", &item.cluster_ip));
+                                    ui.label(format!("{:?}", &item.external_ip));
+                                    ui.label(format!("{:?}", &item.status));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.label(format!("{:?}", &item.ports));
+                                    ui.label(format!("{:?}", &item.selector));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::CronJobs => {
                     ui.heading("CronJobs (TODO)");
