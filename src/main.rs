@@ -92,6 +92,15 @@ struct EventItem {
     creation_timestamp: Option<Time>,
 }
 
+#[derive(Debug, Clone)]
+pub struct JobItem {
+    name: String,
+    pub labels: BTreeMap<String, String>,
+    completions: i32,
+    conditions: Vec<String>,
+    age: String,
+}
+
 #[derive(Clone)]
 pub struct DeploymentItem {
     name: String,
@@ -237,6 +246,7 @@ async fn main() {
     let mut filter_replicasets = String::new();
     let mut filter_secrets = String::new();
     let mut filter_statefulsets = String::new();
+    let mut filter_jobs = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -251,6 +261,20 @@ async fn main() {
             *cluster_info_bg.lock().unwrap() = ClusterInfo { name };
         }
     });
+
+    // JOBS
+    let jobs = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&jobs),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, jobs, ns| {
+            tokio::spawn(async move {
+                watch_jobs(client, jobs, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
 
     // EVENTS
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
@@ -528,7 +552,49 @@ async fn main() {
                     ui.heading("Endpoints (TODO)");
                 },
                 Category::Jobs => {
-                    ui.heading("Jobs (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Jobs - {}", jobs.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_jobs).hint_text("Filter jobs...").desired_width(200.0));
+                        filter_jobs = filter_jobs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_jobs.clear();
+                        }
+                    });
+                    ui.separator();
+                    let jobs_list = jobs.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
+                        egui::Grid::new("jobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Completions");
+                            ui.label("Conditions");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in jobs_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.completions));
+                                    ui.label(format!("{:?}", &item.conditions));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::Services => {
                     ui.heading("Services (TODO)");

@@ -5,6 +5,7 @@ use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
+use k8s_openapi::api::batch::v1::{Job};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -603,6 +604,68 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<supe
                 Event::Delete(_) => {}
             },
             Err(e) => eprintln!("StatefulSet watch error: {:?}", e),
+        }
+    }
+}
+
+pub fn convert_job(job: Job) -> Option<super::JobItem> {
+    let age = get_age(job.metadata.clone());
+    Some(super::JobItem {
+        name: job.metadata.name.clone()?,
+        labels: job.metadata.labels.unwrap_or_default(),
+        completions: job
+            .status
+            .as_ref()
+            .and_then(|s| s.succeeded)
+            .unwrap_or(0),
+        conditions: job
+            .status
+            .as_ref()
+            .and_then(|s| s.conditions.clone())
+            .map(|conds| {
+                conds.iter()
+                    .filter_map(|c| Some(c.type_.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        age: age,
+    })
+}
+
+pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::JobItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<Job> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(job) => {
+                    if let Some(item) = convert_job(job) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = jobs_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(job) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_job(job) {
+                        let mut list = jobs_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("Job watch error: {:?}", e),
         }
     }
 }
