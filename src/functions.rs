@@ -3,7 +3,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
-use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim};
+use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use k8s_openapi::api::batch::v1::{Job};
 use std::sync::{Arc, Mutex};
@@ -502,6 +502,76 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
             Err(e) => {
                 eprintln!("Namespace watch error: {:?}", e);
             }
+        }
+    }
+}
+
+pub fn convert_pv(pv: PersistentVolume) -> Option<super::PvItem> {
+    let age = get_age(pv.metadata.clone());
+    Some(super::PvItem {
+        name: pv.metadata.name.clone()?,
+        labels: pv.metadata.labels.clone().unwrap_or_default(),
+        storage_class: pv
+            .spec
+            .as_ref()
+            .and_then(|s| s.storage_class_name.clone())
+            .unwrap_or_else(|| "-".to_string()),
+        capacity: pv
+            .spec
+            .as_ref()
+            .and_then(|s| s.capacity.as_ref())
+            .and_then(|cap| cap.get("storage"))
+            .map(|q| q.0.to_string())
+            .unwrap_or_else(|| "-".to_string()),
+        claim: pv
+            .spec
+            .as_ref()
+            .and_then(|s| s.claim_ref.as_ref())
+            .map(|c| format!("{}/{}", c.namespace.clone().unwrap_or_default(), c.name.clone().unwrap_or_default()))
+            .unwrap_or_else(|| "-".to_string()),
+        status: pv
+            .status
+            .as_ref()
+            .and_then(|s| s.phase.clone())
+            .unwrap_or_else(|| "Unknown".to_string()),
+        age: age,
+    })
+}
+
+pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem>>>) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<PersistentVolume> = Api::all(client.as_ref().clone());
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(pv) => {
+                    if let Some(item) = convert_pv(pv) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = pv_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(pv) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_pv(pv) {
+                        let mut list = pv_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("PV watch error: {:?}", e),
         }
     }
 }

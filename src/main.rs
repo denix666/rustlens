@@ -42,6 +42,7 @@ enum Category {
     Endpoints,
     Ingresses,
     PersistentVolumeClaims,
+    PersistentVolumes,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +52,17 @@ pub struct PvcItem {
     storage_class: String,
     size: String,
     volume_name: String,
+    status: String,
+    age: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PvItem {
+    name: String,
+    pub labels: BTreeMap<String, String>,
+    storage_class: String,
+    capacity: String,
+    claim: String,
     status: String,
     age: String,
 }
@@ -260,6 +272,7 @@ async fn main() {
     let mut filter_statefulsets = String::new();
     let mut filter_jobs = String::new();
     let mut filter_pvcs = String::new();
+    let mut filter_pvs = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -302,6 +315,14 @@ async fn main() {
         }),
         Duration::from_secs(1),
     );
+
+    // PV
+    let pvs = Arc::new(Mutex::new(Vec::new()));
+    let client_clone = Arc::clone(&client);
+    let pvs_clone = Arc::clone(&pvs);
+    tokio::spawn(async move {
+        watch_pvs(client_clone, pvs_clone).await;
+    });
 
     // EVENTS
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
@@ -504,7 +525,11 @@ async fn main() {
                     if ui.selectable_label(current == Category::PersistentVolumeClaims, "⛃ PersistentVolumeClaims").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::PersistentVolumeClaims;
                     }
-                    ui.label("🗄 PersistentVolumes");
+
+                    if ui.selectable_label(current == Category::PersistentVolumes, "🗄 PersistentVolumes").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::PersistentVolumes;
+                    }
+
                     ui.label("⛭ StorageClasses");
                 });
 
@@ -576,6 +601,43 @@ async fn main() {
                 },
                 Category::Ingresses => {
                     ui.heading("Ingresses (TODO)");
+                },
+                Category::PersistentVolumes => {
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("PersistentVolumes - {}", pvs.lock().unwrap().len()));
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_pvs).hint_text("Filter pvs...").desired_width(200.0));
+                        filter_pvs = filter_pvs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_pvs.clear();
+                        }
+                    });
+                    ui.separator();
+                    let pvs_list = pvs.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("pvs_scroll").show(ui, |ui| {
+                        egui::Grid::new("pvs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Storage class");
+                            ui.label("Capacity");
+                            ui.label("Claim");
+                            ui.label("Status");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in pvs_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                let cur_item_claim = &item.claim;
+                                if filter_pvs.is_empty() || cur_item_object.contains(&filter_pvs) || cur_item_claim.contains(&filter_pvs) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.storage_class));
+                                    ui.label(format!("{}", &item.capacity));
+                                    ui.label(format!("{}", &item.claim));
+                                    ui.label(format!("{}", &item.status));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::PersistentVolumeClaims => {
                     let ns = namespaces.lock().unwrap();
