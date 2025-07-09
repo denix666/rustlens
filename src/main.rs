@@ -41,6 +41,18 @@ enum Category {
     Services,
     Endpoints,
     Ingresses,
+    PersistentVolumeClaims,
+}
+
+#[derive(Debug, Clone)]
+pub struct PvcItem {
+    name: String,
+    pub labels: BTreeMap<String, String>,
+    storage_class: String,
+    size: String,
+    volume_name: String,
+    status: String,
+    age: String,
 }
 
 #[derive(Debug, Clone)]
@@ -247,6 +259,7 @@ async fn main() {
     let mut filter_secrets = String::new();
     let mut filter_statefulsets = String::new();
     let mut filter_jobs = String::new();
+    let mut filter_pvcs = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -261,6 +274,20 @@ async fn main() {
             *cluster_info_bg.lock().unwrap() = ClusterInfo { name };
         }
     });
+
+    // PVC
+    let pvcs = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&pvcs),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, pvcs, ns| {
+            tokio::spawn(async move {
+                watch_pvcs(client, pvcs, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
 
     // JOBS
     let jobs = Arc::new(Mutex::new(Vec::new()));
@@ -474,7 +501,9 @@ async fn main() {
                 });
 
                 egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
-                    ui.label("⛃ PersistentVolumeClaims");
+                    if ui.selectable_label(current == Category::PersistentVolumeClaims, "⛃ PersistentVolumeClaims").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::PersistentVolumeClaims;
+                    }
                     ui.label("🗄 PersistentVolumes");
                     ui.label("⛭ StorageClasses");
                 });
@@ -547,6 +576,55 @@ async fn main() {
                 },
                 Category::Ingresses => {
                     ui.heading("Ingresses (TODO)");
+                },
+                Category::PersistentVolumeClaims => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("PersistentVolumeClaims - {}", pvcs.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_pvcs).hint_text("Filter pvcs...").desired_width(200.0));
+                        filter_pvcs = filter_pvcs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_pvcs.clear();
+                        }
+                    });
+                    ui.separator();
+                    let pvcs_list = pvcs.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
+                        egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("StorageClass");
+                            ui.label("Volume");
+                            ui.label("Size");
+                            ui.label("Status");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in pvcs_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_pvcs.is_empty() || cur_item_object.contains(&filter_pvcs) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.storage_class));
+                                    ui.label(format!("{}", &item.volume_name));
+                                    ui.label(format!("{}", &item.size));
+                                    ui.label(format!("{}", &item.status));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::Endpoints => {
                     ui.heading("Endpoints (TODO)");

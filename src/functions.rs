@@ -3,7 +3,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
-use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap};
+use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use k8s_openapi::api::batch::v1::{Job};
 use std::sync::{Arc, Mutex};
@@ -505,6 +505,72 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
         }
     }
 }
+
+pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<super::PvcItem> {
+    let age = get_age(pvc.metadata.clone());
+    Some(super::PvcItem {
+        name: pvc.metadata.name.clone()?,
+        labels: pvc.metadata.labels.clone().unwrap_or_default(),
+        storage_class: pvc
+            .spec
+            .as_ref()
+            .and_then(|s| s.storage_class_name.clone())
+            .unwrap_or_else(|| "-".to_string()),
+        size: pvc.spec.as_ref()
+            .and_then(|s| s.resources.as_ref().unwrap().requests.as_ref())
+            .and_then(|r| r.get("storage")).map(|q| q.0.to_string()).unwrap_or_else(|| "".to_string()),
+        volume_name: pvc
+            .spec
+            .as_ref()
+            .and_then(|s| s.volume_name.clone())
+            .unwrap_or_else(|| "-".to_string()),
+        status: pvc
+            .status
+            .as_ref()
+            .and_then(|s| s.phase.clone())
+            .unwrap_or_else(|| "Unknown".to_string()),
+        age: age,
+    })
+}
+
+pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(pvc) => {
+                    if let Some(item) = convert_pvc(pvc) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = pvc_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(pvc) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_pvc(pvc) {
+                        let mut list = pvc_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("PVC watch error: {:?}", e),
+        }
+    }
+}
+
 
 pub fn convert_replicaset(rs: ReplicaSet) -> Option<super::ReplicaSetItem> {
     let age = get_age(rs.metadata.clone());
