@@ -5,6 +5,7 @@ use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
+use k8s_openapi::api::storage::v1::StorageClass;
 use k8s_openapi::api::batch::v1::{Job};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
@@ -572,6 +573,76 @@ pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem
                 Event::Delete(_) => {}
             },
             Err(e) => eprintln!("PV watch error: {:?}", e),
+        }
+    }
+}
+
+pub fn convert_storage_class(sc: StorageClass) -> Option<super::StorageClassItem> {
+    let age = get_age(sc.metadata.clone());
+    Some(super::StorageClassItem {
+        name: sc.metadata.name.clone()?,
+        labels: sc.metadata.labels.clone().unwrap_or_default(),
+        provisioner: sc.provisioner.clone(),
+        reclaim_policy: sc
+            .reclaim_policy
+            .clone()
+            .unwrap_or_else(|| "-".to_string()),
+        volume_binding_mode: sc
+            .volume_binding_mode
+            .clone()
+            .unwrap_or_else(|| "-".to_string()),
+        is_default: match sc.metadata.annotations {
+            Some(ann) => {
+                if let Some(val) = ann.get("storageclass.kubernetes.io/is-default-class") {
+                    if val == "true" {
+                        "yes".to_string()
+                    } else {
+                        "no".to_string()
+                    }
+                } else {
+                    "no".to_string()
+                }
+            }
+            None => "no".to_string(),
+        },
+        age: age,
+    })
+}
+
+pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<super::StorageClassItem>>>) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<StorageClass> = Api::all(client.as_ref().clone());
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(sc) => {
+                    if let Some(item) = convert_storage_class(sc) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = sc_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(sc) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_storage_class(sc) {
+                        let mut list = sc_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("StorageClass watch error: {:?}", e),
         }
     }
 }

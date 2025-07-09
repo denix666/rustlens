@@ -1,10 +1,8 @@
 use eframe::egui::{CursorIcon};
 use eframe::*;
 use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
-use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use kube::Client;
 
 mod functions;
@@ -13,10 +11,13 @@ use functions::*;
 mod templates;
 use templates::*;
 
+mod items;
+use items::*;
+
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50);
 const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36);
-const MAX_LOG_LINES: usize = 7;
+const MAX_LOG_LINES: usize = 7; // DEBUG
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -43,143 +44,12 @@ enum Category {
     Ingresses,
     PersistentVolumeClaims,
     PersistentVolumes,
-}
-
-#[derive(Debug, Clone)]
-pub struct PvcItem {
-    name: String,
-    pub labels: BTreeMap<String, String>,
-    storage_class: String,
-    size: String,
-    volume_name: String,
-    status: String,
-    age: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct PvItem {
-    name: String,
-    pub labels: BTreeMap<String, String>,
-    storage_class: String,
-    capacity: String,
-    claim: String,
-    status: String,
-    age: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct StatefulSetItem {
-    name: String,
-    pub labels: BTreeMap<String, String>,
-    replicas: i32,
-    service_name: String,
-    ready_replicas: i32,
-    age: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ReplicaSetItem {
-    name: String,
-    pub labels: BTreeMap<String, String>,
-    desired: i32,
-    current: i32,
-    ready: i32,
-    age: String,
-}
-
-#[derive(Clone, Debug)]
-pub struct SecretItem {
-    name: String,
-    labels: String,
-    keys: String,
-    type_: String,
-    age: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ConfigMapItem {
-    name: String,
-    labels: BTreeMap<String, String>,
-    keys: Vec<String>,
-    type_: String,
-    age: String,
-}
-
-#[derive(Clone)]
-struct EventItem {
-    message: String,
-    reason: String,
-    involved_object: String,
-    event_type: String,
-    timestamp: String,
-    namespace: String,
-    creation_timestamp: Option<Time>,
-}
-
-#[derive(Debug, Clone)]
-pub struct JobItem {
-    name: String,
-    pub labels: BTreeMap<String, String>,
-    completions: i32,
-    conditions: Vec<String>,
-    age: String,
-}
-
-#[derive(Clone)]
-pub struct DeploymentItem {
-    name: String,
-    namespace: String,
-    ready_replicas: i32,
-    available_replicas: i32,
-    updated_replicas: i32,
-    replicas: i32,
-    creation_timestamp: Option<Time>,
-}
-
-#[derive(Clone)]
-struct NodeItem {
-    name: String,
-    status: String, // "Ready", "NotReady", "Unknown"
-    roles: Vec<String>,
-    scheduling_disabled: bool,
-    taints: Option<Vec<k8s_openapi::api::core::v1::Taint>>,
-    cpu_percent: f32,
-    mem_percent: f32,
-    storage: Option<String>,
-    creation_timestamp: Option<Time>,
-}
-
-#[derive(Clone)]
-struct NamespaceItem {
-    name: String,
-    creation_timestamp: Option<Time>,
-    phase: Option<String>,
-    labels: Option<std::collections::BTreeMap<String, String>>,
+    StorageClasses,
 }
 
 #[derive(Clone)]
 struct ClusterInfo {
     name: String,
-}
-
-#[derive(Clone)]
-struct PodItem {
-    name: String,
-    creation_timestamp: Option<Time>,
-    phase: Option<String>,
-    ready_containers: u32,
-    total_containers: u32,
-    containers: Vec<ContainerStatusItem>,
-    restart_count: i32,
-    node_name: Option<String>,
-    pod_has_crashloop: bool,
-}
-
-#[derive(Clone)]
-struct ContainerStatusItem {
-    name: String,
-    state: Option<String>, // e.g. "Running", "Terminated", "Waiting"
-    message: Option<String>,
 }
 
 #[derive(PartialEq)]
@@ -273,6 +143,7 @@ async fn main() {
     let mut filter_jobs = String::new();
     let mut filter_pvcs = String::new();
     let mut filter_pvs = String::new();
+    let mut filter_scs = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -322,6 +193,14 @@ async fn main() {
     let pvs_clone = Arc::clone(&pvs);
     tokio::spawn(async move {
         watch_pvs(client_clone, pvs_clone).await;
+    });
+
+    // SC
+    let storage_classes = Arc::new(Mutex::new(Vec::new()));
+    let client_clone = Arc::clone(&client);
+    let sc_clone = Arc::clone(&storage_classes);
+    tokio::spawn(async move {
+        watch_storage_classes(client_clone, sc_clone).await;
     });
 
     // EVENTS
@@ -530,7 +409,9 @@ async fn main() {
                         *selected_category_ui.lock().unwrap() = Category::PersistentVolumes;
                     }
 
-                    ui.label("⛭ StorageClasses");
+                    if ui.selectable_label(current == Category::StorageClasses, "⛭ StorageClasses").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::StorageClasses;
+                    }
                 });
 
                 egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
@@ -601,6 +482,42 @@ async fn main() {
                 },
                 Category::Ingresses => {
                     ui.heading("Ingresses (TODO)");
+                },
+                Category::StorageClasses => {
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("StorageClasses - {}", pvs.lock().unwrap().len()));
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_scs).hint_text("Filter scs...").desired_width(200.0));
+                        filter_scs = filter_scs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_scs.clear();
+                        }
+                    });
+                    ui.separator();
+                    let scs_list = storage_classes.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("scs_scroll").show(ui, |ui| {
+                        egui::Grid::new("scs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Provisioner");
+                            ui.label("Reclaim policy");
+                            ui.label("Volume binding mode");
+                            ui.label("Default class");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in scs_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_scs.is_empty() || cur_item_object.contains(&filter_scs) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.provisioner));
+                                    ui.label(format!("{}", &item.reclaim_policy));
+                                    ui.label(format!("{}", &item.volume_binding_mode));
+                                    ui.label(format!("{}", &item.is_default));
+                                    ui.label(format!("{}", &item.age));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::PersistentVolumes => {
                     ui.horizontal(|ui| {
