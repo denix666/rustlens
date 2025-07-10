@@ -14,6 +14,14 @@ pub struct NodeItem {
     pub creation_timestamp: Option<Time>,
 }
 
+#[derive(Debug, Clone)]
+pub struct EndpointItem {
+    pub name: String,
+    pub addresses: String,
+    pub ports: String,
+    pub creation_timestamp: Option<Time>,
+}
+
 #[derive(Clone)]
 pub struct ContainerStatusItem {
     pub name: String,

@@ -147,6 +147,7 @@ async fn main() {
     let mut filter_scs = String::new();
     let mut filter_csi_drivers = String::new();
     let mut filter_services = String::new();
+    let mut filter_endpoints = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -161,6 +162,20 @@ async fn main() {
             *cluster_info_bg.lock().unwrap() = ClusterInfo { name };
         }
     });
+
+    // ENDPOINTS
+    let endpoints = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&endpoints),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_endpoints(client, list, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
 
     // SERVICES
     let services = Arc::new(Mutex::new(Vec::new()));
@@ -671,7 +686,49 @@ async fn main() {
                     });
                 },
                 Category::Endpoints => {
-                    ui.heading("Endpoints (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Endpoints - {}", endpoints.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_endpoints).hint_text("Filter jobs...").desired_width(200.0));
+                        filter_endpoints = filter_endpoints.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_endpoints.clear();
+                        }
+                    });
+                    ui.separator();
+                    let endpoints_list = endpoints.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
+                        egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Addresses");
+                            ui.label("Ports");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in endpoints_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_endpoints.is_empty() || cur_item_object.contains(&filter_endpoints) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.addresses));
+                                    ui.label(format!("{:?}", &item.ports));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::Jobs => {
                     let ns = namespaces.lock().unwrap();

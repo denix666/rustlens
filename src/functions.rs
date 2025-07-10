@@ -3,7 +3,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
-use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service};
+use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service, Endpoints};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{Job};
@@ -376,6 +376,89 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
             Err(e) => {
                 eprintln!("Node watch error: {:?}", e);
             }
+        }
+    }
+}
+
+pub fn convert_endpoint(ep: Endpoints) -> Option<super::EndpointItem> {
+    let metadata = &ep.metadata;
+    let name = metadata.name.clone()?;
+    let creation_timestamp = metadata.creation_timestamp.clone();
+
+    let mut all_addresses = Vec::new();
+    let mut all_ports = Vec::new();
+
+    if let Some(subsets) = ep.subsets {
+        for subset in subsets {
+            if let Some(addresses) = subset.addresses {
+                for addr in addresses {
+                    all_addresses.push(addr.ip);
+                }
+            }
+
+            if let Some(ports) = subset.ports {
+                for port in ports {
+                    let port_str = format!(
+                        "{}:{}",
+                        port.name.unwrap_or_else(|| "-".to_string()),
+                        port.port
+                    );
+                    all_ports.push(port_str);
+                }
+            }
+        }
+    }
+
+    Some(super::EndpointItem {
+        name,
+        addresses: if all_addresses.is_empty() {
+            "-".into()
+        } else {
+            all_addresses.join(", ")
+        },
+        ports: if all_ports.is_empty() {
+            "-".into()
+        } else {
+            all_ports.join(", ")
+        },
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<super::EndpointItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<Endpoints> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(ep) => {
+                    if let Some(item) = convert_endpoint(ep) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = endpoints_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(ep) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_endpoint(ep) {
+                        let mut list = endpoints_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("Endpoint watch error: {:?}", e),
         }
     }
 }
