@@ -8,6 +8,7 @@ use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet, DaemonSet}
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{Job, CronJob};
 use k8s_openapi::api::networking::v1::Ingress;
+use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -381,6 +382,71 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
     }
 }
 
+pub fn convert_pdb(pdb: PodDisruptionBudget) -> Option<super::PodDisruptionBudgetItem> {
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+
+    let metadata = &pdb.metadata;
+    let name = metadata.name.clone()?;
+    let creation_timestamp = metadata.creation_timestamp.clone();
+
+    let spec = pdb.spec?;
+    let status = pdb.status?;
+
+    Some(super::PodDisruptionBudgetItem {
+        name,
+        min_available: spec.min_available.map(|v| match v {
+            IntOrString::Int(i) => i.to_string(),
+            IntOrString::String(s) => s,
+        }),
+        max_unavailable: spec.max_unavailable.map(|v| match v {
+            IntOrString::Int(i) => i.to_string(),
+            IntOrString::String(s) => s,
+        }),
+        allowed_disruptions: status.disruptions_allowed,
+        current_healthy: status.current_healthy,
+        desired_healthy: status.desired_healthy,
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<Vec<super::PodDisruptionBudgetItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<PodDisruptionBudget> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(pdb) => {
+                    if let Some(item) = convert_pdb(pdb) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list_guard = list.lock().unwrap();
+                    *list_guard = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(pdb) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_pdb(pdb) {
+                        let mut list_guard = list.lock().unwrap();
+                        list_guard.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("PDB watch error: {:?}", e),
+        }
+    }
+}
+
 pub fn convert_daemonset(ds: DaemonSet) -> Option<super::DaemonSetItem> {
     let metadata = &ds.metadata;
     let name = metadata.name.clone()?;
@@ -673,6 +739,8 @@ pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<
 }
 
 pub fn convert_service(svc: Service) -> Option<super::ServiceItem> {
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+
     let metadata = &svc.metadata;
     let spec = svc.spec.as_ref()?;
 
@@ -688,9 +756,12 @@ pub fn convert_service(svc: Service) -> Option<super::ServiceItem> {
                 .iter()
                 .map(|p| {
                     let port = p.port;
-                    let target_port = p.target_port.as_ref().unwrap();
+                    let target_port = p.target_port.as_ref().map_or("".to_string(), |tp| match tp {
+                        IntOrString::Int(i) => i.to_string(),
+                        IntOrString::String(s) => s.to_string(),
+                    });
                     let protocol = p.protocol.as_ref().map_or("TCP".to_string(), |s| s.clone());
-                    format!("{}/{}→{:?}", port, protocol, target_port)
+                    format!("{}/{}→{}", port, protocol, target_port)
                 })
                 .collect::<Vec<_>>()
                 .join(", ")

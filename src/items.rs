@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use k8s_openapi::apimachinery::pkg::{apis::meta::v1::Time};
 
 #[derive(Clone)]
 pub struct NodeItem {
@@ -178,6 +178,17 @@ pub struct EventItem {
     pub event_type: String,
     pub timestamp: String,
     pub namespace: String,
+    pub creation_timestamp: Option<Time>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PodDisruptionBudgetItem {
+    pub name: String,
+    pub min_available: Option<String>,
+    pub max_unavailable: Option<String>,
+    pub allowed_disruptions: i32,
+    pub current_healthy: i32,
+    pub desired_healthy: i32,
     pub creation_timestamp: Option<Time>,
 }
 

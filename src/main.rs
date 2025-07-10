@@ -47,6 +47,7 @@ enum Category {
     StorageClasses,
     CSIDrivers,
     DaemonSets,
+    PodDisruptionBudgets,
 }
 
 #[derive(Clone)]
@@ -152,6 +153,7 @@ async fn main() {
     let mut filter_ingresses = String::new();
     let mut filter_cronjobs = String::new();
     let mut filter_daemonsets = String::new();
+    let mut filter_pdbs = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -176,6 +178,20 @@ async fn main() {
         Arc::new(|client, list, ns| {
             tokio::spawn(async move {
                 watch_endpoints(client, list, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
+    // POD DISRUPTION BUDGET
+    let pdbs = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&pdbs),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_pod_disruption_budgets(client, list, ns).await;
             });
         }),
         Duration::from_secs(1),
@@ -404,11 +420,11 @@ async fn main() {
 
         // Increase font size for different TextStyle
         style.text_styles = [
-            (TextStyle::Heading, FontId::new(24.0, egui::FontFamily::Proportional)),
-            (TextStyle::Body, FontId::new(18.0, egui::FontFamily::Proportional)),
-            (TextStyle::Monospace, FontId::new(16.0, egui::FontFamily::Monospace)),
-            (TextStyle::Button, FontId::new(18.0, egui::FontFamily::Proportional)),
-            (TextStyle::Small, FontId::new(14.0, egui::FontFamily::Proportional)),
+            (TextStyle::Heading, FontId::new(20.0, egui::FontFamily::Proportional)),
+            (TextStyle::Body, FontId::new(14.0, egui::FontFamily::Monospace)),
+            (TextStyle::Monospace, FontId::new(14.0, egui::FontFamily::Monospace)),
+            (TextStyle::Button, FontId::new(16.0, egui::FontFamily::Proportional)),
+            (TextStyle::Small, FontId::new(12.0, egui::FontFamily::Proportional)),
         ]
         .into();
 
@@ -474,6 +490,10 @@ async fn main() {
                     if ui.selectable_label(current == Category::Secrets, "🕵 Secrets").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::Secrets;
                     }
+
+                    if ui.selectable_label(current == Category::PodDisruptionBudgets, "📌 Pod Disruption Budgets").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::PodDisruptionBudgets;
+                    }
                 });
 
                 egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
@@ -517,6 +537,55 @@ async fn main() {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::PodDisruptionBudgets => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("PodDisruptionBudgets - {}", pdbs.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_pdbs).hint_text("Filter pdbs...").desired_width(200.0));
+                        filter_pdbs = filter_pdbs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_pdbs.clear();
+                        }
+                    });
+                    ui.separator();
+                    let pdbs_list = pdbs.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
+                        egui::Grid::new("pdbs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Min available");
+                            ui.label("Max unavailable");
+                            ui.label("Current/Desired healthy");
+                            ui.label("Allowed disruptions");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in pdbs_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_pdbs.is_empty() || cur_item_object.contains(&filter_pdbs) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(&item.min_available.clone().unwrap_or_else(|| "-".to_string()));
+                                    ui.label(&item.max_unavailable.clone().unwrap_or_else(|| "-".to_string()));
+                                    ui.label(format!("{} / {}", &item.current_healthy, &item.desired_healthy));
+                                    ui.label(format!("{}", &item.allowed_disruptions));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
+                },
                 Category::DaemonSets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
@@ -963,7 +1032,7 @@ async fn main() {
                                     ui.label(format!("{:?}", &item.external_ip));
                                     ui.label(format!("{:?}", &item.status));
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.label(format!("{:?}", &item.ports));
+                                    ui.label(egui::RichText::new(&item.ports).color(egui::Color32::LIGHT_YELLOW));
                                     ui.label(format!("{:?}", &item.selector));
                                     ui.end_row();
                                 }
