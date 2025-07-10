@@ -181,6 +181,15 @@ pub struct EventItem {
     pub creation_timestamp: Option<Time>,
 }
 
+#[derive(Debug, Clone)]
+pub struct DaemonSetItem {
+    pub name: String,
+    pub desired: i32,
+    pub current: i32,
+    pub ready: i32,
+    pub creation_timestamp: Option<Time>,
+}
+
 #[derive(Clone)]
 pub struct NamespaceItem {
     pub name: String,

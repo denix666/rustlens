@@ -4,7 +4,7 @@ use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service, Endpoints};
-use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
+use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet, DaemonSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{Job, CronJob};
 use k8s_openapi::api::networking::v1::Ingress;
@@ -377,6 +377,59 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
             Err(e) => {
                 eprintln!("Node watch error: {:?}", e);
             }
+        }
+    }
+}
+
+pub fn convert_daemonset(ds: DaemonSet) -> Option<super::DaemonSetItem> {
+    let metadata = &ds.metadata;
+    let name = metadata.name.clone()?;
+    let creation_timestamp = metadata.creation_timestamp.clone();
+
+    let status = ds.status?;
+    Some(super::DaemonSetItem {
+        name,
+        desired: status.desired_number_scheduled,
+        current: status.current_number_scheduled,
+        ready: status.number_ready,
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::DaemonSetItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<DaemonSet> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(ds) => {
+                    if let Some(item) = convert_daemonset(ds) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list_guard = list.lock().unwrap();
+                    *list_guard = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(ds) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_daemonset(ds) {
+                        let mut list_guard = list.lock().unwrap();
+                        list_guard.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("DaemonSet watch error: {:?}", e),
         }
     }
 }

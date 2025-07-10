@@ -46,6 +46,7 @@ enum Category {
     PersistentVolumes,
     StorageClasses,
     CSIDrivers,
+    DaemonSets,
 }
 
 #[derive(Clone)]
@@ -107,8 +108,8 @@ async fn main() {
     title.push_str(env!("CARGO_PKG_VERSION"));
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1600.0, 600.0])
-            .with_maximize_button(false),
+            .with_inner_size([1600.0, 800.0])
+            .with_maximized(true),
         ..Default::default()
     };
 
@@ -150,6 +151,7 @@ async fn main() {
     let mut filter_endpoints = String::new();
     let mut filter_ingresses = String::new();
     let mut filter_cronjobs = String::new();
+    let mut filter_daemonsets = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -238,6 +240,20 @@ async fn main() {
         Arc::new(|client, pvcs, ns| {
             tokio::spawn(async move {
                 watch_pvcs(client, pvcs, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
+    // DAEMONSETS
+    let daemonsets = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&daemonsets),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_daemonsets(client, list, ns).await;
             });
         }),
         Duration::from_secs(1),
@@ -433,6 +449,10 @@ async fn main() {
                         *selected_category_ui.lock().unwrap() = Category::StatefulSets;
                     }
 
+                    if ui.selectable_label(current == Category::DaemonSets, "📰 DaemonSets").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::DaemonSets;
+                    }
+
                     if ui.selectable_label(current == Category::ReplicaSets, "📜 ReplicaSets").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::ReplicaSets;
                     }
@@ -497,6 +517,53 @@ async fn main() {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::DaemonSets => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("DaemonSets - {}", daemonsets.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_daemonsets).hint_text("Filter daemonsets...").desired_width(200.0));
+                        filter_daemonsets = filter_daemonsets.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_daemonsets.clear();
+                        }
+                    });
+                    ui.separator();
+                    let daemonsets_list = daemonsets.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
+                        egui::Grid::new("daemonsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Desired");
+                            ui.label("Current");
+                            ui.label("Ready");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in daemonsets_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_daemonsets.is_empty() || cur_item_object.contains(&filter_daemonsets) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.desired));
+                                    ui.label(format!("{}", &item.current));
+                                    ui.label(format!("{}", &item.ready));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
+                },
                 Category::ClusterOverview => {
                     ui.heading("Cluster Overview");
                     ui.separator();
@@ -1366,7 +1433,7 @@ async fn main() {
                                     ui.label(item.node_name.clone().unwrap_or("-".into()));
                                     ui.menu_button("⚙", |ui| {
                                         ui.set_width(200.0);
-                                        if ui.button("🗑 Delete").clicked() {
+                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                             let cur_pod = item.name.clone();
                                             let cur_ns = selected_ns.clone();
 
