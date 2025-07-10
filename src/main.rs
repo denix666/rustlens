@@ -148,6 +148,7 @@ async fn main() {
     let mut filter_csi_drivers = String::new();
     let mut filter_services = String::new();
     let mut filter_endpoints = String::new();
+    let mut filter_ingresses = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -186,6 +187,20 @@ async fn main() {
         Arc::new(|client, list, ns| {
             tokio::spawn(async move {
                 watch_services(client, list, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
+    // INGRESSES
+    let ingresses = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&ingresses),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_ingresses(client, list, ns).await;
             });
         }),
         Duration::from_secs(1),
@@ -525,7 +540,53 @@ async fn main() {
                     });
                 },
                 Category::Ingresses => {
-                    ui.heading("Ingresses (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Ingresses - {}", ingresses.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_ingresses).hint_text("Filter ingresses...").desired_width(200.0));
+                        filter_ingresses = filter_ingresses.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_ingresses.clear();
+                        }
+                    });
+                    ui.separator();
+                    let ingresses_list = ingresses.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("ingresses_scroll").show(ui, |ui| {
+                        egui::Grid::new("ingresses_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Host");
+                            ui.label("Paths");
+                            ui.label("Service");
+                            ui.label("Tls");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in ingresses_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_ingresses.is_empty() || cur_item_object.contains(&filter_ingresses) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.host));
+                                    ui.label(format!("{}", &item.paths));
+                                    ui.label(format!("{}", &item.service));
+                                    ui.label(format!("{}", &item.tls));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::CSIDrivers => {
                     ui.horizontal(|ui| {

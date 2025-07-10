@@ -29,6 +29,16 @@ pub struct ContainerStatusItem {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct IngressItem {
+    pub name: String,
+    pub host: String,
+    pub paths: String,
+    pub service: String,
+    pub tls: String,
+    pub creation_timestamp: Option<Time>,
+}
+
 #[derive(Clone)]
 pub struct PodItem {
     pub name: String,

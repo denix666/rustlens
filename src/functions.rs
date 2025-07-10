@@ -7,6 +7,7 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap,
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{Job};
+use k8s_openapi::api::networking::v1::Ingress;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -376,6 +377,96 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
             Err(e) => {
                 eprintln!("Node watch error: {:?}", e);
             }
+        }
+    }
+}
+
+pub fn convert_ingress(ing: Ingress) -> Option<super::IngressItem> {
+    let metadata = &ing.metadata;
+    let name = metadata.name.clone()?;
+    let creation_timestamp = metadata.creation_timestamp.clone();
+    let ing_spec = ing.spec.clone();
+
+    let mut hosts = vec![];
+    let mut paths = vec![];
+    let mut services = vec![];
+
+    if let Some(spec) = ing.spec {
+        if let Some(rules) = spec.rules {
+            for rule in rules {
+                if let Some(host) = rule.host {
+                    hosts.push(host.clone());
+                }
+                if let Some(http) = rule.http {
+                    for path in http.paths {
+                        let p = path.path.unwrap_or_else(|| "/".to_string());
+                        paths.push(p.clone());
+
+                        if let Some(backend) = path.backend.service {
+                            services.push(backend.name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let tls = ing_spec
+        .as_ref()
+        .and_then(|s| s.tls.as_ref())
+        .map(|tls| {
+            tls.iter()
+                .filter_map(|entry| entry.hosts.clone())
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|| "-".to_string());
+
+    Some(super::IngressItem {
+        name,
+        host: if hosts.is_empty() { "-".into() } else { hosts.join(", ") },
+        paths: if paths.is_empty() { "-".into() } else { paths.join(", ") },
+        service: if services.is_empty() { "-".into() } else { services.join(", ") },
+        tls,
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<super::IngressItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<Ingress> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(ing) => {
+                    if let Some(item) = convert_ingress(ing) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list = ingresses_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(ing) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_ingress(ing) {
+                        let mut list = ingresses_list.lock().unwrap();
+                        list.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("Ingress watch error: {:?}", e),
         }
     }
 }
