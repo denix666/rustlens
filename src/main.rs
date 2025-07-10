@@ -149,6 +149,7 @@ async fn main() {
     let mut filter_services = String::new();
     let mut filter_endpoints = String::new();
     let mut filter_ingresses = String::new();
+    let mut filter_cronjobs = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -173,6 +174,20 @@ async fn main() {
         Arc::new(|client, list, ns| {
             tokio::spawn(async move {
                 watch_endpoints(client, list, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
+    // CRONJOBS
+    let cronjobs = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&cronjobs),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_cronjobs(client, list, ns).await;
             });
         }),
         Duration::from_secs(1),
@@ -890,7 +905,53 @@ async fn main() {
                     });
                 },
                 Category::CronJobs => {
-                    ui.heading("CronJobs (TODO)");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("CronJobs - {}", cronjobs.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_cronjobs).hint_text("Filter cronjobs...").desired_width(200.0));
+                        filter_cronjobs = filter_cronjobs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_cronjobs.clear();
+                        }
+                    });
+                    ui.separator();
+                    let cronjobs_list = cronjobs.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
+                        egui::Grid::new("cronjobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Schedule");
+                            ui.label("Suspend");
+                            ui.label("Active");
+                            ui.label("Last schedule");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in cronjobs_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_cronjobs.is_empty() || cur_item_object.contains(&filter_cronjobs) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.schedule));
+                                    ui.label(format!("{}", &item.suspend));
+                                    ui.label(format!("{}", &item.active));
+                                    ui.label(format!("{}", &item.last_schedule));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
                 },
                 Category::StatefulSets => {
                     let ns = namespaces.lock().unwrap();

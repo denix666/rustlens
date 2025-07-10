@@ -6,7 +6,7 @@ use kube::runtime::watcher;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service, Endpoints};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
-use k8s_openapi::api::batch::v1::{Job};
+use k8s_openapi::api::batch::v1::{Job, CronJob};
 use k8s_openapi::api::networking::v1::Ingress;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
@@ -380,6 +380,71 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
         }
     }
 }
+
+pub fn convert_cronjob(cj: CronJob) -> Option<super::CronJobItem> {
+    let metadata = &cj.metadata;
+    let name = metadata.name.clone()?;
+    let creation_timestamp =  metadata.creation_timestamp.clone();
+
+    let spec = cj.spec?;
+    let schedule = spec.schedule;
+    let suspend = spec.suspend.unwrap_or(false);
+    let active = cj.status.as_ref().map(|s| s.active.as_ref().unwrap().len()).unwrap_or(0);
+
+    let last_schedule = cj.status
+        .as_ref()
+        .and_then(|s| s.last_schedule_time.as_ref())
+        .map(|t| t.0.to_rfc3339())
+        .unwrap_or_else(|| "-".to_string());
+
+    Some(super::CronJobItem {
+        name,
+        schedule,
+        suspend: if suspend { "true".into() } else { "false".into() },
+        active,
+        last_schedule,
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::CronJobItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<CronJob> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(cronjob) => {
+                    if let Some(item) = convert_cronjob(cronjob) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list_guard = list.lock().unwrap();
+                    *list_guard = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(cronjob) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_cronjob(cronjob) {
+                        let mut list_guard = list.lock().unwrap();
+                        list_guard.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("CronJob watch error: {:?}", e),
+        }
+    }
+}
+
 
 pub fn convert_ingress(ing: Ingress) -> Option<super::IngressItem> {
     let metadata = &ing.metadata;

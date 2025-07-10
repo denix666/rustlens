@@ -39,6 +39,16 @@ pub struct IngressItem {
     pub creation_timestamp: Option<Time>,
 }
 
+#[derive(Debug, Clone)]
+pub struct CronJobItem {
+    pub name: String,
+    pub schedule: String,
+    pub suspend: String,
+    pub active: usize,
+    pub last_schedule: String,
+    pub creation_timestamp: Option<Time>,
+}
+
 #[derive(Clone)]
 pub struct PodItem {
     pub name: String,
