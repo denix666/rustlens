@@ -1,4 +1,4 @@
-use futures::AsyncBufReadExt;
+use futures::{AsyncBufReadExt};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
@@ -7,7 +7,7 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap,
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet, DaemonSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{Job, CronJob};
-use k8s_openapi::api::networking::v1::Ingress;
+use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
@@ -378,6 +378,154 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
             Err(e) => {
                 eprintln!("Node watch error: {:?}", e);
             }
+        }
+    }
+}
+
+fn convert_crd(obj: &kube::api::DynamicObject) -> Option<super::CRDItem> {
+    use serde_json::Value;
+
+    let name = obj.metadata.name.as_ref().unwrap().clone();
+    let spec: &Value = obj.data.get("spec")?;
+    let group = spec.get("group")?.as_str()?.to_string();
+    let scope = spec.get("scope")?.as_str()?.to_string();
+    let creation_timestamp = obj.metadata.creation_timestamp.clone();
+
+    let version = spec
+        .get("versions")?
+        .as_array()?
+        .get(0)?
+        .get("name")?
+        .as_str()?
+        .to_string();
+
+    let kind = spec
+        .get("names")?
+        .get("kind")?
+        .as_str()?
+        .to_string();
+
+    Some(super::CRDItem {
+        name,
+        group,
+        version,
+        scope,
+        kind,
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<super::CRDItem>>>) {
+    use kube::{api::{Api, DynamicObject, GroupVersionKind}, runtime::watcher::{self, Event}};
+    use kube::discovery;
+
+    let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
+    let api: Api<DynamicObject> = Api::all_with(client.as_ref().clone(), &ar);
+
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(obj) => {
+                    if let Some(item) = convert_crd(&obj) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list_guard = list.lock().unwrap();
+                    *list_guard = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(obj) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_crd(&obj) {
+                        let mut list_guard = list.lock().unwrap();
+                        list_guard.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("CRDs watch error: {:?}", e),
+        }
+    }
+}
+
+pub fn convert_network_policy(policy: NetworkPolicy) -> Option<super::NetworkPolicyItem> {
+    let metadata = &policy.metadata;
+    let name = metadata.name.clone()?;
+
+    let pod_selector = match &policy.spec {
+        Some(spec) => {
+            let labels = &spec.pod_selector.match_labels;
+            if let Some(lbls) = labels {
+                lbls.iter()
+                    .map(|(k, v)| format!("{}={}", k, v))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            } else {
+                "None".to_string()
+            }
+        }
+        None => "None".to_string(),
+    };
+
+    let policy_types = policy
+        .spec
+        .as_ref()
+        .map(|spec| spec.policy_types.as_ref().unwrap().join(", "))
+        .unwrap_or_else(|| "None".to_string());
+
+    let creation_timestamp = metadata.creation_timestamp.clone();
+
+    Some(super::NetworkPolicyItem {
+        name,
+        pod_selector,
+        policy_types,
+        creation_timestamp,
+    })
+}
+
+pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<super::NetworkPolicyItem>>>, selected_ns: String) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
+    let api: Api<NetworkPolicy> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                Event::Init => initial.clear(),
+                Event::InitApply(policy) => {
+                    if let Some(item) = convert_network_policy(policy) {
+                        initial.push(item);
+                    }
+                }
+                Event::InitDone => {
+                    let mut list_guard = list.lock().unwrap();
+                    *list_guard = initial.clone();
+                    initialized = true;
+                }
+                Event::Apply(policy) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_network_policy(policy) {
+                        let mut list_guard = list.lock().unwrap();
+                        list_guard.push(item);
+                    }
+                }
+                Event::Delete(_) => {}
+            },
+            Err(e) => eprintln!("NetworkPolicy watch error: {:?}", e),
         }
     }
 }

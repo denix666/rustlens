@@ -48,6 +48,8 @@ enum Category {
     CSIDrivers,
     DaemonSets,
     PodDisruptionBudgets,
+    NetworkPolicies,
+    CustomResourcesDefinitions,
 }
 
 #[derive(Clone)]
@@ -154,6 +156,8 @@ async fn main() {
     let mut filter_cronjobs = String::new();
     let mut filter_daemonsets = String::new();
     let mut filter_pdbs = String::new();
+    let mut filter_network_policies = String::new();
+    let mut filter_crds = String::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -211,6 +215,20 @@ async fn main() {
         Duration::from_secs(1),
     );
 
+    // NETWORK POLICIES
+    let network_policies = Arc::new(Mutex::new(Vec::new()));
+    spawn_namespace_watcher_loop(
+        Arc::clone(&client),
+        Arc::clone(&network_policies),
+        Arc::clone(&selected_namespace),
+        Arc::new(|client, list, ns| {
+            tokio::spawn(async move {
+                watch_network_policies(client, list, ns).await;
+            });
+        }),
+        Duration::from_secs(1),
+    );
+
     // SERVICES
     let services = Arc::new(Mutex::new(Vec::new()));
     spawn_namespace_watcher_loop(
@@ -238,6 +256,14 @@ async fn main() {
         }),
         Duration::from_secs(1),
     );
+
+    // CRDS
+    let crds = Arc::new(Mutex::new(Vec::new()));
+    let crds_clone = Arc::clone(&crds);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_crds(client_clone, crds_clone).await;
+    });
 
     // CSI DRIVERS
     let csi_drivers = Arc::new(Mutex::new(Vec::new()));
@@ -508,6 +534,10 @@ async fn main() {
                     if ui.selectable_label(current == Category::Ingresses, "⤵ Ingresses").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::Ingresses;
                     }
+
+                    if ui.selectable_label(current == Category::NetworkPolicies, "📋 Network Policies").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::NetworkPolicies;
+                    }
                 });
 
                 egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
@@ -528,6 +558,12 @@ async fn main() {
                     }
                 });
 
+                egui::CollapsingHeader::new("🖥 Administration").default_open(true).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::CustomResourcesDefinitions, "📢 Custom Resources Definitions").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::CustomResourcesDefinitions;
+                    }
+                });
+
                 egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
                     ui.label("📰 Charts");
                     ui.label("📥 Releases");
@@ -537,6 +573,87 @@ async fn main() {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::CustomResourcesDefinitions => {
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Custom Resources Definitions - {}", crds.lock().unwrap().len()));
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_crds).hint_text("Filter crds...").desired_width(200.0));
+                        filter_crds = filter_crds.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_crds.clear();
+                        }
+                    });
+                    ui.separator();
+                    let crds_list = crds.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("crds_scroll").show(ui, |ui| {
+                        egui::Grid::new("crds_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Group");
+                            ui.label("Version");
+                            ui.label("Scope");
+                            ui.label("Kind");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in crds_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_crds.is_empty() || cur_item_object.contains(&filter_crds) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(format!("{}", &item.group));
+                                    ui.label(format!("{}", &item.version));
+                                    ui.label(format!("{}", &item.scope));
+                                    ui.label(format!("{}", &item.kind));
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
+                },
+                Category::NetworkPolicies => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("PodDisruptionBudgets - {}", network_policies.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_network_policies).hint_text("Filter policies...").desired_width(200.0));
+                        filter_network_policies = filter_network_policies.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_network_policies.clear();
+                        }
+                    });
+                    ui.separator();
+                    let network_policies_list = network_policies.lock().unwrap();
+                    egui::ScrollArea::vertical().id_salt("network_policies_scroll").show(ui, |ui| {
+                        egui::Grid::new("network_policies_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("Name");
+                            ui.label("Pod selecter");
+                            ui.label("Types");
+                            ui.label("Age");
+                            ui.end_row();
+                            for item in network_policies_list.iter().rev().take(200) {
+                                let cur_item_object = &item.name;
+                                if filter_network_policies.is_empty() || cur_item_object.contains(&filter_network_policies) {
+                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                    ui.label(&item.pod_selector);
+                                    ui.label(&item.policy_types);
+                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    });
+                },
                 Category::PodDisruptionBudgets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();

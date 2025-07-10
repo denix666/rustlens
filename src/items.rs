@@ -22,6 +22,24 @@ pub struct EndpointItem {
     pub creation_timestamp: Option<Time>,
 }
 
+#[derive(Debug, Clone)]
+pub struct NetworkPolicyItem {
+    pub name: String,
+    pub pod_selector: String,
+    pub policy_types: String,
+    pub creation_timestamp: Option<Time>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CRDItem {
+    pub name: String,
+    pub group: String,
+    pub version: String,
+    pub scope: String,
+    pub kind: String,
+    pub creation_timestamp: Option<Time>,
+}
+
 #[derive(Clone)]
 pub struct ContainerStatusItem {
     pub name: String,
