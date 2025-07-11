@@ -458,7 +458,7 @@ async fn main() {
 
         ctx.set_style(style);
 
-        egui::SidePanel::left("tasks panel").resizable(false).exact_width(280.0).show(ctx, |ui| {
+        egui::SidePanel::left("tasks panel").resizable(false).exact_width(290.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("menu_scroll").show(ui, |ui| {
                 let current = selected_category_ui.lock().unwrap().clone();
 
@@ -1340,8 +1340,9 @@ async fn main() {
                                         let node_name = item.name.clone();
                                         if item.scheduling_disabled {
                                             if ui.button("▶ Uncordon").clicked() {
+                                                let client_clone = Arc::clone(&client);
                                                 tokio::spawn(async move {
-                                                    if let Err(err) = cordon_node(&node_name, false).await {
+                                                    if let Err(err) = cordon_node(client_clone, &node_name, false).await {
                                                         eprintln!("Failed to uncordon node: {}", err);
                                                     }
                                                 });
@@ -1349,8 +1350,9 @@ async fn main() {
                                             }
                                         } else {
                                             if ui.button("⏸ Cordon").clicked() {
+                                                let client_clone = Arc::clone(&client);
                                                 tokio::spawn(async move {
-                                                    if let Err(err) = cordon_node(&node_name, true).await {
+                                                    if let Err(err) = cordon_node(client_clone, &node_name, true).await {
                                                         eprintln!("Failed to cordon node: {}", err);
                                                     }
                                                 });
@@ -1359,8 +1361,9 @@ async fn main() {
                                         }
                                         if ui.button("♻ Drain").clicked() {
                                             let node_name = item.name.clone();
+                                            let client_clone = Arc::clone(&client);
                                             tokio::spawn(async move {
-                                                if let Err(err) = drain_node(&node_name).await {
+                                                if let Err(err) = drain_node(client_clone, &node_name).await {
                                                     eprintln!("Failed to drain node: {}", err);
                                                 }
                                             });
@@ -1401,6 +1404,7 @@ async fn main() {
                     let ns = namespaces.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
                         egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                            ui.label("");
                             if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 if sort_by == SortBy::Name {
                                     sort_asc = !sort_asc;
@@ -1433,9 +1437,16 @@ async fn main() {
                                 };
                                 if sort_asc { ord } else { ord.reverse() }
                             });
-                            for item in sorted_ns.iter() {
+
+                            for item in sorted_ns.iter_mut() {
                                 let cur_item_name = &item.name;
                                 if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
+                                    if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap().contains(&item.name) {
+                                        ui.colored_label(Color32::LIGHT_BLUE,"⏵");
+                                    } else {
+                                        ui.label("");
+                                    };
+
                                     if ui.colored_label(Color32::WHITE,&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
                                     }
@@ -1444,6 +1455,7 @@ async fn main() {
                                     } else {
                                         ui.colored_label(Color32::LIGHT_GRAY, "-");
                                     }
+
                                     if let Some(labels) = &item.labels {
                                         let label_str = labels.iter()
                                             .map(|(k, v)| format!("{}={}", k, v))
@@ -1453,6 +1465,7 @@ async fn main() {
                                     } else {
                                         ui.label("-");
                                     }
+
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     let _ = ui.button("⚙");
                                     ui.end_row();
@@ -1624,9 +1637,9 @@ async fn main() {
                                         if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                             let cur_pod = item.name.clone();
                                             let cur_ns = selected_ns.clone();
-
+                                            let client_clone = Arc::clone(&client);
                                             tokio::spawn(async move {
-                                                if let Err(err) = delete_pod(&cur_pod.clone(), cur_ns.as_deref(), true).await {
+                                                if let Err(err) = delete_pod(client_clone, &cur_pod.clone(), cur_ns.as_deref(), true).await {
                                                     eprintln!("Failed to delete pod: {}", err);
                                                 }
                                             });

@@ -219,7 +219,7 @@ pub struct DaemonSetItem {
     pub creation_timestamp: Option<Time>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct NamespaceItem {
     pub name: String,
     pub creation_timestamp: Option<Time>,

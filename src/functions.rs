@@ -151,18 +151,16 @@ pub async fn get_cluster_name() -> Result<String, anyhow::Error> {
     Ok(config.cluster_url.host().unwrap_or("unknown").to_string())
 }
 
-pub async fn cordon_node(node_name: &str, cordoned: bool) -> Result<(), kube::Error> {
-    let client = Client::try_default().await?;
-    let nodes: Api<Node> = Api::all(client);
+pub async fn cordon_node(client: Arc<Client>, node_name: &str, cordoned: bool) -> Result<(), kube::Error> {
+    let nodes: Api<Node> = Api::all(client.as_ref().clone());
     let patch = json!({ "spec": { "unschedulable": cordoned } });
     nodes.patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
     Ok(())
 }
 
-pub async fn delete_pod(pod_name: &str, namespace: Option<&str>, force: bool) -> Result<(), kube::Error> {
-    let client = Client::try_default().await?;
+pub async fn delete_pod(client: Arc<Client>, pod_name: &str, namespace: Option<&str>, force: bool) -> Result<(), kube::Error> {
     let ns = namespace.unwrap_or("default");
-    let pods: Api<Pod> = Api::namespaced(client, ns);
+    let pods: Api<Pod> = Api::namespaced(client.as_ref().clone(), ns);
     let dp = if force {
         DeleteParams {
             grace_period_seconds: Some(0),
@@ -183,16 +181,14 @@ pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Op
     Ok(())
 }
 
-pub async fn drain_node(node_name: &str) -> anyhow::Result<()> {
-    let client = Client::try_default().await?;
-
+pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<()> {
     // Cordon node
-    let nodes: Api<Node> = Api::all(client.clone());
+    let nodes: Api<Node> = Api::all(client.as_ref().clone());
     let patch = json!({ "spec": { "unschedulable": true } });
     nodes.patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
 
     // Evict pods
-    let pods: Api<Pod> = Api::all(client.clone());
+    let pods: Api<Pod> = Api::all(client.as_ref().clone());
     let lp = ListParams::default().fields(&format!("spec.nodeName={}", node_name));
     let pod_list = pods.list(&lp).await?;
 
