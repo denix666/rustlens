@@ -57,12 +57,14 @@ struct ClusterInfo {
     name: String,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 enum ResourceType {
     Blank,
     NameSpace,
     PersistenceVolumeClaim,
     Pod,
+    Secret,
+    ExternalSecret,
 }
 
 struct LogWindow {
@@ -1343,7 +1345,7 @@ async fn main() {
                                                         eprintln!("Failed to uncordon node: {}", err);
                                                     }
                                                 });
-                                                ui.close_menu();
+                                                ui.close_kind(egui::UiKind::Menu);
                                             }
                                         } else {
                                             if ui.button("⏸ Cordon").clicked() {
@@ -1352,7 +1354,7 @@ async fn main() {
                                                         eprintln!("Failed to cordon node: {}", err);
                                                     }
                                                 });
-                                                ui.close_menu();
+                                                ui.close_kind(egui::UiKind::Menu);
                                             }
                                         }
                                         if ui.button("♻ Drain").clicked() {
@@ -1362,7 +1364,7 @@ async fn main() {
                                                     eprintln!("Failed to drain node: {}", err);
                                                 }
                                             });
-                                            ui.close_menu();
+                                            ui.close_kind(egui::UiKind::Menu);
                                         }
                                     });
                                     ui.end_row();
@@ -1628,7 +1630,7 @@ async fn main() {
                                                     eprintln!("Failed to delete pod: {}", err);
                                                 }
                                             });
-                                            ui.close_menu();
+                                            ui.close_kind(egui::UiKind::Menu);
                                         }
                                         if ui.button("📃 Logs").clicked() {
                                             let cur_pod = item.name.clone();
@@ -1653,7 +1655,7 @@ async fn main() {
                                                  cur_pod.as_str(),
                                                 cur_container.as_str(), buf_clone).await;
                                             });
-                                            ui.close_menu();
+                                            ui.close_kind(egui::UiKind::Menu);
                                         }
                                     });
                                     ui.end_row();
@@ -1730,6 +1732,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::Secret;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter secrets...").desired_width(200.0));
                         filter_secrets = filter_secrets.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
@@ -1745,6 +1754,7 @@ async fn main() {
                             ui.label("Age");
                             ui.label("Labels");
                             ui.label("Keys");
+                            ui.label("Actions");
                             ui.end_row();
                             for item in secrets_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
@@ -1754,6 +1764,21 @@ async fn main() {
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.label(format!("{}", &item.labels));
                                     ui.label(format!("{}", &item.keys));
+                                    ui.menu_button("⚙", |ui| {
+                                        ui.set_width(200.0);
+                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                            let cur_item = item.name.clone();
+                                            let cur_ns = selected_ns.clone();
+                                            let client_clone = Arc::clone(&client);
+                                            tokio::spawn(async move {
+                                                if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                    eprintln!("Failed to delete secret: {}", err);
+                                                }
+                                            });
+                                            ui.close_kind(egui::UiKind::Menu);
+                                        }
+
+                                    });
                                     ui.end_row();
                                 }
                             }
@@ -1861,6 +1886,8 @@ async fn main() {
                     new_resource_window.content = match new_resource_window.resource_type {
                         ResourceType::NameSpace => NAMESPACE_TEMPLATE.to_string(),
                         ResourceType::Pod => POD_TEMPLATE.to_string(),
+                        ResourceType::Secret => SECRET_TEMPLATE.to_string(),
+                        ResourceType::ExternalSecret => EXTERNAL_SECRET_TEMPLATE.to_string(),
                         ResourceType::PersistenceVolumeClaim => PVC_TEMPLATE.to_string(),
                         ResourceType::Blank => "".to_string(),
                     };
@@ -1871,6 +1898,8 @@ async fn main() {
                     egui::ComboBox::from_id_salt("templates_combo").width(150.0)
                         .selected_text(match new_resource_window.resource_type {
                             ResourceType::NameSpace => "NameSpace",
+                            ResourceType::Secret => "Secret",
+                            ResourceType::ExternalSecret => "External secret",
                             ResourceType::Pod => "Pod",
                             ResourceType::PersistenceVolumeClaim => "PersistenceVolumeClaim",
                             ResourceType::Blank => "Blank",
@@ -1878,8 +1907,14 @@ async fn main() {
                             if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::NameSpace, "NameSpace",).clicked() {
                                 new_resource_window.content = NAMESPACE_TEMPLATE.to_string();
                             };
+                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Secret, "Secret",).clicked() {
+                                new_resource_window.content = SECRET_TEMPLATE.to_string();
+                            };
                             if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Pod, "Pod",).clicked() {
                                 new_resource_window.content = POD_TEMPLATE.to_string();
+                            };
+                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::ExternalSecret, "External secret",).clicked() {
+                                new_resource_window.content = EXTERNAL_SECRET_TEMPLATE.to_string();
                             };
                             if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::PersistenceVolumeClaim,"PersistenceVolumeClaim",).clicked() {
                                 new_resource_window.content = PVC_TEMPLATE.to_string();
@@ -1904,8 +1939,10 @@ async fn main() {
                 ui.horizontal(|ui| {
                     if ui.button(egui::RichText::new("✔ Apply").size(16.0).color(egui::Color32::GREEN)).clicked() {
                         let yaml = new_resource_window.content.clone();
+                        let client_clone = Arc::clone(&client);
+                        let resource_type = new_resource_window.resource_type.clone();
                         tokio::spawn(async move {
-                            if let Err(e) = apply_yaml(&yaml).await {
+                            if let Err(e) = apply_yaml(client_clone, &yaml, resource_type).await {
                                 println!("Error applying YAML: {:?}", e);
                             }
                         });

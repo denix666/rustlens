@@ -3,6 +3,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::runtime::watcher;
+use kube::discovery;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service, Endpoints};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet, DaemonSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
@@ -83,13 +84,43 @@ pub fn format_age(ts: &Time) -> String {
     }
 }
 
-pub async fn apply_yaml(yaml: &str) -> Result<(), anyhow::Error> {
-    let client = Client::try_default().await?;
+pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::ResourceType) -> Result<(), anyhow::Error> {
     let value: serde_yaml::Value = serde_yaml::from_str(yaml)?;
-    let obj: Namespace = serde_yaml::from_value(value)?;
 
-    let api: Api<Namespace> = Api::all(client);
-    api.create(&PostParams::default(), &obj).await?;
+    match resource_type {
+        crate::ResourceType::Blank => {},
+        crate::ResourceType::ExternalSecret => {
+            use kube::{api::{Api, DynamicObject, GroupVersionKind}};
+            let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
+            let obj: kube::api::DynamicObject = serde_yaml::from_value(value.clone())?;
+            let ns = obj.namespace().unwrap_or("default".into());
+            let api: Api<DynamicObject> = Api::namespaced_with(client.as_ref().clone(), &ns, &ar);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::NameSpace => {
+            let obj: Namespace = serde_yaml::from_value(value)?;
+            let api: Api<Namespace> = Api::all(client.as_ref().clone());
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::PersistenceVolumeClaim => {
+            let obj: PersistentVolumeClaim = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::Pod => {
+            let obj: Pod = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::Secret => {
+            let obj: Secret = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<Secret> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        }
+    };
 
     Ok(())
 }
@@ -142,6 +173,13 @@ pub async fn delete_pod(pod_name: &str, namespace: Option<&str>, force: bool) ->
         DeleteParams::default()
     };
     pods.delete(pod_name, &dp).await?;
+    Ok(())
+}
+
+pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+    let ns = namespace.unwrap_or("default");
+    let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), ns);
+    secrets.delete(secret_name, &DeleteParams::default()).await?;
     Ok(())
 }
 
@@ -450,7 +488,12 @@ pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<super::CRDItem>
                         list_guard.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(obj) => {
+                    if let Some(item) = obj.metadata.name {
+                        let mut obj_vec = list.lock().unwrap();
+                        obj_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("CRDs watch error: {:?}", e),
         }
@@ -523,7 +566,12 @@ pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<sup
                         list_guard.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(policy) => {
+                    if let Some(item) = policy.metadata.name {
+                        let mut policy_vec = list.lock().unwrap();
+                        policy_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("NetworkPolicy watch error: {:?}", e),
         }
@@ -588,7 +636,12 @@ pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<V
                         list_guard.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(pdb) => {
+                    if let Some(item) = pdb.metadata.name {
+                        let mut pdb_vec = list.lock().unwrap();
+                        pdb_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("PDB watch error: {:?}", e),
         }
@@ -641,7 +694,12 @@ pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::Da
                         list_guard.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(ds) => {
+                    if let Some(item) = ds.metadata.name {
+                        let mut ds_vec = list.lock().unwrap();
+                        ds_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("DaemonSet watch error: {:?}", e),
         }
@@ -705,7 +763,12 @@ pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::Cron
                         list_guard.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(cronjob) => {
+                    if let Some(item) = cronjob.metadata.name {
+                        let mut cronjobs_vec = list.lock().unwrap();
+                        cronjobs_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("CronJob watch error: {:?}", e),
         }
@@ -796,7 +859,12 @@ pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(ing) => {
+                    if let Some(item) = ing.metadata.name {
+                        let mut ings_vec = ingresses_list.lock().unwrap();
+                        ings_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("Ingress watch error: {:?}", e),
         }
@@ -879,7 +947,12 @@ pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(ep) => {
+                    if let Some(item) = ep.metadata.name {
+                        let mut eps_vec = endpoints_list.lock().unwrap();
+                        eps_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("Endpoint watch error: {:?}", e),
         }
@@ -987,7 +1060,12 @@ pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<su
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(svc) => {
+                    if let Some(item) = svc.metadata.name {
+                        let mut svcs_vec = services_list.lock().unwrap();
+                        svcs_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("Service watch error: {:?}", e),
         }
@@ -1049,7 +1127,12 @@ pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<supe
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(driver) => {
+                    if let Some(item) = driver.metadata.name {
+                        let mut drivers_vec = csi_list.lock().unwrap();
+                        drivers_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("CSIDriver watch error: {:?}", e),
         }
@@ -1104,7 +1187,7 @@ pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super:
                         list.push(item);
                     }
                 }
-                watcher::Event::Delete(_) => {}
+                watcher::Event::Delete(_) => {} // Events should not be deleted
             },
             Err(e) => {
                 eprintln!("Event watch error: {:?}", e);
@@ -1228,7 +1311,12 @@ pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(pv) => {
+                    if let Some(item) = pv.metadata.name {
+                        let mut pv_vec = pv_list.lock().unwrap();
+                        pv_vec.retain(|n| n.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("PV watch error: {:?}", e),
         }
@@ -1411,7 +1499,12 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(rs) => {
+                    if let Some(item) = rs.metadata.name {
+                        let mut rs_vec = rs_list.lock().unwrap();
+                        rs_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("ReplicaSet watch error: {:?}", e),
         }
@@ -1462,7 +1555,12 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<supe
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(ss) => {
+                    if let Some(item) = ss.metadata.name {
+                        let mut ss_vec = ss_list.lock().unwrap();
+                        ss_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("StatefulSet watch error: {:?}", e),
         }
@@ -1523,7 +1621,12 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::Job
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(job) => {
+                    if let Some(item) = job.metadata.name {
+                        let mut job_vec = jobs_list.lock().unwrap();
+                        job_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("Job watch error: {:?}", e),
         }
@@ -1579,7 +1682,12 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                     }
                 }
 
-                WatcherEvent::Delete(_) => {}
+                WatcherEvent::Delete(deploy) => {
+                    if let Some(item) = deploy.metadata.name {
+                        let mut deploy_vec = deployments_list.lock().unwrap();
+                        deploy_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => {
                 eprintln!("Deployment watch error: {:?}", e);
@@ -1628,7 +1736,12 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
                         list.push(item);
                     }
                 }
-                watcher::Event::Delete(_) => {}
+                watcher::Event::Delete(cm) => {
+                    if let Some(item) = cm.metadata.name {
+                        let mut cm_vec = configmaps_list.lock().unwrap();
+                        cm_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("ConfigMap watch error: {:?}", e),
         }
@@ -1676,7 +1789,12 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<supe
                         list.push(item);
                     }
                 }
-                watcher::Event::Delete(_) => {}
+                watcher::Event::Delete(secret) => {
+                    if let Some(item) = secret.metadata.name {
+                        let mut secrets_vec = secrets_list.lock().unwrap();
+                        secrets_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("Secret watch error: {:?}", e),
         }
