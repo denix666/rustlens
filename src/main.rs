@@ -959,7 +959,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.storage_class));
                                     ui.label(format!("{}", &item.capacity));
                                     ui.label(format!("{}", &item.claim));
-                                    ui.label(format!("{}", &item.status));
+                                    ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
@@ -1008,7 +1008,7 @@ async fn main() {
                                     ui.label(format!("{}", &item.storage_class));
                                     ui.label(format!("{}", &item.volume_name));
                                     ui.label(format!("{}", &item.size));
-                                    ui.label(format!("{}", &item.status));
+                                    ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
@@ -1098,7 +1098,7 @@ async fn main() {
                                 if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     ui.label(format!("{}", &item.completions));
-                                    ui.label(format!("{:?}", &item.conditions));
+                                    ui.label(egui::RichText::new(&item.condition).color(item_color(&item.condition)));
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
@@ -1322,11 +1322,7 @@ async fn main() {
                                     ui.label(format!("{}", item.roles.join(", ")));
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
 
-                                    let node_status = egui::RichText::new(&item.status).color(match item.status.as_str() {
-                                        "Ready" => egui::Color32::GREEN,
-                                        "NotReady" => egui::Color32::RED,
-                                        _ => egui::Color32::YELLOW,
-                                    });
+                                    let node_status = egui::RichText::new(&item.status).color(item_color(&item.status));
                                     let scheduling_status = match item.scheduling_disabled {
                                         true => egui::RichText::new("SchedulingDisabled").color(egui::Color32::ORANGE),
                                         false => egui::RichText::new(""),
@@ -1377,14 +1373,6 @@ async fn main() {
                     });
                 },
                 Category::Namespaces => {
-                    fn phase_color(phase: &str) -> Color32 {
-                        match phase {
-                            "Active" => Color32::GREEN,
-                            "Terminating" => Color32::RED,
-                            _ => Color32::from_rgb(0x90, 0xA4, 0xAE),          // gray (default)
-                        }
-                    }
-
                     ui.horizontal(|ui| {
                         ui.heading(format!("Namespaces - {}", namespaces.lock().unwrap().len()));
                         ui.separator();
@@ -1451,7 +1439,7 @@ async fn main() {
                                         *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
                                     }
                                     if let Some(phase) = &item.phase {
-                                        ui.colored_label(phase_color(phase), phase);
+                                        ui.colored_label(item_color(phase), phase);
                                     } else {
                                         ui.colored_label(Color32::LIGHT_GRAY, "-");
                                     }
@@ -1612,12 +1600,7 @@ async fn main() {
 
                                             ui.horizontal(|ui| {
                                                 ui.label(format!("{} {}", icon, container.name));
-                                                ui.label(egui::RichText::new(state_str).color(match state_str {
-                                                    "Running" => egui::Color32::GREEN,
-                                                    "Waiting" => egui::Color32::YELLOW,
-                                                    "Terminated" => egui::Color32::RED,
-                                                    _ => egui::Color32::LIGHT_GRAY,
-                                                }));
+                                                ui.label(egui::RichText::new(state_str).color(item_color(state_str)));
                                             });
 
                                             if let Some(msg) = &container.message {
@@ -1872,11 +1855,7 @@ async fn main() {
                                 if filter_events.is_empty() || cur_item_object.contains(&filter_events) {
                                     ui.label(&item.timestamp);
                                     ui.label(
-                                        egui::RichText::new(&item.event_type).color(match item.event_type.as_str() {
-                                            "Warning" => egui::Color32::ORANGE,
-                                            "Normal" => egui::Color32::GREEN,
-                                            _ => egui::Color32::LIGHT_GRAY,
-                                        }),
+                                        egui::RichText::new(&item.event_type).color(item_color(&item.event_type)),
                                     );
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.label(&item.namespace);

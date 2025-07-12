@@ -1,3 +1,4 @@
+use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
@@ -82,6 +83,31 @@ pub fn format_age(ts: &Time) -> String {
     } else {
         format!("{}s", duration.num_seconds())
     }
+}
+
+pub fn item_color(item: &str) -> Color32 {
+    let ret_color = match item {
+        "Ready" => Color32::GREEN,
+        "NotReady" => Color32::RED,
+        "Running" => Color32::GREEN,
+        "Waiting" => Color32::YELLOW,
+        "Terminated" => Color32::RED,
+        "Complete" => Color32::GREEN,
+        "Failed" => Color32::RED,
+        "Bound" => Color32::GREEN,
+        "Available" => Color32::LIGHT_GREEN,
+        "Released" => Color32::GRAY,
+        "Pending" => Color32::ORANGE,
+        "SchedulingDisabled" => Color32::ORANGE,
+        "Lost" => Color32::LIGHT_RED,
+        "Active" => Color32::GREEN,
+        "Terminating" => Color32::RED,
+        "Warning" => Color32::ORANGE,
+        "Normal" => Color32::GREEN,
+        _ => Color32::LIGHT_GRAY,
+    };
+
+    return ret_color
 }
 
 pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::ResourceType) -> Result<(), anyhow::Error> {
@@ -1564,6 +1590,21 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<supe
 }
 
 pub fn convert_job(job: Job) -> Option<super::JobItem> {
+    let condition = job
+        .status
+        .as_ref()
+        .and_then(|s| s.conditions.as_ref())
+        .map(|conds| {
+            if conds.iter().any(|c| c.type_ == "Complete" && c.status == "True") {
+                "Complete".to_string()
+            } else if conds.iter().any(|c| c.type_ == "Failed" && c.status == "True") {
+                "Failed".to_string()
+            } else {
+                "Running".to_string()
+            }
+        })
+        .unwrap_or_else(|| "Unknown".to_string());
+
     Some(super::JobItem {
         name: job.metadata.name.clone()?,
         labels: job.metadata.labels.unwrap_or_default(),
@@ -1572,16 +1613,7 @@ pub fn convert_job(job: Job) -> Option<super::JobItem> {
             .as_ref()
             .and_then(|s| s.succeeded)
             .unwrap_or(0),
-        conditions: job
-            .status
-            .as_ref()
-            .and_then(|s| s.conditions.clone())
-            .map(|conds| {
-                conds.iter()
-                    .filter_map(|c| Some(c.type_.clone()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default(),
+        condition,
         creation_timestamp: job.metadata.creation_timestamp,
     })
 }
