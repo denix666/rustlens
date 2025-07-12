@@ -207,6 +207,13 @@ pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Op
     Ok(())
 }
 
+pub async fn delete_configmap(client: Arc<Client>, configmap_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+    let ns = namespace.unwrap_or("default");
+    let configmaps: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), ns);
+    configmaps.delete(configmap_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
 pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<()> {
     // Cordon node
     let nodes: Api<Node> = Api::all(client.as_ref().clone());

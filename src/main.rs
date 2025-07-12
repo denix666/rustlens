@@ -1132,7 +1132,7 @@ async fn main() {
                     ui.separator();
                     let services_list = services.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
-                        egui::Grid::new("services_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                        egui::Grid::new("services_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                             ui.label("Name");
                             ui.label("Type");
                             ui.label("Cluster IP");
@@ -1744,11 +1744,11 @@ async fn main() {
                     ui.separator();
                     let secrets_list = secrets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
-                        egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                        egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                             ui.label("Name");
                             ui.label("Type");
                             ui.label("Age");
-                            ui.label("Labels");
+                            ui.label("Labels"); // Limit width!
                             ui.label("Keys");
                             ui.label("Actions");
                             ui.end_row();
@@ -1807,13 +1807,15 @@ async fn main() {
                     ui.separator();
                     let configmaps_list = configmaps.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
-                        egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                        egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                             ui.label("Name");
                             ui.label("Type");
                             ui.label("Age");
                             ui.label("Labels");
                             ui.label("Keys");
+                            ui.label("Actions");
                             ui.end_row();
+
                             for item in configmaps_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
@@ -1822,6 +1824,20 @@ async fn main() {
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.label(format!("{:?}", &item.labels));
                                     ui.label(format!("{}", &item.keys.join(", ")));
+                                    ui.menu_button("⚙", |ui| {
+                                        ui.set_width(200.0);
+                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                            let cur_item = item.name.clone();
+                                            let cur_ns = selected_ns.clone();
+                                            let client_clone = Arc::clone(&client);
+                                            tokio::spawn(async move {
+                                                if let Err(err) = delete_configmap(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                    eprintln!("Failed to delete configmap: {}", err);
+                                                }
+                                            });
+                                            ui.close_kind(egui::UiKind::Menu);
+                                        }
+                                    });
                                     ui.end_row();
                                 }
                             }
@@ -1841,7 +1857,7 @@ async fn main() {
                     ui.separator();
                     let events_list = events.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
-                        egui::Grid::new("events_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                        egui::Grid::new("events_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                             ui.label("Time");
                             ui.label("Type");
                             ui.label("Age");
