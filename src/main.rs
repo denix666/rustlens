@@ -190,32 +190,20 @@ async fn main() {
     );
 
     // POD DISRUPTION BUDGET
-    let pdbs = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&pdbs),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, list, ns| {
-            tokio::spawn(async move {
-                watch_pod_disruption_budgets(client, list, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let pdbs = Arc::new(Mutex::new(Vec::<PodDisruptionBudgetItem>::new()));
+    let pdbs_clone = Arc::clone(&pdbs);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_pod_disruption_budgets(client_clone, pdbs_clone).await;
+    });
 
     // CRONJOBS
-    let cronjobs = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&cronjobs),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, list, ns| {
-            tokio::spawn(async move {
-                watch_cronjobs(client, list, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let cronjobs = Arc::new(Mutex::new(Vec::<CronJobItem>::new()));
+    let cronjobs_clone = Arc::clone(&cronjobs);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_cronjobs(client_clone, cronjobs_clone).await;
+    });
 
     // NETWORK POLICIES
     let network_policies = Arc::new(Mutex::new(Vec::new()));
@@ -290,45 +278,33 @@ async fn main() {
     );
 
     // DAEMONSETS
-    let daemonsets = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&daemonsets),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, list, ns| {
-            tokio::spawn(async move {
-                watch_daemonsets(client, list, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let daemonsets = Arc::new(Mutex::new(Vec::<DaemonSetItem>::new()));
+    let daemonsets_clone = Arc::clone(&daemonsets);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_daemonsets(client_clone, daemonsets_clone).await;
+    });
 
     // JOBS
-    let jobs = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&jobs),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, jobs, ns| {
-            tokio::spawn(async move {
-                watch_jobs(client, jobs, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let jobs = Arc::new(Mutex::new(Vec::<JobItem>::new()));
+    let jobs_clone = Arc::clone(&jobs);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_jobs(client_clone, jobs_clone).await;
+    });
 
     // PV
-    let pvs = Arc::new(Mutex::new(Vec::new()));
-    let client_clone = Arc::clone(&client);
+    let pvs = Arc::new(Mutex::new(Vec::<PvItem>::new()));
     let pvs_clone = Arc::clone(&pvs);
+    let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
         watch_pvs(client_clone, pvs_clone).await;
     });
 
     // SC
-    let storage_classes = Arc::new(Mutex::new(Vec::new()));
-    let client_clone = Arc::clone(&client);
+    let storage_classes = Arc::new(Mutex::new(Vec::<StorageClassItem>::new()));
     let sc_clone = Arc::clone(&storage_classes);
+    let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
         watch_storage_classes(client_clone, sc_clone).await;
     });
@@ -342,21 +318,15 @@ async fn main() {
     });
 
     // STATEFULSETS
-    let statefulsets = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&statefulsets),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, ss, ns| {
-            tokio::spawn(async move {
-                watch_statefulsets(client, ss, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let statefulsets = Arc::new(Mutex::new(Vec::<StatefulSetItem>::new()));
+    let statefulsets_clone = Arc::clone(&statefulsets);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_statefulsets(client_clone, statefulsets_clone).await;
+    });
 
     // REPLICASETS
-    let replicasets = Arc::new(Mutex::new(Vec::new()));
+    let replicasets = Arc::new(Mutex::new(Vec::<ReplicaSetItem>::new()));
     spawn_namespace_watcher_loop(
         Arc::clone(&client),
         Arc::clone(&replicasets),
@@ -370,46 +340,28 @@ async fn main() {
     );
 
     // DEPLOYMENTS
-    let deployments = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&deployments),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, deployments, ns| {
-            tokio::spawn(async move {
-                watch_deployments(client, deployments, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let deployments = Arc::new(Mutex::new(Vec::<DeploymentItem>::new()));
+    let deployments_clone = Arc::clone(&deployments);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_deployments(client_clone, deployments_clone).await;
+    });
 
     // SECRETS
-    let secrets = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&secrets),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, secrets, ns| {
-            tokio::spawn(async move {
-                watch_secrets(client, secrets, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let secrets = Arc::new(Mutex::new(Vec::<SecretItem>::new()));
+    let secrets_clone = Arc::clone(&secrets);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_secrets(client_clone, secrets_clone).await;
+    });
 
     // CONFIGMAPS
-    let configmaps = Arc::new(Mutex::new(Vec::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&configmaps),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, configmaps, ns| {
-            tokio::spawn(async move {
-                watch_configmaps(client, configmaps, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let configmaps = Arc::new(Mutex::new(Vec::<ConfigMapItem>::new()));
+    let configmaps_clone = Arc::clone(&configmaps);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_configmaps(client_clone, configmaps_clone).await;
+    });
 
     // NODES
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
@@ -430,17 +382,11 @@ async fn main() {
 
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    spawn_namespace_watcher_loop(
-        Arc::clone(&client),
-        Arc::clone(&pods),
-        Arc::clone(&selected_namespace),
-        Arc::new(|client, pods, ns| {
-            tokio::spawn(async move {
-                watch_pods(client, pods, ns).await;
-            });
-        }),
-        Duration::from_secs(1),
-    );
+    let pods_clone = Arc::clone(&pods);
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        watch_pods(client_clone, pods_clone).await;
+    });
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         // Setup style
@@ -659,8 +605,13 @@ async fn main() {
                 Category::PodDisruptionBudgets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_pdbs: Vec<_> = pdbs.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("PodDisruptionBudgets - {}", pdbs.lock().unwrap().len()));
+                        ui.heading(format!("PodDisruptionBudgets - {}", visible_pdbs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -680,7 +631,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let pdbs_list = pdbs.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
                         egui::Grid::new("pdbs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -690,7 +640,7 @@ async fn main() {
                             ui.label("Allowed disruptions");
                             ui.label("Age");
                             ui.end_row();
-                            for item in pdbs_list.iter().rev().take(200) {
+                            for item in visible_pdbs.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_pdbs.is_empty() || cur_item_object.contains(&filter_pdbs) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -708,8 +658,13 @@ async fn main() {
                 Category::DaemonSets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_daemonsets: Vec<_> = daemonsets.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("DaemonSets - {}", daemonsets.lock().unwrap().len()));
+                        ui.heading(format!("DaemonSets - {}", visible_daemonsets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -729,7 +684,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let daemonsets_list = daemonsets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
                         egui::Grid::new("daemonsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -738,7 +692,7 @@ async fn main() {
                             ui.label("Ready");
                             ui.label("Age");
                             ui.end_row();
-                            for item in daemonsets_list.iter().rev().take(200) {
+                            for item in visible_daemonsets.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_daemonsets.is_empty() || cur_item_object.contains(&filter_daemonsets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -1073,8 +1027,13 @@ async fn main() {
                 Category::Jobs => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_pods: Vec<_> = jobs.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Jobs - {}", jobs.lock().unwrap().len()));
+                        ui.heading(format!("Jobs - {}", visible_pods.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1094,7 +1053,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let jobs_list = jobs.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
                         egui::Grid::new("jobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -1102,7 +1060,7 @@ async fn main() {
                             ui.label("Conditions");
                             ui.label("Age");
                             ui.end_row();
-                            for item in jobs_list.iter().rev().take(200) {
+                            for item in visible_pods.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -1171,8 +1129,13 @@ async fn main() {
                 Category::CronJobs => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_cronjobs: Vec<_> = cronjobs.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("CronJobs - {}", cronjobs.lock().unwrap().len()));
+                        ui.heading(format!("CronJobs - {}", visible_cronjobs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1192,7 +1155,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let cronjobs_list = cronjobs.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
                         egui::Grid::new("cronjobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -1202,7 +1164,7 @@ async fn main() {
                             ui.label("Last schedule");
                             ui.label("Age");
                             ui.end_row();
-                            for item in cronjobs_list.iter().rev().take(200) {
+                            for item in visible_cronjobs.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_cronjobs.is_empty() || cur_item_object.contains(&filter_cronjobs) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -1220,8 +1182,13 @@ async fn main() {
                 Category::StatefulSets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_statefulsets: Vec<_> = statefulsets.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("StatefulSets - {}", statefulsets.lock().unwrap().len()));
+                        ui.heading(format!("StatefulSets - {}", visible_statefulsets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1241,7 +1208,7 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let statefulsets_list = statefulsets.lock().unwrap();
+                    //let statefulsets_list = statefulsets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
                         egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -1249,7 +1216,7 @@ async fn main() {
                             ui.label("Service name");
                             ui.label("Age");
                             ui.end_row();
-                            for item in statefulsets_list.iter().rev().take(200) {
+                            for item in visible_statefulsets.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_statefulsets.is_empty() || cur_item_object.contains(&filter_statefulsets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -1472,11 +1439,15 @@ async fn main() {
                     });
                 },
                 Category::Pods => {
-                    // Get the list of available namespaces
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_pods: Vec<_> = pods.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Pods - {}", pods.lock().unwrap().len()));
+                        ui.heading(format!("Pods - {}", visible_pods.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1503,7 +1474,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let pod = pods.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
                         egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -1529,7 +1499,7 @@ async fn main() {
                             ui.label("Node");
                             ui.label("Actions");
                             ui.end_row();
-                            let mut sorted_pods = pod.clone();
+                            let mut sorted_pods = visible_pods.clone();
                             sorted_pods.sort_by(|a, b| {
                                 let ord = match sort_by {
                                     SortBy::Name => a.name.cmp(&b.name),
@@ -1687,8 +1657,13 @@ async fn main() {
                 Category::Deployments => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_deployments: Vec<_> = deployments.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Deployments - {}", deployments.lock().unwrap().len()));
+                        ui.heading(format!("Deployments - {}", visible_deployments.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1708,22 +1683,19 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let deployments_list = deployments.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
                         egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
-                            ui.label("NameSpace");
                             ui.label("Ready");
                             ui.label("Desired");
                             ui.label("Up-to-date");
                             ui.label("Available");
                             ui.label("Age");
                             ui.end_row();
-                            for item in deployments_list.iter().rev().take(200) {
+                            for item in visible_deployments.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.namespace));
                                     ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                     ui.label(format!("{}", &item.replicas));
                                     ui.label(format!("{}", &item.updated_replicas));
@@ -1738,8 +1710,13 @@ async fn main() {
                 Category::Secrets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_secrets: Vec<_> = secrets.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Secrets - {}", secrets.lock().unwrap().len()));
+                        ui.heading(format!("Secrets - {}", visible_secrets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1766,7 +1743,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let secrets_list = secrets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
                         egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                             ui.label("Name");
@@ -1776,7 +1752,7 @@ async fn main() {
                             ui.label("Keys");
                             ui.label("Actions");
                             ui.end_row();
-                            for item in secrets_list.iter().rev().take(200) {
+                            for item in visible_secrets.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -1808,8 +1784,13 @@ async fn main() {
                 Category::ConfigMaps => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_configmaps: Vec<_> = configmaps.lock().unwrap()
+                        .iter()
+                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
+                        .cloned()
+                        .collect();
                     ui.horizontal(|ui| {
-                        ui.heading(format!("ConfigMaps - {}", configmaps.lock().unwrap().len()));
+                        ui.heading(format!("ConfigMaps - {}", visible_configmaps.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1829,7 +1810,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let configmaps_list = configmaps.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
                         egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                             ui.label("Name");
@@ -1840,7 +1820,7 @@ async fn main() {
                             ui.label("Actions");
                             ui.end_row();
 
-                            for item in configmaps_list.iter().rev().take(200) {
+                            for item in visible_configmaps.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));

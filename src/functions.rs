@@ -617,6 +617,8 @@ pub fn convert_pdb(pdb: PodDisruptionBudget) -> Option<super::PodDisruptionBudge
     let spec = pdb.spec?;
     let status = pdb.status?;
 
+    let namespace = pdb.metadata.namespace.clone();
+
     Some(super::PodDisruptionBudgetItem {
         name,
         min_available: spec.min_available.map(|v| match v {
@@ -631,12 +633,13 @@ pub fn convert_pdb(pdb: PodDisruptionBudget) -> Option<super::PodDisruptionBudge
         current_healthy: status.current_healthy,
         desired_healthy: status.desired_healthy,
         creation_timestamp,
+        namespace,
     })
 }
 
-pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<Vec<super::PodDisruptionBudgetItem>>>, selected_ns: String) {
+pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<Vec<super::PodDisruptionBudgetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<PodDisruptionBudget> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<PodDisruptionBudget> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -689,12 +692,13 @@ pub fn convert_daemonset(ds: DaemonSet) -> Option<super::DaemonSetItem> {
         current: status.current_number_scheduled,
         ready: status.number_ready,
         creation_timestamp,
+        namespace: ds.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::DaemonSetItem>>>, selected_ns: String) {
+pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::DaemonSetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<DaemonSet> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<DaemonSet> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -739,7 +743,7 @@ pub fn convert_cronjob(cj: CronJob) -> Option<super::CronJobItem> {
     let metadata = &cj.metadata;
     let name = metadata.name.clone()?;
     let creation_timestamp =  metadata.creation_timestamp.clone();
-
+    let namespace = cj.metadata.namespace.clone();
     let spec = cj.spec?;
     let schedule = spec.schedule;
     let suspend = spec.suspend.unwrap_or(false);
@@ -762,12 +766,13 @@ pub fn convert_cronjob(cj: CronJob) -> Option<super::CronJobItem> {
         active,
         last_schedule,
         creation_timestamp,
+        namespace,
     })
 }
 
-pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::CronJobItem>>>, selected_ns: String) {
+pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::CronJobItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<CronJob> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<CronJob> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1546,6 +1551,7 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super
 
 pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
     let spec = ss.spec.unwrap();
+    let namespace = ss.metadata.namespace.clone();
     Some(super::StatefulSetItem {
         name: ss.metadata.name.clone()?,
         labels: ss.metadata.labels.unwrap_or_default(),
@@ -1553,13 +1559,14 @@ pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
         replicas: spec.replicas.unwrap_or(0),
         ready_replicas: ss.status.as_ref()?.ready_replicas.unwrap_or(0),
         creation_timestamp: ss.metadata.creation_timestamp,
+        namespace,
     })
 }
 
-pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<super::StatefulSetItem>>>, selected_ns: String) {
+pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<super::StatefulSetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
 
-    let api: Api<StatefulSet> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<StatefulSet> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1616,6 +1623,8 @@ pub fn convert_job(job: Job) -> Option<super::JobItem> {
         })
         .unwrap_or_else(|| "Unknown".to_string());
 
+    let namespace = job.metadata.namespace.clone();
+
     Some(super::JobItem {
         name: job.metadata.name.clone()?,
         labels: job.metadata.labels.unwrap_or_default(),
@@ -1626,14 +1635,14 @@ pub fn convert_job(job: Job) -> Option<super::JobItem> {
             .unwrap_or(0),
         condition,
         creation_timestamp: job.metadata.creation_timestamp,
+        namespace,
     })
 }
 
-pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::JobItem>>>, selected_ns: String) {
+pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::JobItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<Job> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<Job> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
-
     let mut initial = vec![];
     let mut initialized = false;
 
@@ -1674,8 +1683,8 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::Job
 
 fn convert_deployment(deploy: Deployment) -> Option<super::DeploymentItem> {
     let name = deploy.metadata.name.unwrap_or_default();
-    let namespace = deploy.metadata.namespace.unwrap_or_else(|| "default".to_string());
     let status = deploy.status.unwrap_or_default();
+    let namespace = deploy.metadata.namespace.clone();
     Some(super::DeploymentItem {
         name,
         namespace,
@@ -1687,8 +1696,8 @@ fn convert_deployment(deploy: Deployment) -> Option<super::DeploymentItem> {
     })
 }
 
-pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>, selected_ns: String) {
-    let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>) {
+    let api: Api<Deployment> = Api::all(client.as_ref().clone());
     let mut watcher_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1742,11 +1751,12 @@ pub fn convert_configmap(cm: ConfigMap) -> Option<super::ConfigMapItem> {
         keys: cm.data.as_ref().map(|d| d.keys().cloned().collect()).unwrap_or_default(),
         type_: "Opaque".to_string(),
         creation_timestamp: cm.metadata.creation_timestamp,
+        namespace: cm.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Vec<super::ConfigMapItem>>>, selected_ns: String) {
-    let cms: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Vec<super::ConfigMapItem>>>) {
+    let cms: Api<ConfigMap> = Api::all(client.as_ref().clone());
     let mut stream = watcher(cms, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1789,17 +1799,19 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
 
 fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
     let name = secret.name().unwrap().to_string();
+    let namespace = secret.metadata.namespace.clone();
     Some(super::SecretItem {
         name,
         labels: secret.metadata.labels.unwrap_or_default().into_iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "),
         keys: secret.data.as_ref().map(|d| d.keys().cloned().collect::<Vec<_>>().join(", ")).unwrap_or_else(|| "-".into()),
         type_: secret.type_.unwrap_or_else(|| "-".into()),
         creation_timestamp: secret.metadata.creation_timestamp,
+        namespace,
     })
 }
 
-pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, selected_ns: String) {
-    let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>) {
+    let secrets: Api<Secret> = Api::all(client.as_ref().clone());
     let mut stream = watcher(secrets, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1845,7 +1857,7 @@ fn convert_pod(pod: Pod) -> Option<super::PodItem> {
     let phase = pod.status.as_ref().and_then(|s| s.phase.clone());
     let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
     let terminating = pod.metadata.deletion_timestamp.is_some();
-
+    let namespace = pod.metadata.namespace.clone();
     let mut containers = vec![];
     let mut ready = 0;
     let mut restart_count = 0;
@@ -1917,11 +1929,12 @@ fn convert_pod(pod: Pod) -> Option<super::PodItem> {
         creation_timestamp: pod.metadata.creation_timestamp,
         terminating,
         controller,
+        namespace,
     })
 }
 
-pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns: String) {
-    let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>) {
+    let api: Api<Pod> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];

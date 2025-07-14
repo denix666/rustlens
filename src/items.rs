@@ -65,6 +65,7 @@ pub struct CronJobItem {
     pub active: usize,
     pub last_schedule: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Clone)]
@@ -80,6 +81,7 @@ pub struct PodItem {
     pub creation_timestamp: Option<Time>,
     pub terminating: bool,
     pub controller: Option<String>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +102,7 @@ pub struct JobItem {
     pub completions: i32,
     pub condition: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -170,6 +173,7 @@ pub struct StatefulSetItem {
     pub service_name: String,
     pub ready_replicas: i32,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -179,6 +183,7 @@ pub struct SecretItem {
     pub keys: String,
     pub type_: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -188,6 +193,7 @@ pub struct ConfigMapItem {
     pub keys: Vec<String>,
     pub type_: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Clone)]
@@ -210,6 +216,7 @@ pub struct PodDisruptionBudgetItem {
     pub current_healthy: i32,
     pub desired_healthy: i32,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -219,6 +226,7 @@ pub struct DaemonSetItem {
     pub current: i32,
     pub ready: i32,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -232,10 +240,10 @@ pub struct NamespaceItem {
 #[derive(Clone)]
 pub struct DeploymentItem {
     pub name: String,
-    pub namespace: String,
     pub ready_replicas: i32,
     pub available_replicas: i32,
     pub updated_replicas: i32,
     pub replicas: i32,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
