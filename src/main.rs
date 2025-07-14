@@ -797,11 +797,20 @@ async fn main() {
                             ui.end_row();
                             for item in replicasets_list.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
+                                let status = if item.ready == 0 {
+                                    if item.current > item.ready {
+                                        "NotReady"
+                                    } else {
+                                        "Pending"
+                                    }
+                                } else {
+                                    "Ready"
+                                };
                                 if filter_replicasets.is_empty() || cur_item_object.contains(&filter_replicasets) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.desired));
-                                    ui.label(format!("{}", &item.current));
-                                    ui.label(format!("{}", &item.ready));
+                                    ui.label(egui::RichText::new(format!("{}", &item.desired)).color(item_color(status)));
+                                    ui.label(egui::RichText::new(format!("{}", &item.current)).color(item_color(status)));
+                                    ui.label(egui::RichText::new(format!("{}", &item.ready)).color(item_color(status)));
                                     ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                     ui.end_row();
                                 }
@@ -1516,6 +1525,7 @@ async fn main() {
                                 }
                             }
                             ui.label("Restarts");
+                            ui.label("Controlled by");
                             ui.label("Node");
                             ui.label("Actions");
                             ui.end_row();
@@ -1533,8 +1543,9 @@ async fn main() {
                             });
                             for item in sorted_pods.iter() {
                                 let cur_item_name = &item.name;
-                                let running_on_node = &item.node_name.as_ref().unwrap();
-                                if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
+                                // let running_on_node = item.node_name.as_ref().unwrap();
+                                // if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
+                                if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                     let status;
                                     let mut ready_color: Color32;
@@ -1542,12 +1553,20 @@ async fn main() {
                                     if item.pod_has_crashloop {
                                         cur_phase = "CrashLoopBackOff";
                                     } else {
-                                        cur_phase = item.phase.as_ref().unwrap();
+                                        if item.terminating {
+                                            cur_phase = "Terminating";
+                                        } else {
+                                            cur_phase = item.phase.as_ref().unwrap();
+                                        }
                                     }
                                     match cur_phase {
                                         "Running" => {
                                             status = "✅ Running".to_string();
                                             ready_color = Color32::from_rgb(100, 255, 100); // green
+                                        },
+                                        "Terminating" => {
+                                            status = "🗑 Terminating".to_string();
+                                            ready_color = Color32::from_rgb(128, 128, 128); // gray
                                         },
                                         "Pending" => {
                                             status = "⏳ Pending".to_string();
@@ -1613,6 +1632,11 @@ async fn main() {
                                         ui.label(egui::RichText::new(format!("{}", item.restart_count)).color(egui::Color32::ORANGE));
                                     } else {
                                         ui.label(egui::RichText::new(format!("Never")).color(egui::Color32::GRAY));
+                                    }
+                                    if item.controller.is_some().clone() {
+                                        ui.label(item.controller.as_ref().unwrap());
+                                    } else {
+                                        ui.label("");
                                     }
                                     ui.label(item.node_name.clone().unwrap_or("-".into()));
                                     ui.menu_button("⚙", |ui| {

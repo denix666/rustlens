@@ -70,7 +70,6 @@ pub struct CronJobItem {
 #[derive(Clone)]
 pub struct PodItem {
     pub name: String,
-    pub creation_timestamp: Option<Time>,
     pub phase: Option<String>,
     pub ready_containers: u32,
     pub total_containers: u32,
@@ -78,6 +77,9 @@ pub struct PodItem {
     pub restart_count: i32,
     pub node_name: Option<String>,
     pub pod_has_crashloop: bool,
+    pub creation_timestamp: Option<Time>,
+    pub terminating: bool,
+    pub controller: Option<String>,
 }
 
 #[derive(Debug, Clone)]

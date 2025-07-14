@@ -8,7 +8,7 @@ use kube::discovery;
 use k8s_openapi::api::core::v1::{Namespace, Node, Pod, Event, Secret, ConfigMap, PersistentVolumeClaim, PersistentVolume, Service, Endpoints};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet, DaemonSet};
 use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
-use k8s_openapi::api::batch::v1::{Job, CronJob};
+use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use std::sync::{Arc, Mutex};
@@ -743,7 +743,11 @@ pub fn convert_cronjob(cj: CronJob) -> Option<super::CronJobItem> {
     let spec = cj.spec?;
     let schedule = spec.schedule;
     let suspend = spec.suspend.unwrap_or(false);
-    let active = cj.status.as_ref().map(|s| s.active.as_ref().unwrap().len()).unwrap_or(0);
+
+    let active = cj.status
+        .as_ref()
+        .and_then(|s| s.active.as_ref()
+        .map(|a| a.len())).unwrap_or(0);
 
     let last_schedule = cj.status
         .as_ref()
@@ -1836,225 +1840,128 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<supe
     }
 }
 
+fn convert_pod(pod: Pod) -> Option<super::PodItem> {
+    let name = pod.metadata.name.unwrap();
+    let phase = pod.status.as_ref().and_then(|s| s.phase.clone());
+    let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
+    let terminating = pod.metadata.deletion_timestamp.is_some();
+
+    let mut containers = vec![];
+    let mut ready = 0;
+    let mut restart_count = 0;
+    let mut pod_has_crashloop = false;
+
+    let controller = pod.metadata.owner_references.as_ref()
+        .and_then(|owners| {
+            owners.iter()
+                .find(|o| o.controller.unwrap_or(false))
+                .map(|o| format!("{}", o.kind)) // can be name, uid etc...
+        });
+
+    if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
+        for cs in statuses {
+            let state = cs.state.as_ref().and_then(|s| {
+                if s.running.is_some() {
+                    Some("Running".to_string())
+                } else if s.waiting.is_some() {
+                    Some("Waiting".to_string())
+                } else if s.terminated.is_some() {
+                    Some("Terminated".to_string())
+                } else {
+                    None
+                }
+            });
+
+            let is_crashloop = cs.state.as_ref()
+                .and_then(|s| s.waiting.as_ref())
+                .and_then(|w| w.reason.clone())
+                .map(|r| r == "CrashLoopBackOff")
+                .unwrap_or(false);
+
+            if is_crashloop {
+                pod_has_crashloop = true;
+            }
+
+            restart_count += cs.restart_count;
+
+            let message = cs.state.as_ref().and_then(|s| {
+                if let Some(waiting) = &s.waiting {
+                    waiting.message.clone()
+                } else if let Some(terminated) = &s.terminated {
+                    terminated.message.clone()
+                } else {
+                    None
+                }
+            });
+
+            if cs.ready {
+                ready += 1;
+            }
+
+            containers.push(super::ContainerStatusItem {
+                name: cs.name,
+                state,
+                message,
+            });
+        }
+    }
+    Some(super::PodItem {
+        name,
+        phase,
+        ready_containers: ready,
+        total_containers: containers.len() as u32,
+        containers,
+        restart_count,
+        node_name,
+        pod_has_crashloop,
+        creation_timestamp: pod.metadata.creation_timestamp,
+        terminating,
+        controller,
+    })
+}
+
 pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>, selected_ns: String) {
     let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), &selected_ns);
-    let mut pod_stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
 
-    while let Some(event) = pod_stream.next().await {
+    while let Some(event) = stream.next().await {
         match event {
             Ok(ev) => match ev {
                 watcher::Event::Init => initial.clear(),
                 watcher::Event::InitApply(pod) => {
-                    if let Some(name) = pod.metadata.name {
-                        let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
-                        let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
-                        if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
-                            let mut containers = vec![];
-                            let mut ready = 0;
-                            let mut restart_count = 0;
-                            let mut pod_has_crashloop = false;
-                            for cs in statuses {
-                                let state = cs.state.as_ref().and_then(|s| {
-                                    if s.running.is_some() {
-                                        Some("Running".to_string())
-                                    } else if s.waiting.is_some() {
-                                        Some("Waiting".to_string())
-                                    } else if s.terminated.is_some() {
-                                        Some("Terminated".to_string())
-                                    } else {
-                                        None
-                                    }
-                                });
-
-                                let is_crashloop = cs.state.as_ref()
-                                    .and_then(|s| s.waiting.as_ref())
-                                    .and_then(|w| w.reason.clone())
-                                    .map(|r| r == "CrashLoopBackOff")
-                                    .unwrap_or(false);
-                                if is_crashloop {
-                                    pod_has_crashloop = true;
-                                }
-
-                                restart_count += cs.restart_count;
-
-                                let message = cs.state.as_ref().and_then(|s| {
-                                    if let Some(waiting) = &s.waiting {
-                                        waiting.message.clone()
-                                    } else if let Some(terminated) = &s.terminated {
-                                        terminated.message.clone()
-                                    } else {
-                                        None
-                                    }
-                                });
-
-                                if cs.ready {
-                                    ready += 1;
-                                }
-
-                                containers.push(super::ContainerStatusItem {
-                                    name: cs.name,
-                                    state,
-                                    message,
-                                });
-                            }
-
-                            initial.push(super::PodItem {
-                                name,
-                                phase: pod.status.as_ref().and_then(|s| s.phase.clone()),
-                                creation_timestamp,
-                                ready_containers: ready,
-                                total_containers: containers.len() as u32,
-                                containers,
-                                restart_count,
-                                node_name,
-                                pod_has_crashloop,
-                            });
-                        }
+                    if let Some(item) = convert_pod(pod) {
+                        initial.push(item);
                     }
                 }
                 watcher::Event::InitDone => {
-                    let mut pods_vec = pods_list.lock().unwrap();
-                    *pods_vec = initial.clone();
+                    let mut list = pods_list.lock().unwrap();
+                    *list = initial.clone();
                     initialized = true;
                 }
                 watcher::Event::Apply(pod) => {
                     if !initialized {
                         continue;
                     }
-                    if let Some(name) = pod.metadata.name {
-                        let mut pods_vec = pods_list.lock().unwrap();
-                        match pods_vec.iter_mut().find(|p| p.name == name) {
-                            Some(existing_pod) => {
-                                // renew
-                                existing_pod.phase = pod.status.as_ref().and_then(|s| s.phase.clone());
-                                existing_pod.creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
-                                if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
-                                    let mut containers = vec![];
-                                    let mut ready = 0;
-
-                                    for cs in statuses {
-                                        let state = cs.state.as_ref().and_then(|s| {
-                                            if s.running.is_some() {
-                                                Some("Running".to_string())
-                                            } else if s.waiting.is_some() {
-                                                Some("Waiting".to_string())
-                                            } else if s.terminated.is_some() {
-                                                Some("Terminated".to_string())
-                                            } else {
-                                                None
-                                            }
-                                        });
-
-                                        let message = cs.state.as_ref().and_then(|s| {
-                                            if let Some(waiting) = &s.waiting {
-                                                waiting.message.clone()
-                                            } else if let Some(terminated) = &s.terminated {
-                                                terminated.message.clone()
-                                            } else {
-                                                None
-                                            }
-                                        });
-
-                                        if cs.ready {
-                                            ready += 1;
-                                        }
-
-                                        containers.push(super::ContainerStatusItem {
-                                            name: cs.name,
-                                            state,
-                                            message,
-                                        });
-                                    }
-
-                                    existing_pod.ready_containers = ready;
-                                    existing_pod.total_containers = containers.len() as u32;
-                                    existing_pod.containers = containers;
-                                }
-                            }
-                            None => {
-                                // add new
-                                let creation_timestamp = pod.status.as_ref().and_then(|s| s.start_time.clone());
-                                let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
-                                if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
-                                    let mut containers = vec![];
-                                    let mut ready = 0;
-                                    let mut restart_count = 0;
-                                    let mut pod_has_crashloop = false;
-                                    for cs in statuses {
-                                        let state = cs.state.as_ref().and_then(|s| {
-                                            if s.running.is_some() {
-                                                Some("Running".to_string())
-                                            } else if s.waiting.is_some() {
-                                                Some("Waiting".to_string())
-                                            } else if s.terminated.is_some() {
-                                                Some("Terminated".to_string())
-                                            } else {
-                                                None
-                                            }
-                                        });
-
-                                        let is_crashloop = cs.state.as_ref()
-                                            .and_then(|s| s.waiting.as_ref())
-                                            .and_then(|w| w.reason.clone())
-                                            .map(|r| r == "CrashLoopBackOff")
-                                            .unwrap_or(false);
-                                        if is_crashloop {
-                                            pod_has_crashloop = true;
-                                        }
-
-                                        restart_count += cs.restart_count;
-
-                                        let message = cs.state.as_ref().and_then(|s| {
-                                            if let Some(waiting) = &s.waiting {
-                                                waiting.message.clone()
-                                            } else if let Some(terminated) = &s.terminated {
-                                                terminated.message.clone()
-                                            } else {
-                                                None
-                                            }
-                                        });
-
-                                        if cs.ready {
-                                            ready += 1;
-                                        }
-
-                                        containers.push(super::ContainerStatusItem {
-                                            name: cs.name,
-                                            state,
-                                            message,
-                                        });
-                                    }
-
-                                    pods_vec.push(super::PodItem {
-                                        name,
-                                        phase: pod.status.as_ref().and_then(|s| s.phase.clone()),
-                                        creation_timestamp,
-                                        ready_containers: ready,
-                                        total_containers: containers.len() as u32,
-                                        containers,
-                                        restart_count,
-                                        node_name,
-                                        pod_has_crashloop,
-                                    });
-                                }
-                            }
+                    if let Some(item) = convert_pod(pod) {
+                        let mut list = pods_list.lock().unwrap();
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
                         }
-
                     }
                 }
                 watcher::Event::Delete(pod) => {
-                    if let Some(name) = pod.metadata.name {
-                        let mut ns_vec = pods_list.lock().unwrap();
-                        ns_vec.retain(|p| p.name != name);
+                    if let Some(item) = pod.metadata.name {
+                        let mut pods_vec = pods_list.lock().unwrap();
+                        pods_vec.retain(|p| p.name != item);
                     }
                 }
             },
-            Err(e) => {
-                eprintln!("Pods watch error: {:?}", e);
-            }
+            Err(e) => eprintln!("Secret watch error: {:?}", e),
         }
     }
 }
