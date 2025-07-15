@@ -1,8 +1,9 @@
-use eframe::egui::{CursorIcon};
+use eframe::egui::{CursorIcon, Direction, Ui};
 use eframe::*;
 use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
 use std::sync::{Arc, Mutex};
 use kube::Client;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod functions;
 use functions::*;
@@ -105,6 +106,14 @@ impl NewResourceWindow {
         }
     }
 }
+fn show_loading(ui: &mut Ui) {
+    ui.with_layout(
+        egui::Layout::centered_and_justified(Direction::TopDown),
+        |ui| {
+            ui.label(egui::RichText::new("⏳ Loading...").heading());
+        },
+    );
+}
 
 #[tokio::main]
 async fn main() {
@@ -175,145 +184,246 @@ async fn main() {
         }
     });
 
-    // OLD WAY
-    // let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    // let pods_clone = Arc::clone(&pods);
-    // let ns = selected_namespace_clone.lock().unwrap().clone().unwrap_or_else(|| "default".to_string());
-    // let client_clone = Arc::clone(&client);
-    // tokio::spawn(async move {
-    //     watch_pods(client_clone, pods_clone, ns).await;
-    // });
-
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&pods), |c, s| {
-        Box::pin(watch_pods(c, s))
+    let pods_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&pods),
+        Arc::clone(&pods_loading),
+        |c, s, l| {
+        Box::pin(watch_pods(c, s, l))
     });
 
     // ENDPOINTS
     let endpoints = Arc::new(Mutex::new(Vec::<EndpointItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&endpoints), |c, s| {
-        Box::pin(watch_endpoints(c, s))
+    let endpoints_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&endpoints),
+        Arc::clone(&endpoints_loading),
+        |c, s, l| {
+        Box::pin(watch_endpoints(c, s, l))
     });
 
     // POD DISRUPTION BUDGET
     let pdbs = Arc::new(Mutex::new(Vec::<PodDisruptionBudgetItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&pdbs), |c, s| {
-        Box::pin(watch_pod_disruption_budgets(c, s))
+    let pdbs_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&pdbs),
+        Arc::clone(&pdbs_loading),
+        |c, s, l| {
+        Box::pin(watch_pod_disruption_budgets(c, s, l))
     });
 
     // CRONJOBS
     let cronjobs = Arc::new(Mutex::new(Vec::<CronJobItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&cronjobs), |c, s| {
-        Box::pin(watch_cronjobs(c, s))
+    let cronjobs_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&cronjobs),
+        Arc::clone(&cronjobs_loading),
+        |c, s, l| {
+        Box::pin(watch_cronjobs(c, s, l))
     });
 
     // NETWORK POLICIES
     let network_policies = Arc::new(Mutex::new(Vec::<NetworkPolicyItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&network_policies), |c, s| {
-        Box::pin(watch_network_policies(c, s))
+    let network_policies_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&network_policies),
+        Arc::clone(&network_policies_loading),
+        |c, s, l| {
+        Box::pin(watch_network_policies(c, s, l))
     });
 
     // SERVICES
     let services = Arc::new(Mutex::new(Vec::<ServiceItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&services), |c, s| {
-        Box::pin(watch_services(c, s))
+    let services_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&services),
+        Arc::clone(&services_loading),
+        |c, s, l| {
+        Box::pin(watch_services(c, s, l))
     });
 
     // INGRESSES
     let ingresses = Arc::new(Mutex::new(Vec::<IngressItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&ingresses), |c, s| {
-        Box::pin(watch_ingresses(c, s))
+    let ingresses_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&ingresses),
+        Arc::clone(&ingresses_loading),
+        |c, s, l| {
+        Box::pin(watch_ingresses(c, s, l))
     });
 
     // CRDS
     let crds = Arc::new(Mutex::new(Vec::<CRDItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&crds), |c, s| {
-        Box::pin(watch_crds(c, s))
+    let crds_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&crds),
+        Arc::clone(&crds_loading),
+        |c, s, l| {
+        Box::pin(watch_crds(c, s, l))
     });
 
     // CSI DRIVERS
     let csi_drivers = Arc::new(Mutex::new(Vec::<CSIDriverItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&csi_drivers), |c, s| {
-        Box::pin(watch_csi_drivers(c, s))
+    let csi_drivers_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&csi_drivers),
+        Arc::clone(&csi_drivers_loading),
+        |c, s, l| {
+        Box::pin(watch_csi_drivers(c, s, l))
     });
 
     // PVC
     let pvcs = Arc::new(Mutex::new(Vec::<PvcItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&pvcs), |c, s| {
-        Box::pin(watch_pvcs(c, s))
+    let pvcs_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&pvcs),
+        Arc::clone(&pvcs_loading),
+        |c, s, l| {
+        Box::pin(watch_pvcs(c, s, l))
     });
 
     // DAEMONSETS
     let daemonsets = Arc::new(Mutex::new(Vec::<DaemonSetItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&daemonsets), |c, s| {
-        Box::pin(watch_daemonsets(c, s))
+    let daemonsets_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&daemonsets),
+        Arc::clone(&daemonsets_loading),
+        |c, s, l| {
+        Box::pin(watch_daemonsets(c, s, l))
     });
 
     // JOBS
     let jobs = Arc::new(Mutex::new(Vec::<JobItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&jobs), |c, s| {
-        Box::pin(watch_jobs(c, s))
+    let jobs_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&jobs),
+        Arc::clone(&jobs_loading),
+        |c, s, l| {
+        Box::pin(watch_jobs(c, s, l))
     });
 
     // PV
     let pvs = Arc::new(Mutex::new(Vec::<PvItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&pvs), |c, s| {
-        Box::pin(watch_pvs(c, s))
+    let pvs_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&pvs),
+        Arc::clone(&pvs_loading),
+        |c, s, l| {
+        Box::pin(watch_pvs(c, s, l))
     });
 
     // SC
     let storage_classes = Arc::new(Mutex::new(Vec::<StorageClassItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&storage_classes), |c, s| {
-        Box::pin(watch_storage_classes(c, s))
+    let storage_classes_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&storage_classes),
+        Arc::clone(&storage_classes_loading),
+        |c, s, l| {
+        Box::pin(watch_storage_classes(c, s, l))
     });
 
     // EVENTS
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&events), |c, s| {
-        Box::pin(watch_events(c, s))
+    let events_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&events),
+        Arc::clone(&events_loading),
+        |c, s, l| {
+        Box::pin(watch_events(c, s, l))
     });
 
     // STATEFULSETS
     let statefulsets = Arc::new(Mutex::new(Vec::<StatefulSetItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&statefulsets), |c, s| {
-        Box::pin(watch_statefulsets(c, s))
+    let statefulsets_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&statefulsets),
+        Arc::clone(&statefulsets_loading),
+        |c, s, l| {
+        Box::pin(watch_statefulsets(c, s, l))
     });
 
     // REPLICASETS
     let replicasets = Arc::new(Mutex::new(Vec::<ReplicaSetItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&replicasets), |c, s| {
-        Box::pin(watch_replicasets(c, s))
+    let replicasets_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&replicasets),
+        Arc::clone(&replicasets_loading),
+        |c, s, l| {
+        Box::pin(watch_replicasets(c, s, l))
     });
 
     // DEPLOYMENTS
     let deployments = Arc::new(Mutex::new(Vec::<DeploymentItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&deployments), |c, s| {
-        Box::pin(watch_deployments(c, s))
+    let deployments_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&deployments),
+        Arc::clone(&deployments_loading),
+        |c, s, l| {
+        Box::pin(watch_deployments(c, s, l))
     });
 
     // SECRETS
     let secrets = Arc::new(Mutex::new(Vec::<SecretItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&secrets), |c, s| {
-        Box::pin(watch_secrets(c, s))
+    let secrets_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&secrets),
+        Arc::clone(&secrets_loading),
+        |c, s, l| {
+        Box::pin(watch_secrets(c, s, l))
     });
 
     // CONFIGMAPS
     let configmaps = Arc::new(Mutex::new(Vec::<ConfigMapItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&configmaps), |c, s| {
-        Box::pin(watch_configmaps(c, s))
+    let configmaps_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&configmaps),
+        Arc::clone(&configmaps_loading),
+        |c, s, l| {
+        Box::pin(watch_configmaps(c, s, l))
     });
 
     // NODES
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&nodes), |c, s| {
-        Box::pin(watch_nodes(c, s))
+    let nodes_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&nodes),
+        Arc::clone(&nodes_loading),
+        |c, s, l| {
+        Box::pin(watch_nodes(c, s, l))
     });
 
     // NAMESPACES
     let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&namespaces), |c, s| {
-        Box::pin(watch_namespaces(c, s))
+    let namespaces_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&namespaces),
+        Arc::clone(&namespaces_loading),
+        |c, s, l| {
+        Box::pin(watch_namespaces(c, s, l))
     });
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
@@ -460,30 +570,34 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let crds_list = crds.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("crds_scroll").show(ui, |ui| {
-                        egui::Grid::new("crds_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Group");
-                            ui.label("Version");
-                            ui.label("Scope");
-                            ui.label("Kind");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in crds_list.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_crds.is_empty() || cur_item_object.contains(&filter_crds) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.group));
-                                    ui.label(format!("{}", &item.version));
-                                    ui.label(format!("{}", &item.scope));
-                                    ui.label(format!("{}", &item.kind));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if crds_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        let crds_list = crds.lock().unwrap();
+                        egui::ScrollArea::vertical().id_salt("crds_scroll").show(ui, |ui| {
+                            egui::Grid::new("crds_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Group");
+                                ui.label("Version");
+                                ui.label("Scope");
+                                ui.label("Kind");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in crds_list.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_crds.is_empty() || cur_item_object.contains(&filter_crds) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.group));
+                                        ui.label(format!("{}", &item.version));
+                                        ui.label(format!("{}", &item.scope));
+                                        ui.label(format!("{}", &item.kind));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::NetworkPolicies => {
                     let ns = namespaces.lock().unwrap();
@@ -518,25 +632,29 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("network_policies_scroll").show(ui, |ui| {
-                        egui::Grid::new("network_policies_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Pod selecter");
-                            ui.label("Types");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_network_policies.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_network_policies.is_empty() || cur_item_object.contains(&filter_network_policies) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(&item.pod_selector);
-                                    ui.label(&item.policy_types);
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if network_policies_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("network_policies_scroll").show(ui, |ui| {
+                            egui::Grid::new("network_policies_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Pod selecter");
+                                ui.label("Types");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_network_policies.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_network_policies.is_empty() || cur_item_object.contains(&filter_network_policies) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(&item.pod_selector);
+                                        ui.label(&item.policy_types);
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::PodDisruptionBudgets => {
                     let ns = namespaces.lock().unwrap();
@@ -571,29 +689,33 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
-                        egui::Grid::new("pdbs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Min available");
-                            ui.label("Max unavailable");
-                            ui.label("Current/Desired healthy");
-                            ui.label("Allowed disruptions");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_pdbs.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_pdbs.is_empty() || cur_item_object.contains(&filter_pdbs) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(&item.min_available.clone().unwrap_or_else(|| "-".to_string()));
-                                    ui.label(&item.max_unavailable.clone().unwrap_or_else(|| "-".to_string()));
-                                    ui.label(format!("{} / {}", &item.current_healthy, &item.desired_healthy));
-                                    ui.label(format!("{}", &item.allowed_disruptions));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if pdbs_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
+                            egui::Grid::new("pdbs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Min available");
+                                ui.label("Max unavailable");
+                                ui.label("Current/Desired healthy");
+                                ui.label("Allowed disruptions");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_pdbs.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_pdbs.is_empty() || cur_item_object.contains(&filter_pdbs) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(&item.min_available.clone().unwrap_or_else(|| "-".to_string()));
+                                        ui.label(&item.max_unavailable.clone().unwrap_or_else(|| "-".to_string()));
+                                        ui.label(format!("{} / {}", &item.current_healthy, &item.desired_healthy));
+                                        ui.label(format!("{}", &item.allowed_disruptions));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::DaemonSets => {
                     let ns = namespaces.lock().unwrap();
@@ -628,27 +750,31 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
-                        egui::Grid::new("daemonsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Desired");
-                            ui.label("Current");
-                            ui.label("Ready");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_daemonsets.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_daemonsets.is_empty() || cur_item_object.contains(&filter_daemonsets) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.desired));
-                                    ui.label(format!("{}", &item.current));
-                                    ui.label(format!("{}", &item.ready));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if daemonsets_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
+                            egui::Grid::new("daemonsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Desired");
+                                ui.label("Current");
+                                ui.label("Ready");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_daemonsets.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_daemonsets.is_empty() || cur_item_object.contains(&filter_daemonsets) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.desired));
+                                        ui.label(format!("{}", &item.current));
+                                        ui.label(format!("{}", &item.ready));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::ClusterOverview => {
                     ui.heading("Cluster Overview");
@@ -693,36 +819,40 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("replicasets_scroll").show(ui, |ui| {
-                        egui::Grid::new("replicasets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Desired");
-                            ui.label("Current");
-                            ui.label("Ready");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_replicasets.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                let status = if item.ready == 0 {
-                                    if item.current > item.ready {
-                                        "NotReady"
+                    if replicasets_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("replicasets_scroll").show(ui, |ui| {
+                            egui::Grid::new("replicasets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Desired");
+                                ui.label("Current");
+                                ui.label("Ready");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_replicasets.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    let status = if item.ready == 0 {
+                                        if item.current > item.ready {
+                                            "NotReady"
+                                        } else {
+                                            "Pending"
+                                        }
                                     } else {
-                                        "Pending"
+                                        "Ready"
+                                    };
+                                    if filter_replicasets.is_empty() || cur_item_object.contains(&filter_replicasets) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(egui::RichText::new(format!("{}", &item.desired)).color(item_color(status)));
+                                        ui.label(egui::RichText::new(format!("{}", &item.current)).color(item_color(status)));
+                                        ui.label(egui::RichText::new(format!("{}", &item.ready)).color(item_color(status)));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
                                     }
-                                } else {
-                                    "Ready"
-                                };
-                                if filter_replicasets.is_empty() || cur_item_object.contains(&filter_replicasets) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(egui::RichText::new(format!("{}", &item.desired)).color(item_color(status)));
-                                    ui.label(egui::RichText::new(format!("{}", &item.current)).color(item_color(status)));
-                                    ui.label(egui::RichText::new(format!("{}", &item.ready)).color(item_color(status)));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Ingresses => {
                     let ns = namespaces.lock().unwrap();
@@ -757,29 +887,33 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("ingresses_scroll").show(ui, |ui| {
-                        egui::Grid::new("ingresses_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Host");
-                            ui.label("Paths");
-                            ui.label("Service");
-                            ui.label("Tls");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_ingresses.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_ingresses.is_empty() || cur_item_object.contains(&filter_ingresses) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.host));
-                                    ui.label(format!("{}", &item.paths));
-                                    ui.label(format!("{}", &item.service));
-                                    ui.label(format!("{}", &item.tls));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if ingresses_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("ingresses_scroll").show(ui, |ui| {
+                            egui::Grid::new("ingresses_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Host");
+                                ui.label("Paths");
+                                ui.label("Service");
+                                ui.label("Tls");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_ingresses.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_ingresses.is_empty() || cur_item_object.contains(&filter_ingresses) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.host));
+                                        ui.label(format!("{}", &item.paths));
+                                        ui.label(format!("{}", &item.service));
+                                        ui.label(format!("{}", &item.tls));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::CSIDrivers => {
                     ui.horizontal(|ui| {
@@ -792,30 +926,34 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let csi_drivers_list = csi_drivers.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("csi_drivers_scroll").show(ui, |ui| {
-                        egui::Grid::new("csi_drivers_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Attach Required");
-                            ui.label("Pod Info On Mount");
-                            ui.label("Storage Capacity");
-                            ui.label("FSGroupPolicy");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in csi_drivers_list.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_csi_drivers.is_empty() || cur_item_object.contains(&filter_csi_drivers) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.attach_required));
-                                    ui.label(format!("{}", &item.pod_info_on_mount));
-                                    ui.label(format!("{}", &item.storage_capacity));
-                                    ui.label(format!("{}", &item.fs_group_policy));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if csi_drivers_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        let csi_drivers_list = csi_drivers.lock().unwrap();
+                        egui::ScrollArea::vertical().id_salt("csi_drivers_scroll").show(ui, |ui| {
+                            egui::Grid::new("csi_drivers_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Attach Required");
+                                ui.label("Pod Info On Mount");
+                                ui.label("Storage Capacity");
+                                ui.label("FSGroupPolicy");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in csi_drivers_list.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_csi_drivers.is_empty() || cur_item_object.contains(&filter_csi_drivers) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.attach_required));
+                                        ui.label(format!("{}", &item.pod_info_on_mount));
+                                        ui.label(format!("{}", &item.storage_capacity));
+                                        ui.label(format!("{}", &item.fs_group_policy));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::StorageClasses => {
                     ui.horizontal(|ui| {
@@ -828,30 +966,34 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let scs_list = storage_classes.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("scs_scroll").show(ui, |ui| {
-                        egui::Grid::new("scs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Provisioner");
-                            ui.label("Reclaim policy");
-                            ui.label("Volume binding mode");
-                            ui.label("Default class");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in scs_list.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_scs.is_empty() || cur_item_object.contains(&filter_scs) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.provisioner));
-                                    ui.label(format!("{}", &item.reclaim_policy));
-                                    ui.label(format!("{}", &item.volume_binding_mode));
-                                    ui.label(format!("{}", &item.is_default));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if storage_classes_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        let scs_list = storage_classes.lock().unwrap();
+                        egui::ScrollArea::vertical().id_salt("scs_scroll").show(ui, |ui| {
+                            egui::Grid::new("scs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Provisioner");
+                                ui.label("Reclaim policy");
+                                ui.label("Volume binding mode");
+                                ui.label("Default class");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in scs_list.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_scs.is_empty() || cur_item_object.contains(&filter_scs) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.provisioner));
+                                        ui.label(format!("{}", &item.reclaim_policy));
+                                        ui.label(format!("{}", &item.volume_binding_mode));
+                                        ui.label(format!("{}", &item.is_default));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::PersistentVolumes => {
                     ui.horizontal(|ui| {
@@ -864,31 +1006,35 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let pvs_list = pvs.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("pvs_scroll").show(ui, |ui| {
-                        egui::Grid::new("pvs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Storage class");
-                            ui.label("Capacity");
-                            ui.label("Claim");
-                            ui.label("Status");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in pvs_list.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                let cur_item_claim = &item.claim;
-                                if filter_pvs.is_empty() || cur_item_object.contains(&filter_pvs) || cur_item_claim.contains(&filter_pvs) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.storage_class));
-                                    ui.label(format!("{}", &item.capacity));
-                                    ui.label(format!("{}", &item.claim));
-                                    ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if pvs_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        let pvs_list = pvs.lock().unwrap();
+                        egui::ScrollArea::vertical().id_salt("pvs_scroll").show(ui, |ui| {
+                            egui::Grid::new("pvs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Storage class");
+                                ui.label("Capacity");
+                                ui.label("Claim");
+                                ui.label("Status");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in pvs_list.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    let cur_item_claim = &item.claim;
+                                    if filter_pvs.is_empty() || cur_item_object.contains(&filter_pvs) || cur_item_claim.contains(&filter_pvs) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.storage_class));
+                                        ui.label(format!("{}", &item.capacity));
+                                        ui.label(format!("{}", &item.claim));
+                                        ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::PersistentVolumeClaims => {
                     let ns = namespaces.lock().unwrap();
@@ -923,29 +1069,33 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
-                        egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("StorageClass");
-                            ui.label("Volume");
-                            ui.label("Size");
-                            ui.label("Status");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_pvcs.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_pvcs.is_empty() || cur_item_object.contains(&filter_pvcs) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.storage_class));
-                                    ui.label(format!("{}", &item.volume_name));
-                                    ui.label(format!("{}", &item.size));
-                                    ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if pvcs_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
+                            egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("StorageClass");
+                                ui.label("Volume");
+                                ui.label("Size");
+                                ui.label("Status");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_pvcs.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_pvcs.is_empty() || cur_item_object.contains(&filter_pvcs) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.storage_class));
+                                        ui.label(format!("{}", &item.volume_name));
+                                        ui.label(format!("{}", &item.size));
+                                        ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Endpoints => {
                     let ns = namespaces.lock().unwrap();
@@ -980,25 +1130,29 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
-                        egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Addresses");
-                            ui.label("Ports");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_endpoints.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_endpoints.is_empty() || cur_item_object.contains(&filter_endpoints) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.addresses));
-                                    ui.label(format!("{:?}", &item.ports));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if endpoints_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
+                            egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Addresses");
+                                ui.label("Ports");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_endpoints.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_endpoints.is_empty() || cur_item_object.contains(&filter_endpoints) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.addresses));
+                                        ui.label(format!("{:?}", &item.ports));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Jobs => {
                     let ns = namespaces.lock().unwrap();
@@ -1033,25 +1187,29 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
-                        egui::Grid::new("jobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Completions");
-                            ui.label("Conditions");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_jobs.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.completions));
-                                    ui.label(egui::RichText::new(&item.condition).color(item_color(&item.condition)));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if jobs_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
+                            egui::Grid::new("jobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Completions");
+                                ui.label("Conditions");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_jobs.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.completions));
+                                        ui.label(egui::RichText::new(&item.condition).color(item_color(&item.condition)));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Services => {
                     let ns = namespaces.lock().unwrap();
@@ -1086,33 +1244,37 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
-                        egui::Grid::new("services_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Type");
-                            ui.label("Cluster IP");
-                            ui.label("External IP");
-                            ui.label("Status");
-                            ui.label("Age");
-                            ui.label("Ports");
-                            ui.label("Selector");
-                            ui.end_row();
-                            for item in visible_services.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_services.is_empty() || cur_item_object.contains(&filter_services) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.svc_type));
-                                    ui.label(format!("{:?}", &item.cluster_ip));
-                                    ui.label(format!("{:?}", &item.external_ip));
-                                    ui.label(format!("{:?}", &item.status));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.label(egui::RichText::new(&item.ports).color(egui::Color32::LIGHT_YELLOW));
-                                    ui.label(format!("{:?}", &item.selector));
-                                    ui.end_row();
+                    if services_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
+                            egui::Grid::new("services_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Type");
+                                ui.label("Cluster IP");
+                                ui.label("External IP");
+                                ui.label("Status");
+                                ui.label("Age");
+                                ui.label("Ports");
+                                ui.label("Selector");
+                                ui.end_row();
+                                for item in visible_services.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_services.is_empty() || cur_item_object.contains(&filter_services) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.svc_type));
+                                        ui.label(format!("{:?}", &item.cluster_ip));
+                                        ui.label(format!("{:?}", &item.external_ip));
+                                        ui.label(format!("{:?}", &item.status));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.label(egui::RichText::new(&item.ports).color(egui::Color32::LIGHT_YELLOW));
+                                        ui.label(format!("{:?}", &item.selector));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::CronJobs => {
                     let ns = namespaces.lock().unwrap();
@@ -1147,29 +1309,33 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
-                        egui::Grid::new("cronjobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Schedule");
-                            ui.label("Suspend");
-                            ui.label("Active");
-                            ui.label("Last schedule");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_cronjobs.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_cronjobs.is_empty() || cur_item_object.contains(&filter_cronjobs) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.schedule));
-                                    ui.label(format!("{}", &item.suspend));
-                                    ui.label(format!("{}", &item.active));
-                                    ui.label(format!("{}", &item.last_schedule));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if cronjobs_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
+                            egui::Grid::new("cronjobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Schedule");
+                                ui.label("Suspend");
+                                ui.label("Active");
+                                ui.label("Last schedule");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_cronjobs.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_cronjobs.is_empty() || cur_item_object.contains(&filter_cronjobs) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.schedule));
+                                        ui.label(format!("{}", &item.suspend));
+                                        ui.label(format!("{}", &item.active));
+                                        ui.label(format!("{}", &item.last_schedule));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::StatefulSets => {
                     let ns = namespaces.lock().unwrap();
@@ -1204,25 +1370,29 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
-                        egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Ready");
-                            ui.label("Service name");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_statefulsets.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_statefulsets.is_empty() || cur_item_object.contains(&filter_statefulsets) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
-                                    ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if statefulsets_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
+                            egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Ready");
+                                ui.label("Service name");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_statefulsets.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_statefulsets.is_empty() || cur_item_object.contains(&filter_statefulsets) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+                                        ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Nodes => {
                     ui.horizontal(|ui| {
@@ -1235,113 +1405,117 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let nodes = nodes.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("node_scroll").hscroll(true).show(ui, |ui| {
-                        egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                if sort_by == SortBy::Name {
-                                    sort_asc = !sort_asc;
-                                } else {
-                                    sort_by = SortBy::Name;
-                                    sort_asc = true;
-                                }
-                            }
-                            ui.label("CPU");
-                            ui.label("Memory");
-                            ui.label("Storage");
-                            ui.label("Taints");
-                            ui.label("Role");
-                            if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                if sort_by == SortBy::Age {
-                                    sort_asc = !sort_asc;
-                                } else {
-                                    sort_by = SortBy::Age;
-                                    sort_asc = true;
-                                }
-                            }
-                            ui.label("Status");
-                            ui.label("");
-                            ui.label("Actions");
-                            ui.end_row();
-                            let mut sorted_nodes = nodes.clone();
-                            sorted_nodes.sort_by(|a, b| {
-                                let ord = match sort_by {
-                                    SortBy::Name => a.name.cmp(&b.name),
-                                    SortBy::Age => {
-                                        let at = a.creation_timestamp.as_ref();
-                                        let bt = b.creation_timestamp.as_ref();
-                                        at.cmp(&bt)
-                                    }
-                                };
-                                if sort_asc { ord } else { ord.reverse() }
-                            });
-                            for item in sorted_nodes.iter() {
-                                let cur_item_name = &item.name;
-                                if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
-                                    ui.label(&item.name);
-                                    ui.add(egui::ProgressBar::new(item.cpu_percent / 100.0).show_percentage());
-                                    ui.add(egui::ProgressBar::new(item.mem_percent / 100.0).show_percentage());
-                                    ui.label(&item.storage.as_ref().unwrap().to_string());
-
-                                    if let Some(taints) = &item.taints {
-                                        ui.label(taints.len().to_string())
-                                            .on_hover_cursor(CursorIcon::PointingHand)
-                                            .on_hover_text(format!("{:?}", taints));
+                    if nodes_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        let nodes = nodes.lock().unwrap();
+                        egui::ScrollArea::vertical().id_salt("node_scroll").hscroll(true).show(ui, |ui| {
+                            egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if sort_by == SortBy::Name {
+                                        sort_asc = !sort_asc;
                                     } else {
-                                        ui.label("0");
+                                        sort_by = SortBy::Name;
+                                        sort_asc = true;
                                     }
-                                    ui.label(format!("{}", item.roles.join(", ")));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-
-                                    let node_status = egui::RichText::new(&item.status).color(item_color(&item.status));
-                                    let scheduling_status = match item.scheduling_disabled {
-                                        true => egui::RichText::new("SchedulingDisabled").color(egui::Color32::ORANGE),
-                                        false => egui::RichText::new(""),
-                                    };
-
-                                    ui.label( node_status);
-                                    ui.label( scheduling_status);
-
-                                    ui.menu_button("⚙", |ui| {
-                                        ui.set_width(200.0);
-                                        let node_name = item.name.clone();
-                                        if item.scheduling_disabled {
-                                            if ui.button("▶ Uncordon").clicked() {
-                                                let client_clone = Arc::clone(&client);
-                                                tokio::spawn(async move {
-                                                    if let Err(err) = cordon_node(client_clone, &node_name, false).await {
-                                                        eprintln!("Failed to uncordon node: {}", err);
-                                                    }
-                                                });
-                                                ui.close_kind(egui::UiKind::Menu);
-                                            }
-                                        } else {
-                                            if ui.button("⏸ Cordon").clicked() {
-                                                let client_clone = Arc::clone(&client);
-                                                tokio::spawn(async move {
-                                                    if let Err(err) = cordon_node(client_clone, &node_name, true).await {
-                                                        eprintln!("Failed to cordon node: {}", err);
-                                                    }
-                                                });
-                                                ui.close_kind(egui::UiKind::Menu);
-                                            }
-                                        }
-                                        if ui.button("♻ Drain").clicked() {
-                                            let node_name = item.name.clone();
-                                            let client_clone = Arc::clone(&client);
-                                            tokio::spawn(async move {
-                                                if let Err(err) = drain_node(client_clone, &node_name).await {
-                                                    eprintln!("Failed to drain node: {}", err);
-                                                }
-                                            });
-                                            ui.close_kind(egui::UiKind::Menu);
-                                        }
-                                    });
-                                    ui.end_row();
                                 }
-                            }
+                                ui.label("CPU");
+                                ui.label("Memory");
+                                ui.label("Storage");
+                                ui.label("Taints");
+                                ui.label("Role");
+                                if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if sort_by == SortBy::Age {
+                                        sort_asc = !sort_asc;
+                                    } else {
+                                        sort_by = SortBy::Age;
+                                        sort_asc = true;
+                                    }
+                                }
+                                ui.label("Status");
+                                ui.label("");
+                                ui.label("Actions");
+                                ui.end_row();
+                                let mut sorted_nodes = nodes.clone();
+                                sorted_nodes.sort_by(|a, b| {
+                                    let ord = match sort_by {
+                                        SortBy::Name => a.name.cmp(&b.name),
+                                        SortBy::Age => {
+                                            let at = a.creation_timestamp.as_ref();
+                                            let bt = b.creation_timestamp.as_ref();
+                                            at.cmp(&bt)
+                                        }
+                                    };
+                                    if sort_asc { ord } else { ord.reverse() }
+                                });
+                                for item in sorted_nodes.iter() {
+                                    let cur_item_name = &item.name;
+                                    if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
+                                        ui.label(&item.name);
+                                        ui.add(egui::ProgressBar::new(item.cpu_percent / 100.0).show_percentage());
+                                        ui.add(egui::ProgressBar::new(item.mem_percent / 100.0).show_percentage());
+                                        ui.label(&item.storage.as_ref().unwrap().to_string());
+
+                                        if let Some(taints) = &item.taints {
+                                            ui.label(taints.len().to_string())
+                                                .on_hover_cursor(CursorIcon::PointingHand)
+                                                .on_hover_text(format!("{:?}", taints));
+                                        } else {
+                                            ui.label("0");
+                                        }
+                                        ui.label(format!("{}", item.roles.join(", ")));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+
+                                        let node_status = egui::RichText::new(&item.status).color(item_color(&item.status));
+                                        let scheduling_status = match item.scheduling_disabled {
+                                            true => egui::RichText::new("SchedulingDisabled").color(egui::Color32::ORANGE),
+                                            false => egui::RichText::new(""),
+                                        };
+
+                                        ui.label( node_status);
+                                        ui.label( scheduling_status);
+
+                                        ui.menu_button("⚙", |ui| {
+                                            ui.set_width(200.0);
+                                            let node_name = item.name.clone();
+                                            if item.scheduling_disabled {
+                                                if ui.button("▶ Uncordon").clicked() {
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = cordon_node(client_clone, &node_name, false).await {
+                                                            eprintln!("Failed to uncordon node: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            } else {
+                                                if ui.button("⏸ Cordon").clicked() {
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = cordon_node(client_clone, &node_name, true).await {
+                                                            eprintln!("Failed to cordon node: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            }
+                                            if ui.button("♻ Drain").clicked() {
+                                                let node_name = item.name.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                tokio::spawn(async move {
+                                                    if let Err(err) = drain_node(client_clone, &node_name).await {
+                                                        eprintln!("Failed to drain node: {}", err);
+                                                    }
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                        });
+                                        ui.end_row();
+                                    }
+                                }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Namespaces => {
                     ui.horizontal(|ui| {
@@ -1360,78 +1534,82 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    let ns = namespaces.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
-                        egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("");
-                            if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                if sort_by == SortBy::Name {
-                                    sort_asc = !sort_asc;
-                                } else {
-                                    sort_by = SortBy::Name;
-                                    sort_asc = true;
-                                }
-                            }
-                            ui.label("Phase");
-                            ui.label("Labels");
-                            if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                if sort_by == SortBy::Age {
-                                    sort_asc = !sort_asc;
-                                } else {
-                                    sort_by = SortBy::Age;
-                                    sort_asc = true;
-                                }
-                            }
-                            ui.label("Actions");
-                            ui.end_row();
-                            let mut sorted_ns = ns.clone();
-                            sorted_ns.sort_by(|a, b| {
-                                let ord = match sort_by {
-                                    SortBy::Name => a.name.cmp(&b.name),
-                                    SortBy::Age => {
-                                        let at = &a.creation_timestamp;
-                                        let bt = &b.creation_timestamp;
-                                        at.cmp(&bt)
-                                    }
-                                };
-                                if sort_asc { ord } else { ord.reverse() }
-                            });
-
-                            for item in sorted_ns.iter_mut() {
-                                let cur_item_name = &item.name;
-                                if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
-                                    if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap().contains(&item.name) {
-                                        ui.colored_label(Color32::LIGHT_BLUE,"⏵");
+                    if namespaces_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        let ns = namespaces.lock().unwrap();
+                        egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
+                            egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("");
+                                if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if sort_by == SortBy::Name {
+                                        sort_asc = !sort_asc;
                                     } else {
-                                        ui.label("");
+                                        sort_by = SortBy::Name;
+                                        sort_asc = true;
+                                    }
+                                }
+                                ui.label("Phase");
+                                ui.label("Labels");
+                                if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if sort_by == SortBy::Age {
+                                        sort_asc = !sort_asc;
+                                    } else {
+                                        sort_by = SortBy::Age;
+                                        sort_asc = true;
+                                    }
+                                }
+                                ui.label("Actions");
+                                ui.end_row();
+                                let mut sorted_ns = ns.clone();
+                                sorted_ns.sort_by(|a, b| {
+                                    let ord = match sort_by {
+                                        SortBy::Name => a.name.cmp(&b.name),
+                                        SortBy::Age => {
+                                            let at = &a.creation_timestamp;
+                                            let bt = &b.creation_timestamp;
+                                            at.cmp(&bt)
+                                        }
                                     };
+                                    if sort_asc { ord } else { ord.reverse() }
+                                });
 
-                                    if ui.colored_label(Color32::WHITE,&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
-                                    }
-                                    if let Some(phase) = &item.phase {
-                                        ui.colored_label(item_color(phase), phase);
-                                    } else {
-                                        ui.colored_label(Color32::LIGHT_GRAY, "-");
-                                    }
+                                for item in sorted_ns.iter_mut() {
+                                    let cur_item_name = &item.name;
+                                    if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
+                                        if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap().contains(&item.name) {
+                                            ui.colored_label(Color32::LIGHT_BLUE,"⏵");
+                                        } else {
+                                            ui.label("");
+                                        };
 
-                                    if let Some(labels) = &item.labels {
-                                        let label_str = labels.iter()
-                                            .map(|(k, v)| format!("{}={}", k, v))
-                                            .collect::<Vec<_>>()
-                                            .join(", ");
-                                        ui.label(label_str);
-                                    } else {
-                                        ui.label("-");
-                                    }
+                                        if ui.colored_label(Color32::WHITE,&item.name).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            *selected_namespace_clone.lock().unwrap() = Some(item.name.clone());
+                                        }
+                                        if let Some(phase) = &item.phase {
+                                            ui.colored_label(item_color(phase), phase);
+                                        } else {
+                                            ui.colored_label(Color32::LIGHT_GRAY, "-");
+                                        }
 
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    let _ = ui.button("⚙");
-                                    ui.end_row();
+                                        if let Some(labels) = &item.labels {
+                                            let label_str = labels.iter()
+                                                .map(|(k, v)| format!("{}={}", k, v))
+                                                .collect::<Vec<_>>()
+                                                .join(", ");
+                                            ui.label(label_str);
+                                        } else {
+                                            ui.label("-");
+                                        }
+
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        let _ = ui.button("⚙");
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Pods => {
                     let ns = namespaces.lock().unwrap();
@@ -1473,185 +1651,189 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
-                        egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                if sort_by == SortBy::Name {
-                                    sort_asc = !sort_asc;
-                                } else {
-                                    sort_by = SortBy::Name;
-                                    sort_asc = true;
-                                }
-                            }
-                            ui.label("Status");
-                            ui.label("Containers");
-                            if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                if sort_by == SortBy::Age {
-                                    sort_asc = !sort_asc;
-                                } else {
-                                    sort_by = SortBy::Age;
-                                    sort_asc = true;
-                                }
-                            }
-                            ui.label("Restarts");
-                            ui.label("Controlled by");
-                            ui.label("Node");
-                            ui.label("Actions");
-                            ui.end_row();
-                            let mut sorted_pods = visible_pods.clone();
-                            sorted_pods.sort_by(|a, b| {
-                                let ord = match sort_by {
-                                    SortBy::Name => a.name.cmp(&b.name),
-                                    SortBy::Age => {
-                                        let at = a.creation_timestamp.as_ref();
-                                        let bt = b.creation_timestamp.as_ref();
-                                        at.cmp(&bt)
-                                    }
-                                };
-                                if sort_asc { ord } else { ord.reverse() }
-                            });
-                            for item in sorted_pods.iter() {
-                                let cur_item_name = &item.name;
-                                // let running_on_node = item.node_name.as_ref().unwrap();
-                                // if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
-                                if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    let status;
-                                    let mut ready_color: Color32;
-                                    let cur_phase: &str;
-                                    if item.pod_has_crashloop {
-                                        cur_phase = "CrashLoopBackOff";
+                    if pods_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
+                            egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if sort_by == SortBy::Name {
+                                        sort_asc = !sort_asc;
                                     } else {
-                                        if item.terminating {
-                                            cur_phase = "Terminating";
-                                        } else {
-                                            cur_phase = item.phase.as_ref().unwrap();
+                                        sort_by = SortBy::Name;
+                                        sort_asc = true;
+                                    }
+                                }
+                                ui.label("Status");
+                                ui.label("Containers");
+                                if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    if sort_by == SortBy::Age {
+                                        sort_asc = !sort_asc;
+                                    } else {
+                                        sort_by = SortBy::Age;
+                                        sort_asc = true;
+                                    }
+                                }
+                                ui.label("Restarts");
+                                ui.label("Controlled by");
+                                ui.label("Node");
+                                ui.label("Actions");
+                                ui.end_row();
+                                let mut sorted_pods = visible_pods.clone();
+                                sorted_pods.sort_by(|a, b| {
+                                    let ord = match sort_by {
+                                        SortBy::Name => a.name.cmp(&b.name),
+                                        SortBy::Age => {
+                                            let at = a.creation_timestamp.as_ref();
+                                            let bt = b.creation_timestamp.as_ref();
+                                            at.cmp(&bt)
                                         }
-                                    }
-                                    match cur_phase {
-                                        "Running" => {
-                                            status = "✅ Running".to_string();
-                                            ready_color = Color32::from_rgb(100, 255, 100); // green
-                                        },
-                                        "Terminating" => {
-                                            status = "🗑 Terminating".to_string();
-                                            ready_color = Color32::from_rgb(128, 128, 128); // gray
-                                        },
-                                        "Pending" => {
-                                            status = "⏳ Pending".to_string();
-                                            ready_color = Color32::from_rgb(255, 165, 0); // orange
-                                        },
-                                        "Succeeded" => {
-                                            status = "✅ Completed".to_string();
-                                            ready_color = Color32::from_rgb(0, 255, 176); // green
-                                        },
-                                        "Failed" => {
-                                            status = "❌ Failed".to_string();
-                                            ready_color = Color32::from_rgb(255, 0, 0); // red
-                                        },
-                                        "CrashLoopBackOff" => {
-                                            status = "💥 CrashLoop".to_string();
-                                            ready_color = Color32::from_rgb(255, 0, 0); // red
-                                        },
-                                        "Cancelled" => {
-                                            status = "🚫 Cancelled".to_string();
-                                            ready_color = Color32::from_rgb(128, 128, 128); // gray
-                                        },
-                                        _ => {
-                                            status = "❓ Unknown".to_string();
-                                            ready_color = Color32::GRAY;
-                                        },
                                     };
-
-                                    ui.label(egui::RichText::new(status).color(ready_color));
-                                    let ready = item.ready_containers;
-                                    let total = item.total_containers;
-
-                                    ready_color = if ready == total {
-                                        Color32::from_rgb(100, 255, 100) // green
-                                    } else if ready == 0 {
-                                        Color32::from_rgb(255, 100, 100) // red
-                                    } else {
-                                        Color32::from_rgb(255, 165, 0) // orange
-                                    };
-
-                                    ui.colored_label(ready_color, format!("{}/{}", ready, total)).on_hover_cursor(CursorIcon::PointingHand).on_hover_ui(|ui| {
-                                        for container in &item.containers {
-                                            let icon = match container.state.as_deref() {
-                                                Some("Running") => "✅",
-                                                Some("Waiting") => "⏳",
-                                                Some("Terminated") => "❌",
-                                                _ => "❔",
-                                            };
-
-                                            let state_str = container.state.as_deref().unwrap_or("Unknown");
-
-                                            ui.horizontal(|ui| {
-                                                ui.label(format!("{} {}", icon, container.name));
-                                                ui.label(egui::RichText::new(state_str).color(item_color(state_str)));
-                                            });
-
-                                            if let Some(msg) = &container.message {
-                                                ui.label(egui::RichText::new(format!("💬 {}", msg)).italics().color(egui::Color32::GRAY));
+                                    if sort_asc { ord } else { ord.reverse() }
+                                });
+                                for item in sorted_pods.iter() {
+                                    let cur_item_name = &item.name;
+                                    // let running_on_node = item.node_name.as_ref().unwrap();
+                                    // if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
+                                    if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        let status;
+                                        let mut ready_color: Color32;
+                                        let cur_phase: &str;
+                                        if item.pod_has_crashloop {
+                                            cur_phase = "CrashLoopBackOff";
+                                        } else {
+                                            if item.terminating {
+                                                cur_phase = "Terminating";
+                                            } else {
+                                                cur_phase = item.phase.as_ref().unwrap();
                                             }
                                         }
-                                    });
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    if item.restart_count > 0 {
-                                        ui.label(egui::RichText::new(format!("{}", item.restart_count)).color(egui::Color32::ORANGE));
-                                    } else {
-                                        ui.label(egui::RichText::new(format!("Never")).color(egui::Color32::GRAY));
-                                    }
-                                    if item.controller.is_some().clone() {
-                                        ui.label(item.controller.as_ref().unwrap());
-                                    } else {
-                                        ui.label("");
-                                    }
-                                    ui.label(item.node_name.clone().unwrap_or("-".into()));
-                                    ui.menu_button("⚙", |ui| {
-                                        ui.set_width(200.0);
-                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
-                                            let cur_pod = item.name.clone();
-                                            let cur_ns = selected_ns.clone();
-                                            let client_clone = Arc::clone(&client);
-                                            tokio::spawn(async move {
-                                                if let Err(err) = delete_pod(client_clone, &cur_pod.clone(), cur_ns.as_deref(), true).await {
-                                                    eprintln!("Failed to delete pod: {}", err);
+                                        match cur_phase {
+                                            "Running" => {
+                                                status = "✅ Running".to_string();
+                                                ready_color = Color32::from_rgb(100, 255, 100); // green
+                                            },
+                                            "Terminating" => {
+                                                status = "🗑 Terminating".to_string();
+                                                ready_color = Color32::from_rgb(128, 128, 128); // gray
+                                            },
+                                            "Pending" => {
+                                                status = "⏳ Pending".to_string();
+                                                ready_color = Color32::from_rgb(255, 165, 0); // orange
+                                            },
+                                            "Succeeded" => {
+                                                status = "✅ Completed".to_string();
+                                                ready_color = Color32::from_rgb(0, 255, 176); // green
+                                            },
+                                            "Failed" => {
+                                                status = "❌ Failed".to_string();
+                                                ready_color = Color32::from_rgb(255, 0, 0); // red
+                                            },
+                                            "CrashLoopBackOff" => {
+                                                status = "💥 CrashLoop".to_string();
+                                                ready_color = Color32::from_rgb(255, 0, 0); // red
+                                            },
+                                            "Cancelled" => {
+                                                status = "🚫 Cancelled".to_string();
+                                                ready_color = Color32::from_rgb(128, 128, 128); // gray
+                                            },
+                                            _ => {
+                                                status = "❓ Unknown".to_string();
+                                                ready_color = Color32::GRAY;
+                                            },
+                                        };
+
+                                        ui.label(egui::RichText::new(status).color(ready_color));
+                                        let ready = item.ready_containers;
+                                        let total = item.total_containers;
+
+                                        ready_color = if ready == total {
+                                            Color32::from_rgb(100, 255, 100) // green
+                                        } else if ready == 0 {
+                                            Color32::from_rgb(255, 100, 100) // red
+                                        } else {
+                                            Color32::from_rgb(255, 165, 0) // orange
+                                        };
+
+                                        ui.colored_label(ready_color, format!("{}/{}", ready, total)).on_hover_cursor(CursorIcon::PointingHand).on_hover_ui(|ui| {
+                                            for container in &item.containers {
+                                                let icon = match container.state.as_deref() {
+                                                    Some("Running") => "✅",
+                                                    Some("Waiting") => "⏳",
+                                                    Some("Terminated") => "❌",
+                                                    _ => "❔",
+                                                };
+
+                                                let state_str = container.state.as_deref().unwrap_or("Unknown");
+
+                                                ui.horizontal(|ui| {
+                                                    ui.label(format!("{} {}", icon, container.name));
+                                                    ui.label(egui::RichText::new(state_str).color(item_color(state_str)));
+                                                });
+
+                                                if let Some(msg) = &container.message {
+                                                    ui.label(egui::RichText::new(format!("💬 {}", msg)).italics().color(egui::Color32::GRAY));
                                                 }
-                                            });
-                                            ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                        });
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        if item.restart_count > 0 {
+                                            ui.label(egui::RichText::new(format!("{}", item.restart_count)).color(egui::Color32::ORANGE));
+                                        } else {
+                                            ui.label(egui::RichText::new(format!("Never")).color(egui::Color32::GRAY));
                                         }
-                                        if ui.button("📃 Logs").clicked() {
-                                            let cur_pod = item.name.clone();
-                                            log_window.pod_name = item.name.clone();
-
-                                            let cur_ns = selected_ns.clone();
-                                            log_window.namespace = selected_ns.clone().unwrap();
-
-                                            let cur_container = item.containers[0].name.clone();
-                                            log_window.selected_container = item.containers[0].name.clone();
-                                            log_window.last_container = None;
-
-                                            log_window.containers = item.containers.clone();
-
-                                            log_window.buffer = Arc::new(Mutex::new(String::new()));
-                                            let buf_clone = Arc::clone(&log_window.buffer);
-                                            log_window.show = true;
-                                            let client_clone = Arc::clone(&client);
-                                            tokio::spawn(async move {
-                                                fetch_logs(client_clone,
-                                                cur_ns.unwrap().as_str(),
-                                                 cur_pod.as_str(),
-                                                cur_container.as_str(), buf_clone).await;
-                                            });
-                                            ui.close_kind(egui::UiKind::Menu);
+                                        if item.controller.is_some().clone() {
+                                            ui.label(item.controller.as_ref().unwrap());
+                                        } else {
+                                            ui.label("");
                                         }
-                                    });
-                                    ui.end_row();
+                                        ui.label(item.node_name.clone().unwrap_or("-".into()));
+                                        ui.menu_button("⚙", |ui| {
+                                            ui.set_width(200.0);
+                                            if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                let cur_pod = item.name.clone();
+                                                let cur_ns = selected_ns.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                tokio::spawn(async move {
+                                                    if let Err(err) = delete_pod(client_clone, &cur_pod.clone(), cur_ns.as_deref(), true).await {
+                                                        eprintln!("Failed to delete pod: {}", err);
+                                                    }
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                            if ui.button("📃 Logs").clicked() {
+                                                let cur_pod = item.name.clone();
+                                                log_window.pod_name = item.name.clone();
+
+                                                let cur_ns = selected_ns.clone();
+                                                log_window.namespace = selected_ns.clone().unwrap();
+
+                                                let cur_container = item.containers[0].name.clone();
+                                                log_window.selected_container = item.containers[0].name.clone();
+                                                log_window.last_container = None;
+
+                                                log_window.containers = item.containers.clone();
+
+                                                log_window.buffer = Arc::new(Mutex::new(String::new()));
+                                                let buf_clone = Arc::clone(&log_window.buffer);
+                                                log_window.show = true;
+                                                let client_clone = Arc::clone(&client);
+                                                tokio::spawn(async move {
+                                                    fetch_logs(client_clone,
+                                                    cur_ns.unwrap().as_str(),
+                                                    cur_pod.as_str(),
+                                                    cur_container.as_str(), buf_clone).await;
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                        });
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Deployments => {
                     let ns = namespaces.lock().unwrap();
@@ -1686,29 +1868,33 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
-                        egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Ready");
-                            ui.label("Desired");
-                            ui.label("Up-to-date");
-                            ui.label("Available");
-                            ui.label("Age");
-                            ui.end_row();
-                            for item in visible_deployments.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
-                                    ui.label(format!("{}", &item.replicas));
-                                    ui.label(format!("{}", &item.updated_replicas));
-                                    ui.label(format!("{}", &item.available_replicas));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.end_row();
+                    if deployments_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
+                            egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Ready");
+                                ui.label("Desired");
+                                ui.label("Up-to-date");
+                                ui.label("Available");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_deployments.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+                                        ui.label(format!("{}", &item.replicas));
+                                        ui.label(format!("{}", &item.updated_replicas));
+                                        ui.label(format!("{}", &item.available_replicas));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Secrets => {
                     let ns = namespaces.lock().unwrap();
@@ -1750,43 +1936,47 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
-                        egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Type");
-                            ui.label("Age");
-                            ui.label("Labels"); // Limit width!
-                            ui.label("Keys");
-                            ui.label("Actions");
-                            ui.end_row();
-                            for item in visible_secrets.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.type_));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.label(format!("{}", &item.labels));
-                                    ui.label(format!("{}", &item.keys));
-                                    ui.menu_button("⚙", |ui| {
-                                        ui.set_width(200.0);
-                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
-                                            let cur_item = item.name.clone();
-                                            let cur_ns = selected_ns.clone();
-                                            let client_clone = Arc::clone(&client);
-                                            tokio::spawn(async move {
-                                                if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
-                                                    eprintln!("Failed to delete secret: {}", err);
-                                                }
-                                            });
-                                            ui.close_kind(egui::UiKind::Menu);
-                                        }
+                    if secrets_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
+                            egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Type");
+                                ui.label("Age");
+                                ui.label("Labels"); // Limit width!
+                                ui.label("Keys");
+                                ui.label("Actions");
+                                ui.end_row();
+                                for item in visible_secrets.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.type_));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.label(format!("{}", &item.labels));
+                                        ui.label(format!("{}", &item.keys));
+                                        ui.menu_button("⚙", |ui| {
+                                            ui.set_width(200.0);
+                                            if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                let cur_item = item.name.clone();
+                                                let cur_ns = selected_ns.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                tokio::spawn(async move {
+                                                    if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        eprintln!("Failed to delete secret: {}", err);
+                                                    }
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
 
-                                    });
-                                    ui.end_row();
+                                        });
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::ConfigMaps => {
                     let ns = namespaces.lock().unwrap();
@@ -1821,43 +2011,47 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
-                        egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
-                            ui.label("Name");
-                            ui.label("Type");
-                            ui.label("Age");
-                            ui.label("Labels");
-                            ui.label("Keys");
-                            ui.label("Actions");
-                            ui.end_row();
+                    if configmaps_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
+                            egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Type");
+                                ui.label("Age");
+                                ui.label("Labels");
+                                ui.label("Keys");
+                                ui.label("Actions");
+                                ui.end_row();
 
-                            for item in visible_configmaps.iter().rev().take(200) {
-                                let cur_item_object = &item.name;
-                                if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
-                                    ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                    ui.label(format!("{}", &item.type_));
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.label(format!("{:?}", &item.labels));
-                                    ui.label(format!("{}", &item.keys.join(", ")));
-                                    ui.menu_button("⚙", |ui| {
-                                        ui.set_width(200.0);
-                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
-                                            let cur_item = item.name.clone();
-                                            let cur_ns = selected_ns.clone();
-                                            let client_clone = Arc::clone(&client);
-                                            tokio::spawn(async move {
-                                                if let Err(err) = delete_configmap(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
-                                                    eprintln!("Failed to delete configmap: {}", err);
-                                                }
-                                            });
-                                            ui.close_kind(egui::UiKind::Menu);
-                                        }
-                                    });
-                                    ui.end_row();
+                                for item in visible_configmaps.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(format!("{}", &item.type_));
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.label(format!("{:?}", &item.labels));
+                                        ui.label(format!("{}", &item.keys.join(", ")));
+                                        ui.menu_button("⚙", |ui| {
+                                            ui.set_width(200.0);
+                                            if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                let cur_item = item.name.clone();
+                                                let cur_ns = selected_ns.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                tokio::spawn(async move {
+                                                    if let Err(err) = delete_configmap(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        eprintln!("Failed to delete configmap: {}", err);
+                                                    }
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                        });
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
                 Category::Events => {
                     ui.horizontal(|ui| {
@@ -1871,33 +2065,37 @@ async fn main() {
                     });
                     ui.separator();
                     let events_list = events.lock().unwrap();
-                    egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
-                        egui::Grid::new("events_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
-                            ui.label("Time");
-                            ui.label("Type");
-                            ui.label("Age");
-                            ui.label("Namespace");
-                            ui.label("Reason");
-                            ui.label("Object");
-                            ui.label("Message");
-                            ui.end_row();
-                            for item in events_list.iter().rev().take(200) {
-                                let cur_item_object = &item.involved_object;
-                                if filter_events.is_empty() || cur_item_object.contains(&filter_events) {
-                                    ui.label(&item.timestamp);
-                                    ui.label(
-                                        egui::RichText::new(&item.event_type).color(item_color(&item.event_type)),
-                                    );
-                                    ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                    ui.label(&item.namespace);
-                                    ui.label(&item.reason);
-                                    ui.label(&item.involved_object);
-                                    ui.label(&item.message);
-                                    ui.end_row();
+                    if events_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
+                            egui::Grid::new("events_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                ui.label("Time");
+                                ui.label("Type");
+                                ui.label("Age");
+                                ui.label("Namespace");
+                                ui.label("Reason");
+                                ui.label("Object");
+                                ui.label("Message");
+                                ui.end_row();
+                                for item in events_list.iter().rev().take(200) {
+                                    let cur_item_object = &item.involved_object;
+                                    if filter_events.is_empty() || cur_item_object.contains(&filter_events) {
+                                        ui.label(&item.timestamp);
+                                        ui.label(
+                                            egui::RichText::new(&item.event_type).color(item_color(&item.event_type)),
+                                        );
+                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.label(&item.namespace);
+                                        ui.label(&item.reason);
+                                        ui.label(&item.involved_object);
+                                        ui.label(&item.message);
+                                        ui.end_row();
+                                    }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 },
             }
         });

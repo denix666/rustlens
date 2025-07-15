@@ -12,6 +12,7 @@ use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -30,12 +31,13 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
 pub fn spawn_watcher<T, F>(
     client: Arc<Client>,
     state: Arc<Mutex<Vec<T>>>,
+    loading_flag: Arc<AtomicBool>,
     watch_fn: F,
 ) where
     T: Send + 'static,
-    F: FnOnce(Arc<Client>, Arc<Mutex<Vec<T>>>) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + 'static,
+    F: FnOnce(Arc<Client>, Arc<Mutex<Vec<T>>>, Arc<AtomicBool>) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + 'static,
 {
-    tokio::spawn(watch_fn(client, state));
+    tokio::spawn(watch_fn(client, state, loading_flag));
 }
 
 pub fn format_age(ts: &Time) -> String {
@@ -237,12 +239,13 @@ pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<
 //     ((used / allocatable) * 100.0).round().min(100.0) as u8
 // }
 
-pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>) {
+pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Node> = Api::all(client.as_ref().clone());
     let mut node_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
+    load_status.store(true, Ordering::Relaxed);
 
     let percent = |alloc: &str, cap: &str| -> Option<u8> {
         let parse_quantity = |q: &str| -> Option<f64> {
@@ -328,6 +331,7 @@ pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::N
                     let mut nodes = nodes_list.lock().unwrap();
                     *nodes = initial.clone();
                     initialized = true;
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(node) => {
                     if !initialized {
@@ -451,7 +455,7 @@ fn convert_crd(obj: &kube::api::DynamicObject) -> Option<super::CRDItem> {
     })
 }
 
-pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<super::CRDItem>>>) {
+pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<super::CRDItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{api::{Api, DynamicObject, GroupVersionKind}, runtime::watcher::{self, Event}};
     use kube::discovery;
 
@@ -462,6 +466,8 @@ pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<super::CRDItem>
 
     let mut initial = vec![];
     let mut initialized = false;
+
+    load_status.store(true, Ordering::Relaxed);
 
     while let Some(event) = stream.next().await {
         match event {
@@ -476,6 +482,8 @@ pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<super::CRDItem>
                     let mut list_guard = list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(obj) => {
                     if !initialized {
@@ -534,9 +542,11 @@ pub fn convert_network_policy(policy: NetworkPolicy) -> Option<super::NetworkPol
     })
 }
 
-pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<super::NetworkPolicyItem>>>) {
+pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<super::NetworkPolicyItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<NetworkPolicy> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -562,6 +572,8 @@ pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<sup
                     let mut list_guard = list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(policy) => {
                     if !initialized {
@@ -614,13 +626,15 @@ pub fn convert_pdb(pdb: PodDisruptionBudget) -> Option<super::PodDisruptionBudge
     })
 }
 
-pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<Vec<super::PodDisruptionBudgetItem>>>) {
+pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<Vec<super::PodDisruptionBudgetItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<PodDisruptionBudget> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
+
+    load_status.store(true, Ordering::Relaxed);
 
     while let Some(event) = stream.next().await {
         match event {
@@ -635,6 +649,8 @@ pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<V
                     let mut list_guard = list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(pdb) => {
                     if !initialized {
@@ -673,9 +689,11 @@ pub fn convert_daemonset(ds: DaemonSet) -> Option<super::DaemonSetItem> {
     })
 }
 
-pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Vec<super::DaemonSetItem>>>) {
+pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Vec<super::DaemonSetItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<DaemonSet> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -701,6 +719,8 @@ pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Ve
                     let mut list_guard = daemonsets_list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(ds) => {
                     if !initialized {
@@ -754,9 +774,11 @@ pub fn convert_cronjob(cj: CronJob) -> Option<super::CronJobItem> {
     })
 }
 
-pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<super::CronJobItem>>>) {
+pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<super::CronJobItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<CronJob> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -782,6 +804,8 @@ pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<sup
                     let mut list_guard = cronjob_list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(cronjob) => {
                     if !initialized {
@@ -858,9 +882,11 @@ pub fn convert_ingress(ing: Ingress) -> Option<super::IngressItem> {
     })
 }
 
-pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<super::IngressItem>>>) {
+pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<super::IngressItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Ingress> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -886,6 +912,8 @@ pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<
                     let mut list = ingresses_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(ing) => {
                     if !initialized {
@@ -954,9 +982,11 @@ pub fn convert_endpoint(ep: Endpoints) -> Option<super::EndpointItem> {
     })
 }
 
-pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<super::EndpointItem>>>) {
+pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<super::EndpointItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Endpoints> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -982,6 +1012,8 @@ pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<
                     let mut list = endpoints_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(ep) => {
                     if !initialized {
@@ -1075,9 +1107,11 @@ pub fn convert_service(svc: Service) -> Option<super::ServiceItem> {
     })
 }
 
-pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<super::ServiceItem>>>) {
+pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<super::ServiceItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Service> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1103,6 +1137,8 @@ pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<su
                     let mut list = services_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(svc) => {
                     if !initialized {
@@ -1149,13 +1185,15 @@ pub fn convert_csi_driver(driver: CSIDriver) -> Option<super::CSIDriverItem> {
     })
 }
 
-pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<super::CSIDriverItem>>>) {
+pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<super::CSIDriverItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<CSIDriver> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
+
+    load_status.store(true, Ordering::Relaxed);
 
     while let Some(event) = stream.next().await {
         match event {
@@ -1170,6 +1208,8 @@ pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<supe
                     let mut list = csi_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(driver) => {
                     if !initialized {
@@ -1210,12 +1250,14 @@ pub fn convert_event(ev: Event) -> Option<super::EventItem> {
     })
 }
 
-pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super::EventItem>>>) {
+pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super::EventItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Event> = Api::all(client.as_ref().clone());
     let mut event_stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
+
+    load_status.store(true, Ordering::Relaxed);
 
     while let Some(event) = event_stream.next().await {
         match event {
@@ -1230,6 +1272,8 @@ pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<super:
                     let mut list = events_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(ev) => {
                     if !initialized {
@@ -1258,9 +1302,11 @@ pub fn convert_namespace(ns: Namespace) -> Option<super::NamespaceItem> {
     })
 }
 
-pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>) {
+pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super::NamespaceItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Namespace> = Api::all(client.as_ref().clone());
     let mut ns_stream = watcher(api, watcher::Config::default()).boxed();
+
+    load_status.store(true, Ordering::Relaxed);
 
     let mut initial = vec![];
     let mut initialized = false;
@@ -1278,6 +1324,8 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
                     let mut ns_vec = ns_list.lock().unwrap();
                     *ns_vec = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(ns) => {
                     if !initialized {
@@ -1333,13 +1381,15 @@ pub fn convert_pv(pv: PersistentVolume) -> Option<super::PvItem> {
     })
 }
 
-pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem>>>) {
+pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<PersistentVolume> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
+
+    load_status.store(true, Ordering::Relaxed);
 
     while let Some(event) = stream.next().await {
         match event {
@@ -1354,6 +1404,8 @@ pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<super::PvItem
                     let mut list = pv_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(pv) => {
                     if !initialized {
@@ -1407,9 +1459,11 @@ pub fn convert_storage_class(sc: StorageClass) -> Option<super::StorageClassItem
     })
 }
 
-pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<super::StorageClassItem>>>) {
+pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<super::StorageClassItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<StorageClass> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
@@ -1429,6 +1483,8 @@ pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<s
                     let mut list = sc_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(sc) => {
                     if !initialized {
@@ -1473,9 +1529,11 @@ pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<super::PvcItem> {
     })
 }
 
-pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcItem>>>) {
+pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<PersistentVolumeClaim> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1501,6 +1559,8 @@ pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcI
                     let mut list = pvc_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(pvc) => {
                     if !initialized {
@@ -1531,9 +1591,11 @@ pub fn convert_replicaset(rs: ReplicaSet) -> Option<super::ReplicaSetItem> {
     })
 }
 
-pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super::ReplicaSetItem>>>) {
+pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super::ReplicaSetItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<ReplicaSet> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1559,6 +1621,8 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super
                     let mut list = rs_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(rs) => {
                     if !initialized {
@@ -1595,9 +1659,11 @@ pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
     })
 }
 
-pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<super::StatefulSetItem>>>) {
+pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<super::StatefulSetItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<StatefulSet> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1623,6 +1689,8 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<supe
                     let mut list = ss_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(ss) => {
                     if !initialized {
@@ -1677,9 +1745,11 @@ pub fn convert_job(job: Job) -> Option<super::JobItem> {
     })
 }
 
-pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::JobItem>>>) {
+pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::JobItem>>>, load_status: Arc<AtomicBool>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Job> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1704,6 +1774,8 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::Job
                     let mut list = jobs_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 Event::Apply(job) => {
                     if !initialized {
@@ -1741,8 +1813,10 @@ fn convert_deployment(deploy: Deployment) -> Option<super::DeploymentItem> {
     })
 }
 
-pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>) {
+pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Deployment> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1770,6 +1844,8 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                     let mut list = deployments_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
 
                 WatcherEvent::Apply(deploy) => {
@@ -1807,8 +1883,10 @@ pub fn convert_configmap(cm: ConfigMap) -> Option<super::ConfigMapItem> {
     })
 }
 
-pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Vec<super::ConfigMapItem>>>) {
+pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Vec<super::ConfigMapItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<ConfigMap> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1834,6 +1912,8 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
                     let mut list = configmaps_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(cm) => {
                     if !initialized {
@@ -1869,8 +1949,10 @@ fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
     })
 }
 
-pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>) {
+pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Secret> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -1896,6 +1978,8 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<supe
                     let mut list = secrets_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(secret) => {
                     if !initialized {
@@ -1999,8 +2083,10 @@ fn convert_pod(pod: Pod) -> Option<super::PodItem> {
     })
 }
 
-pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>) {
+pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Pod> = Api::all(client.as_ref().clone());
+
+    load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
@@ -2026,6 +2112,7 @@ pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::Pod
                     let mut list = pods_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
+                    load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(pod) => {
                     if !initialized {
