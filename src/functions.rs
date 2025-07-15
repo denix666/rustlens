@@ -1908,51 +1908,66 @@ fn convert_pod(pod: Pod) -> Option<super::PodItem> {
     })
 }
 
-pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>) {
-    let api: Api<Pod> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
-
-    let mut initial = vec![];
-    let mut initialized = false;
-
-    while let Some(event) = stream.next().await {
-        match event {
-            Ok(ev) => match ev {
-                watcher::Event::Init => initial.clear(),
-                watcher::Event::InitApply(pod) => {
-                    if let Some(item) = convert_pod(pod) {
-                        initial.push(item);
-                    }
-                }
-                watcher::Event::InitDone => {
-                    let mut list = pods_list.lock().unwrap();
-                    *list = initial.clone();
-                    initialized = true;
-                }
-                watcher::Event::Apply(pod) => {
-                    if !initialized {
-                        continue;
-                    }
-                    if let Some(item) = convert_pod(pod) {
-                        let mut list = pods_list.lock().unwrap();
-                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
-                            *existing = item;
-                        } else {
-                            list.push(item);
-                        }
-                    }
-                }
-                watcher::Event::Delete(pod) => {
-                    if let Some(item) = pod.metadata.name {
-                        let mut pods_vec = pods_list.lock().unwrap();
-                        pods_vec.retain(|p| p.name != item);
-                    }
-                }
-            },
-            Err(e) => eprintln!("Secret watch error: {:?}", e),
-        }
-    }
+fn get_pod_name(item: &super::PodItem) -> String {
+    item.name.clone()
 }
+
+pub async fn init_and_watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>, ns: String) {
+    super::init_and_watch::<Pod, super::PodItem>(
+        Arc::clone(&client),
+        ns,
+        pods_list,
+        |client, ns| Api::namespaced(client.as_ref().clone(), ns),
+        convert_pod,
+        get_pod_name,
+    ).await;
+}
+
+// pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>) {
+//     let api: Api<Pod> = Api::all(client.as_ref().clone());
+//     let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+//     let mut initial = vec![];
+//     let mut initialized = false;
+
+//     while let Some(event) = stream.next().await {
+//         match event {
+//             Ok(ev) => match ev {
+//                 watcher::Event::Init => initial.clear(),
+//                 watcher::Event::InitApply(pod) => {
+//                     if let Some(item) = convert_pod(pod) {
+//                         initial.push(item);
+//                     }
+//                 }
+//                 watcher::Event::InitDone => {
+//                     let mut list = pods_list.lock().unwrap();
+//                     *list = initial.clone();
+//                     initialized = true;
+//                 }
+//                 watcher::Event::Apply(pod) => {
+//                     if !initialized {
+//                         continue;
+//                     }
+//                     if let Some(item) = convert_pod(pod) {
+//                         let mut list = pods_list.lock().unwrap();
+//                         if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
+//                             *existing = item;
+//                         } else {
+//                             list.push(item);
+//                         }
+//                     }
+//                 }
+//                 watcher::Event::Delete(pod) => {
+//                     if let Some(item) = pod.metadata.name {
+//                         let mut pods_vec = pods_list.lock().unwrap();
+//                         pods_vec.retain(|p| p.name != item);
+//                     }
+//                 }
+//             },
+//             Err(e) => eprintln!("Secret watch error: {:?}", e),
+//         }
+//     }
+// }
 
 pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
     let pods: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);

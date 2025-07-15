@@ -10,6 +10,9 @@ use functions::*;
 mod templates;
 use templates::*;
 
+mod watcher_utils;
+use watcher_utils::*;
+
 mod items;
 use items::*;
 
@@ -303,8 +306,11 @@ async fn main() {
 
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    spawn_watcher(Arc::clone(&client), Arc::clone(&pods), |c, s| {
-        Box::pin(watch_pods(c, s))
+    let pods_clone = Arc::clone(&pods);
+    let client_clone = Arc::clone(&client);
+    let ns = selected_namespace_clone.lock().unwrap().clone().unwrap_or_else(|| "default".to_string());
+    tokio::spawn(async move {
+        init_and_watch_pods(client_clone, pods_clone, ns).await;
     });
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
