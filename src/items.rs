@@ -20,6 +20,7 @@ pub struct EndpointItem {
     pub addresses: String,
     pub ports: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,7 @@ pub struct NetworkPolicyItem {
     pub pod_selector: String,
     pub policy_types: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +57,7 @@ pub struct IngressItem {
     pub service: String,
     pub tls: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -114,6 +117,7 @@ pub struct ReplicaSetItem {
     pub current: i32,
     pub ready: i32,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -126,6 +130,7 @@ pub struct ServiceItem {
     pub selector: String,
     pub creation_timestamp: Option<Time>,
     pub status: String,
+    pub namespace: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -150,6 +155,7 @@ pub struct PvcItem {
     pub volume_name: String,
     pub status: String,
     pub creation_timestamp: Option<Time>,
+    pub namespace: Option<String>,
 }
 
 #[allow(dead_code)]

@@ -11,6 +11,7 @@ use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -18,8 +19,6 @@ use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostPar
 use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
-use std::{time::Duration};
-use tokio::{time::sleep};
 
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let img = image::load_from_memory(super::ICON_BYTES).map_err(|e| e.to_string())?.into_rgba8();
@@ -28,45 +27,15 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     Ok(crate::egui::IconData { rgba, width, height })
 }
 
-type WatchFn<T> = Arc<dyn Fn(Arc<Client>, Arc<T>, String) + Send + Sync>;
-pub fn spawn_namespace_watcher_loop<T: Send + Sync + 'static>(
+pub fn spawn_watcher<T, F>(
     client: Arc<Client>,
-    data: Arc<T>,
-    selected_namespace: Arc<Mutex<Option<String>>>,
-    watch_fn: WatchFn<T>,
-    interval: Duration,
-) {
-    let data_outer = Arc::clone(&data);
-    let namespace_outer = Arc::clone(&selected_namespace);
-    let client_outer = Arc::clone(&client);
-    let watch_fn = Arc::clone(&watch_fn);
-
-    tokio::spawn(async move {
-        let mut last_ns = String::new();
-
-        loop {
-            let ns = namespace_outer
-                .lock()
-                .unwrap()
-                .clone()
-                .unwrap_or_else(|| "default".to_string());
-
-            if ns != last_ns {
-                let data_clone = Arc::clone(&data_outer);
-                let client_clone = Arc::clone(&client_outer);
-                let fn_clone = Arc::clone(&watch_fn);
-                let ns_clone = ns.clone();
-
-                tokio::spawn(async move {
-                    (fn_clone)(client_clone, data_clone, ns_clone);
-                });
-
-                last_ns = ns;
-            }
-
-            sleep(interval).await;
-        }
-    });
+    state: Arc<Mutex<Vec<T>>>,
+    watch_fn: F,
+) where
+    T: Send + 'static,
+    F: FnOnce(Arc<Client>, Arc<Mutex<Vec<T>>>) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + 'static,
+{
+    tokio::spawn(watch_fn(client, state));
 }
 
 pub fn format_age(ts: &Time) -> String {
@@ -561,12 +530,13 @@ pub fn convert_network_policy(policy: NetworkPolicy) -> Option<super::NetworkPol
         pod_selector,
         policy_types,
         creation_timestamp,
+        namespace: policy.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<super::NetworkPolicyItem>>>, selected_ns: String) {
+pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<super::NetworkPolicyItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<NetworkPolicy> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<NetworkPolicy> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -863,12 +833,13 @@ pub fn convert_ingress(ing: Ingress) -> Option<super::IngressItem> {
         service: if services.is_empty() { "-".into() } else { services.join(", ") },
         tls,
         creation_timestamp,
+        namespace: ing.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<super::IngressItem>>>, selected_ns: String) {
+pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<super::IngressItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<Ingress> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<Ingress> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -951,12 +922,13 @@ pub fn convert_endpoint(ep: Endpoints) -> Option<super::EndpointItem> {
             all_ports.join(", ")
         },
         creation_timestamp,
+        namespace: ep.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<super::EndpointItem>>>, selected_ns: String) {
+pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<super::EndpointItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<Endpoints> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<Endpoints> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1063,13 +1035,14 @@ pub fn convert_service(svc: Service) -> Option<super::ServiceItem> {
         external_ip,
         selector,
         creation_timestamp: svc.metadata.creation_timestamp,
-        status: "OK".to_string(), // можно позже дополнить проверкой наличия endpoints
+        status: "OK".to_string(),
+        namespace: svc.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<super::ServiceItem>>>, selected_ns: String) {
+pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<super::ServiceItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<Service> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<Service> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1453,12 +1426,13 @@ pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<super::PvcItem> {
             .and_then(|s| s.phase.clone())
             .unwrap_or_else(|| "Unknown".to_string()),
         creation_timestamp: pvc.metadata.creation_timestamp,
+        namespace: pvc.metadata.namespace.clone(),
     })
 }
 
-pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcItem>>>, selected_ns: String) {
+pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<PersistentVolumeClaim> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1503,12 +1477,13 @@ pub fn convert_replicaset(rs: ReplicaSet) -> Option<super::ReplicaSetItem> {
         current: rs.status.as_ref()?.replicas,
         ready: rs.status.as_ref()?.ready_replicas.unwrap_or(0),
         creation_timestamp: rs.metadata.creation_timestamp,
+        namespace: rs.metadata.namespace.clone()
     })
 }
 
-pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super::ReplicaSetItem>>>, selected_ns: String) {
+pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super::ReplicaSetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-    let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), &selected_ns);
+    let api: Api<ReplicaSet> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
