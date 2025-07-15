@@ -537,6 +537,13 @@ pub fn convert_network_policy(policy: NetworkPolicy) -> Option<super::NetworkPol
 pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<super::NetworkPolicyItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<NetworkPolicy> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_network_policy).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -666,9 +673,16 @@ pub fn convert_daemonset(ds: DaemonSet) -> Option<super::DaemonSetItem> {
     })
 }
 
-pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::DaemonSetItem>>>) {
+pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Vec<super::DaemonSetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<DaemonSet> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = daemonsets_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_daemonset).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -684,7 +698,7 @@ pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::Da
                     }
                 }
                 Event::InitDone => {
-                    let mut list_guard = list.lock().unwrap();
+                    let mut list_guard = daemonsets_list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
                 }
@@ -693,13 +707,13 @@ pub async fn watch_daemonsets(client: Arc<Client>, list: Arc<Mutex<Vec<super::Da
                         continue;
                     }
                     if let Some(item) = convert_daemonset(ds) {
-                        let mut list_guard = list.lock().unwrap();
+                        let mut list_guard = daemonsets_list.lock().unwrap();
                         list_guard.push(item);
                     }
                 }
                 Event::Delete(ds) => {
                     if let Some(item) = ds.metadata.name {
-                        let mut ds_vec = list.lock().unwrap();
+                        let mut ds_vec = daemonsets_list.lock().unwrap();
                         ds_vec.retain(|n| n.name != item);
                     }
                 }
@@ -740,9 +754,16 @@ pub fn convert_cronjob(cj: CronJob) -> Option<super::CronJobItem> {
     })
 }
 
-pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::CronJobItem>>>) {
+pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<super::CronJobItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<CronJob> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = cronjob_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_cronjob).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -758,7 +779,7 @@ pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::Cron
                     }
                 }
                 Event::InitDone => {
-                    let mut list_guard = list.lock().unwrap();
+                    let mut list_guard = cronjob_list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
                 }
@@ -767,13 +788,13 @@ pub async fn watch_cronjobs(client: Arc<Client>, list: Arc<Mutex<Vec<super::Cron
                         continue;
                     }
                     if let Some(item) = convert_cronjob(cronjob) {
-                        let mut list_guard = list.lock().unwrap();
+                        let mut list_guard = cronjob_list.lock().unwrap();
                         list_guard.push(item);
                     }
                 }
                 Event::Delete(cronjob) => {
                     if let Some(item) = cronjob.metadata.name {
-                        let mut cronjobs_vec = list.lock().unwrap();
+                        let mut cronjobs_vec = cronjob_list.lock().unwrap();
                         cronjobs_vec.retain(|n| n.name != item);
                     }
                 }
@@ -840,6 +861,13 @@ pub fn convert_ingress(ing: Ingress) -> Option<super::IngressItem> {
 pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<super::IngressItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Ingress> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = ingresses_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_ingress).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -929,6 +957,13 @@ pub fn convert_endpoint(ep: Endpoints) -> Option<super::EndpointItem> {
 pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<super::EndpointItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Endpoints> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = endpoints_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_endpoint).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1043,6 +1078,13 @@ pub fn convert_service(svc: Service) -> Option<super::ServiceItem> {
 pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<super::ServiceItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Service> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = services_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_service).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1368,6 +1410,7 @@ pub fn convert_storage_class(sc: StorageClass) -> Option<super::StorageClassItem
 pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<super::StorageClassItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<StorageClass> = Api::all(client.as_ref().clone());
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1433,6 +1476,13 @@ pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<super::PvcItem> {
 pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<PersistentVolumeClaim> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = pvc_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_pvc).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1484,6 +1534,13 @@ pub fn convert_replicaset(rs: ReplicaSet) -> Option<super::ReplicaSetItem> {
 pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super::ReplicaSetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<ReplicaSet> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = rs_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_replicaset).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1540,8 +1597,14 @@ pub fn convert_statefulset(ss: StatefulSet) -> Option<super::StatefulSetItem> {
 
 pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<super::StatefulSetItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
-
     let api: Api<StatefulSet> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = ss_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_statefulset).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
@@ -1617,6 +1680,13 @@ pub fn convert_job(job: Job) -> Option<super::JobItem> {
 pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::JobItem>>>) {
     use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Job> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = jobs_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_job).collect();
+    }
+
     let mut stream = watcher(api, watcher::Config::default()).boxed();
     let mut initial = vec![];
     let mut initialized = false;
@@ -1673,12 +1743,19 @@ fn convert_deployment(deploy: Deployment) -> Option<super::DeploymentItem> {
 
 pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<Vec<super::DeploymentItem>>>) {
     let api: Api<Deployment> = Api::all(client.as_ref().clone());
-    let mut watcher_stream = watcher(api, watcher::Config::default()).boxed();
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = deployments_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_deployment).collect();
+    }
+
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
 
-    while let Some(event) = watcher_stream.next().await {
+    while let Some(event) = stream.next().await {
         match event {
             Ok(watch_event) => match watch_event {
                 WatcherEvent::Init => initial.clear(),
@@ -1731,8 +1808,15 @@ pub fn convert_configmap(cm: ConfigMap) -> Option<super::ConfigMapItem> {
 }
 
 pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Vec<super::ConfigMapItem>>>) {
-    let cms: Api<ConfigMap> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(cms, watcher::Config::default()).boxed();
+    let api: Api<ConfigMap> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = configmaps_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_configmap).collect();
+    }
+
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
@@ -1786,8 +1870,15 @@ fn convert_secret(secret: Secret) -> Option<super::SecretItem> {
 }
 
 pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<super::SecretItem>>>) {
-    let secrets: Api<Secret> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(secrets, watcher::Config::default()).boxed();
+    let api: Api<Secret> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = secrets_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_secret).collect();
+    }
+
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
@@ -1908,66 +1999,58 @@ fn convert_pod(pod: Pod) -> Option<super::PodItem> {
     })
 }
 
-fn get_pod_name(item: &super::PodItem) -> String {
-    item.name.clone()
+pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>) {
+    let api: Api<Pod> = Api::all(client.as_ref().clone());
+
+    // first-fast load
+    if let Ok(ol) = api.list(&ListParams::default()).await {
+        let mut items = pods_list.lock().unwrap();
+        *items = ol.into_iter().filter_map(convert_pod).collect();
+    }
+
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
+
+    let mut initial = vec![];
+    let mut initialized = false;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => match ev {
+                watcher::Event::Init => initial.clear(),
+                watcher::Event::InitApply(pod) => {
+                    if let Some(item) = convert_pod(pod) {
+                        initial.push(item);
+                    }
+                }
+                watcher::Event::InitDone => {
+                    let mut list = pods_list.lock().unwrap();
+                    *list = initial.clone();
+                    initialized = true;
+                }
+                watcher::Event::Apply(pod) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(item) = convert_pod(pod) {
+                        let mut list = pods_list.lock().unwrap();
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
+                    }
+                }
+                watcher::Event::Delete(pod) => {
+                    if let Some(item) = pod.metadata.name {
+                        let mut pods_vec = pods_list.lock().unwrap();
+                        pods_vec.retain(|p| p.name != item);
+                    }
+                }
+            },
+            Err(e) => eprintln!("Secret watch error: {:?}", e),
+        }
+    }
 }
-
-pub async fn init_and_watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>, ns: String) {
-    super::init_and_watch::<Pod, super::PodItem>(
-        Arc::clone(&client),
-        ns,
-        pods_list,
-        |client, ns| Api::namespaced(client.as_ref().clone(), ns),
-        convert_pod,
-        get_pod_name,
-    ).await;
-}
-
-// pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<super::PodItem>>>) {
-//     let api: Api<Pod> = Api::all(client.as_ref().clone());
-//     let mut stream = watcher(api, watcher::Config::default()).boxed();
-
-//     let mut initial = vec![];
-//     let mut initialized = false;
-
-//     while let Some(event) = stream.next().await {
-//         match event {
-//             Ok(ev) => match ev {
-//                 watcher::Event::Init => initial.clear(),
-//                 watcher::Event::InitApply(pod) => {
-//                     if let Some(item) = convert_pod(pod) {
-//                         initial.push(item);
-//                     }
-//                 }
-//                 watcher::Event::InitDone => {
-//                     let mut list = pods_list.lock().unwrap();
-//                     *list = initial.clone();
-//                     initialized = true;
-//                 }
-//                 watcher::Event::Apply(pod) => {
-//                     if !initialized {
-//                         continue;
-//                     }
-//                     if let Some(item) = convert_pod(pod) {
-//                         let mut list = pods_list.lock().unwrap();
-//                         if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
-//                             *existing = item;
-//                         } else {
-//                             list.push(item);
-//                         }
-//                     }
-//                 }
-//                 watcher::Event::Delete(pod) => {
-//                     if let Some(item) = pod.metadata.name {
-//                         let mut pods_vec = pods_list.lock().unwrap();
-//                         pods_vec.retain(|p| p.name != item);
-//                     }
-//                 }
-//             },
-//             Err(e) => eprintln!("Secret watch error: {:?}", e),
-//         }
-//     }
-// }
 
 pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
     let pods: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);

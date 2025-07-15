@@ -10,9 +10,6 @@ use functions::*;
 mod templates;
 use templates::*;
 
-mod watcher_utils;
-use watcher_utils::*;
-
 mod items;
 use items::*;
 
@@ -178,6 +175,21 @@ async fn main() {
         }
     });
 
+    // OLD WAY
+    // let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
+    // let pods_clone = Arc::clone(&pods);
+    // let ns = selected_namespace_clone.lock().unwrap().clone().unwrap_or_else(|| "default".to_string());
+    // let client_clone = Arc::clone(&client);
+    // tokio::spawn(async move {
+    //     watch_pods(client_clone, pods_clone, ns).await;
+    // });
+
+    // PODS
+    let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
+    spawn_watcher(Arc::clone(&client), Arc::clone(&pods), |c, s| {
+        Box::pin(watch_pods(c, s))
+    });
+
     // ENDPOINTS
     let endpoints = Arc::new(Mutex::new(Vec::<EndpointItem>::new()));
     spawn_watcher(Arc::clone(&client), Arc::clone(&endpoints), |c, s| {
@@ -302,15 +314,6 @@ async fn main() {
     let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
     spawn_watcher(Arc::clone(&client), Arc::clone(&namespaces), |c, s| {
         Box::pin(watch_namespaces(c, s))
-    });
-
-    // PODS
-    let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    let pods_clone = Arc::clone(&pods);
-    let client_clone = Arc::clone(&client);
-    let ns = selected_namespace_clone.lock().unwrap().clone().unwrap_or_else(|| "default".to_string());
-    tokio::spawn(async move {
-        init_and_watch_pods(client_clone, pods_clone, ns).await;
     });
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
@@ -485,11 +488,15 @@ async fn main() {
                 Category::NetworkPolicies => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_network_policies: Vec<_> = network_policies.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_network_policies: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        network_policies.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("PodDisruptionBudgets - {}", visible_network_policies.len()));
                         ui.separator();
@@ -534,11 +541,15 @@ async fn main() {
                 Category::PodDisruptionBudgets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_pdbs: Vec<_> = pdbs.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_pdbs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        pdbs.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("PodDisruptionBudgets - {}", visible_pdbs.len()));
                         ui.separator();
@@ -587,11 +598,15 @@ async fn main() {
                 Category::DaemonSets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_daemonsets: Vec<_> = daemonsets.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_daemonsets: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        daemonsets.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("DaemonSets - {}", visible_daemonsets.len()));
                         ui.separator();
@@ -648,11 +663,15 @@ async fn main() {
                 Category::ReplicaSets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_replicasets: Vec<_> = replicasets.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_replicasets: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        replicasets.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("ReplicaSets - {}", visible_replicasets.len()));
                         ui.separator();
@@ -708,11 +727,15 @@ async fn main() {
                 Category::Ingresses => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_ingresses: Vec<_> = ingresses.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_ingresses: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        ingresses.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Ingresses - {}", visible_ingresses.len()));
                         ui.separator();
@@ -870,11 +893,15 @@ async fn main() {
                 Category::PersistentVolumeClaims => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_pvcs: Vec<_> = pvcs.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_pvcs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        pvcs.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("PersistentVolumeClaims - {}", visible_pvcs.len()));
                         ui.separator();
@@ -923,11 +950,15 @@ async fn main() {
                 Category::Endpoints => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_endpoints: Vec<_> = endpoints.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_endpoints: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        endpoints.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Endpoints - {}", visible_endpoints.len()));
                         ui.separator();
@@ -972,13 +1003,17 @@ async fn main() {
                 Category::Jobs => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_pods: Vec<_> = jobs.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_jobs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        jobs.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Jobs - {}", visible_pods.len()));
+                        ui.heading(format!("Jobs - {}", visible_jobs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
@@ -1005,7 +1040,7 @@ async fn main() {
                             ui.label("Conditions");
                             ui.label("Age");
                             ui.end_row();
-                            for item in visible_pods.iter().rev().take(200) {
+                            for item in visible_jobs.iter().rev().take(200) {
                                 let cur_item_object = &item.name;
                                 if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
                                     ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
@@ -1021,11 +1056,15 @@ async fn main() {
                 Category::Services => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_services: Vec<_> = services.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_services: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        services.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Services - {}", visible_services.len()));
                         ui.separator();
@@ -1078,11 +1117,15 @@ async fn main() {
                 Category::CronJobs => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_cronjobs: Vec<_> = cronjobs.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_cronjobs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        cronjobs.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("CronJobs - {}", visible_cronjobs.len()));
                         ui.separator();
@@ -1131,11 +1174,15 @@ async fn main() {
                 Category::StatefulSets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_statefulsets: Vec<_> = statefulsets.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_statefulsets: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        statefulsets.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("StatefulSets - {}", visible_statefulsets.len()));
                         ui.separator();
@@ -1157,7 +1204,6 @@ async fn main() {
                         }
                     });
                     ui.separator();
-                    //let statefulsets_list = statefulsets.lock().unwrap();
                     egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
                         egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                             ui.label("Name");
@@ -1390,11 +1436,15 @@ async fn main() {
                 Category::Pods => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_pods: Vec<_> = pods.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_pods: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        pods.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Pods - {}", visible_pods.len()));
                         ui.separator();
@@ -1606,11 +1656,15 @@ async fn main() {
                 Category::Deployments => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_deployments: Vec<_> = deployments.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_deployments: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        deployments.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Deployments - {}", visible_deployments.len()));
                         ui.separator();
@@ -1659,11 +1713,15 @@ async fn main() {
                 Category::Secrets => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_secrets: Vec<_> = secrets.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_secrets: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        secrets.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Secrets - {}", visible_secrets.len()));
                         ui.separator();
@@ -1733,11 +1791,15 @@ async fn main() {
                 Category::ConfigMaps => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
-                    let visible_configmaps: Vec<_> = configmaps.lock().unwrap()
-                        .iter()
-                        .filter(|p| p.namespace.as_deref() == Some(selected_ns.as_ref().unwrap()))
-                        .cloned()
-                        .collect();
+                    let visible_configmaps: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        configmaps.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     ui.horizontal(|ui| {
                         ui.heading(format!("ConfigMaps - {}", visible_configmaps.len()));
                         ui.separator();
