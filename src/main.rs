@@ -110,7 +110,8 @@ fn show_loading(ui: &mut Ui) {
     ui.with_layout(
         egui::Layout::centered_and_justified(Direction::TopDown),
         |ui| {
-            ui.label(egui::RichText::new("⏳ Loading...").heading());
+            ui.spinner();
+            //ui.label(egui::RichText::new("⏳ Loading...").heading());
         },
     );
 }
@@ -134,8 +135,8 @@ async fn main() {
     let mut log_window = LogWindow::new();
 
     //####################################################//
-    let mut sort_by = SortBy::Name;
-    let mut sort_asc = true;
+    let mut sort_by = SortBy::Age;
+    let mut sort_asc = false;
 
     let ctx_info = get_current_context_info().unwrap();
     let cluster_name = ctx_info.context.unwrap().cluster;
