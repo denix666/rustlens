@@ -620,13 +620,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        network_policies.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("PodDisruptionBudgets - {}", visible_network_policies.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -681,13 +682,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        pdbs.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("PodDisruptionBudgets - {}", visible_pdbs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -746,13 +748,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        daemonsets.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("DaemonSets - {}", visible_daemonsets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -819,13 +822,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        replicasets.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("ReplicaSets - {}", visible_replicasets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -891,13 +895,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        ingresses.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Ingresses - {}", visible_ingresses.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1089,13 +1094,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        pvcs.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("PersistentVolumeClaims - {}", visible_pvcs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1154,13 +1160,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        endpoints.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Endpoints - {}", visible_endpoints.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1215,13 +1222,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        jobs.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Jobs - {}", visible_jobs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1276,13 +1284,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        services.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Services - {}", visible_services.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1345,13 +1354,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        cronjobs.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("CronJobs - {}", visible_cronjobs.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1410,13 +1420,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        statefulsets.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("StatefulSets - {}", visible_statefulsets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1696,13 +1707,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        pods.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Pods - {}", visible_pods.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1924,13 +1936,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        deployments.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Deployments - {}", visible_deployments.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -1989,13 +2002,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        secrets.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("Secrets - {}", visible_secrets.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(
@@ -2075,13 +2089,14 @@ async fn main() {
                             .cloned()
                             .collect()
                     } else {
-                        vec![]
+                        configmaps.lock().unwrap().iter().cloned().collect()
                     };
                     ui.horizontal(|ui| {
                         ui.heading(format!("ConfigMaps - {}", visible_configmaps.len()));
                         ui.separator();
                         ui.heading(format!("Namespace - "));
-                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("default")).width(150.0).show_ui(ui, |ui| {
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
                                 let ns_name = &item.name;
                                 ui.selectable_value(

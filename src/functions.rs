@@ -580,8 +580,12 @@ pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<sup
                         continue;
                     }
                     if let Some(item) = convert_network_policy(policy) {
-                        let mut list_guard = list.lock().unwrap();
-                        list_guard.push(item);
+                        let mut list = list.lock().unwrap();
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(policy) => {
@@ -657,8 +661,12 @@ pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<V
                         continue;
                     }
                     if let Some(item) = convert_pdb(pdb) {
-                        let mut list_guard = list.lock().unwrap();
-                        list_guard.push(item);
+                        let mut list = list.lock().unwrap();
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(pdb) => {
@@ -727,8 +735,12 @@ pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Ve
                         continue;
                     }
                     if let Some(item) = convert_daemonset(ds) {
-                        let mut list_guard = daemonsets_list.lock().unwrap();
-                        list_guard.push(item);
+                        let mut list = daemonsets_list.lock().unwrap();
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(ds) => {
@@ -812,8 +824,12 @@ pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<sup
                         continue;
                     }
                     if let Some(item) = convert_cronjob(cronjob) {
-                        let mut list_guard = cronjob_list.lock().unwrap();
-                        list_guard.push(item);
+                        let mut list = cronjob_list.lock().unwrap();
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(cronjob) => {
@@ -921,7 +937,11 @@ pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<
                     }
                     if let Some(item) = convert_ingress(ing) {
                         let mut list = ingresses_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(ing) => {
@@ -1021,7 +1041,11 @@ pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<
                     }
                     if let Some(item) = convert_endpoint(ep) {
                         let mut list = endpoints_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(ep) => {
@@ -1146,7 +1170,11 @@ pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<su
                     }
                     if let Some(item) = convert_service(svc) {
                         let mut list = services_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(svc) => {
@@ -1568,7 +1596,11 @@ pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<super::PvcI
                     }
                     if let Some(item) = convert_pvc(pvc) {
                         let mut list = pvc_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(_) => {}
@@ -1630,7 +1662,11 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<super
                     }
                     if let Some(item) = convert_replicaset(rs) {
                         let mut list = rs_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(rs) => {
@@ -1698,7 +1734,11 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<supe
                     }
                     if let Some(item) = convert_statefulset(ss) {
                         let mut list = ss_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(ss) => {
@@ -1783,7 +1823,11 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<super::Job
                     }
                     if let Some(item) = convert_job(job) {
                         let mut list = jobs_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 Event::Delete(job) => {
@@ -1854,7 +1898,11 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                     }
                     if let Some(item) = convert_deployment(deploy) {
                         let mut list = deployments_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
 
@@ -1921,7 +1969,11 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
                     }
                     if let Some(item) = convert_configmap(cm) {
                         let mut list = configmaps_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
+                            *existing = item; // renew
+                        } else {
+                            list.push(item); // add new
+                        }
                     }
                 }
                 watcher::Event::Delete(cm) => {
