@@ -1,5 +1,6 @@
 use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
+use k8s_openapi::{Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
@@ -11,6 +12,8 @@ use k8s_openapi::api::storage::v1::{StorageClass, CSIDriver};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -20,6 +23,7 @@ use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostPar
 use kube::runtime::watcher::Event as WatcherEvent;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
+use serde_yaml;
 
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let img = image::load_from_memory(super::ICON_BYTES).map_err(|e| e.to_string())?.into_rgba8();
@@ -56,6 +60,22 @@ pub fn format_age(ts: &Time) -> String {
     }
 }
 
+// get yaml for namespaced resources
+pub async fn get_yaml<T>(client: Arc<Client>, namespace: &str, name: &str, ) -> Result<String, kube::Error>
+where
+    T: Clone
+        + Serialize
+        + DeserializeOwned
+        + std::fmt::Debug
+        + Metadata<Ty = kube::core::ObjectMeta>
+        + Resource<Scope = NamespaceResourceScope>
+        + 'static,
+{
+    let api: Api<T> = Api::namespaced(client.as_ref().clone(), namespace);
+    let obj = api.get(name).await?;
+    Ok(serde_yaml::to_string(&obj).unwrap())
+}
+
 pub fn item_color(item: &str) -> Color32 {
     let ret_color = match item {
         "Ready" => Color32::GREEN,
@@ -79,6 +99,52 @@ pub fn item_color(item: &str) -> Color32 {
     };
 
     return ret_color
+}
+
+pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyhow::Error> {
+    let client = cl.as_ref().clone();
+    let mut value: serde_yaml::Value = serde_yaml::from_str(yaml_str)?;
+    let meta: kube_discovery::kube::api::TypeMeta = serde_yaml::from_value(value.clone())?;
+
+    // Удаляем metadata.managedFields, если оно есть
+    if let Some(metadata) = value.get_mut("metadata") {
+        if let Some(obj) = metadata.as_mapping_mut() {
+            obj.remove(&serde_yaml::Value::String("managedFields".to_string()));
+        }
+    }
+
+    let (group, version) = if meta.api_version.contains('/') {
+        let mut parts = meta.api_version.splitn(2, '/');
+        (parts.next().unwrap(), parts.next().unwrap())
+    } else {
+        ("", meta.api_version.as_str())
+    };
+    let gvk = kube::api::GroupVersionKind::gvk(group, version, &meta.kind);
+
+    // Discovery из kube-discovery
+    let discovery = discovery::Discovery::new(client.clone()).run().await?;
+    let (ar, _caps) = discovery
+        .resolve_gvk(&gvk)
+        .ok_or_else(|| anyhow::anyhow!("GVK not found: {:?}", gvk))?;
+
+    let namespace = value.get("metadata").and_then(|m| m.get("namespace")).and_then(|ns| ns.as_str());
+
+    let api: Api<kube::api::DynamicObject> = if let Some(ns) = namespace {
+        Api::namespaced_with(client, ns, &ar)
+    } else {
+        Api::all_with(client, &ar)
+    };
+
+    let patch = Patch::Apply(&value);
+    let pp = PatchParams::apply("rustlens").force();
+
+    let name = value.get("metadata").and_then(|m| m.get("name"))
+        .and_then(|n| n.as_str())
+        .ok_or_else(|| anyhow::anyhow!("metadata.name is required"))?;
+
+    api.patch(name, &pp, &patch).await?;
+
+    Ok(())
 }
 
 pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::ResourceType) -> Result<(), anyhow::Error> {

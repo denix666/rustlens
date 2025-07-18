@@ -1,9 +1,11 @@
 use eframe::egui::{CursorIcon, Direction, Ui};
 use eframe::*;
 use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
+use std::f32;
 use std::sync::{Arc, Mutex};
-use kube::Client;
+use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
+use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
 
 mod functions;
 use functions::*;
@@ -91,6 +93,20 @@ impl LogWindow {
     }
 }
 
+struct YamlEditorWindow {
+    content: String,
+    show: bool,
+}
+
+impl YamlEditorWindow {
+    fn new() -> Self {
+        Self {
+            content: String::new(),
+            show: false,
+        }
+    }
+}
+
 struct NewResourceWindow {
     resource_type: ResourceType,
     content: String,
@@ -143,6 +159,7 @@ async fn main() {
 
     let mut new_resource_window = NewResourceWindow::new();
     let mut log_window = LogWindow::new();
+    let yaml_editor_window = Arc::new(Mutex::new(YamlEditorWindow::new()));
 
     //####################################################//
     let mut sort_by = SortBy::Age;
@@ -172,6 +189,7 @@ async fn main() {
     let mut filter_scs = String::new();
     let mut filter_csi_drivers = String::new();
     let mut filter_services = String::new();
+    let mut filter_configmaps = String::new();
     let mut filter_endpoints = String::new();
     let mut filter_ingresses = String::new();
     let mut filter_cronjobs = String::new();
@@ -179,6 +197,8 @@ async fn main() {
     let mut filter_pdbs = String::new();
     let mut filter_network_policies = String::new();
     let mut filter_crds = String::new();
+
+    //let cur_yaml = Arc::new(Mutex::new(String::new()));
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -1892,6 +1912,24 @@ async fn main() {
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml::<k8s_openapi::api::core::v1::Pod>(client, &ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
                                                 if ui.button("📃 Logs").clicked() {
                                                     let cur_pod = item.name.clone();
                                                     log_window.pod_name = item.name.clone();
@@ -2058,6 +2096,24 @@ async fn main() {
                                             ui.label(format!("{}", &item.keys));
                                             ui.menu_button("⚙", |ui| {
                                                 ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml::<k8s_openapi::api::core::v1::Secret>(client, &ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = selected_ns.clone();
@@ -2069,7 +2125,6 @@ async fn main() {
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
-
                                             });
                                             ui.end_row();
                                         }
@@ -2106,10 +2161,10 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter configmaps...").desired_width(200.0));
-                        filter_secrets = filter_secrets.to_lowercase();
+                        ui.add(egui::TextEdit::singleline(&mut filter_configmaps).hint_text("Filter configmaps...").desired_width(200.0));
+                        filter_configmaps = filter_configmaps.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
-                            filter_secrets.clear();
+                            filter_configmaps.clear();
                         }
                     });
                     ui.separator();
@@ -2131,14 +2186,35 @@ async fn main() {
 
                                     for item in visible_configmaps.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
-                                        if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
+                                        if filter_configmaps.is_empty() || cur_item_object.contains(&filter_configmaps) {
                                             ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                             ui.label(format!("{}", &item.type_));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(format!("{:?}", &item.labels));
                                             ui.label(format!("{}", &item.keys.join(", ")));
+
                                             ui.menu_button("⚙", |ui| {
                                                 ui.set_width(200.0);
+
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml::<k8s_openapi::api::core::v1::ConfigMap>(client, &ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = selected_ns.clone();
@@ -2209,6 +2285,47 @@ async fn main() {
                 },
             }
         });
+
+        if let Ok(mut editor) = yaml_editor_window.lock() {
+            if editor.show {
+                egui::Window::new("Edit resource").min_width(900.0).collapsible(false).resizable(true).show(ctx, |ui| {
+                    egui::ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
+                        CodeEditor::default()
+                            .with_theme(ColorTheme::GITHUB_DARK)
+                            .desired_width(f32::INFINITY)
+                            .with_syntax(Syntax::shell())
+                            .with_rows(25)
+                            .with_fontsize(14.0)
+                            .show(ui, &mut editor.content)
+                    });
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button(egui::RichText::new("✅ Save").size(16.0).color(egui::Color32::GREEN)).clicked() {
+                            let content = editor.content.clone();
+
+                            match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+                                Ok(_) => {
+                                    // YAML is valid!
+                                    let client_clone = Arc::clone(&client);
+                                    tokio::spawn(async move {
+                                        if let Err(e) = patch_resource(client_clone, content.as_str()).await {
+                                            println!("Error applying YAML: {:?}", e);
+                                        }
+                                    });
+                                    editor.show = false;
+                                }
+                                Err(e) => {
+                                    eprintln!("YAML Error: {}", e);
+                                }
+                            }
+                        }
+                        if ui.button(egui::RichText::new("🗙 Cancel").size(16.0).color(egui::Color32::RED)).clicked() {
+                            editor.show = false;
+                        }
+                    });
+                });
+            }
+        }
 
         // New resource creation window
         if new_resource_window.show {
