@@ -1,11 +1,10 @@
 use eframe::egui::{CursorIcon, Direction, Ui};
 use eframe::*;
-use egui::{Context, Style, TextStyle, FontId, Color32, ScrollArea};
+use egui::{Color32, Context, FontId, ScrollArea, TextStyle};
 use std::f32;
 use std::sync::{Arc, Mutex};
 use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
-use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
 
 mod functions;
 use functions::*;
@@ -96,6 +95,8 @@ impl LogWindow {
 struct YamlEditorWindow {
     content: String,
     show: bool,
+    search_query: String,
+    //show_search: bool,
 }
 
 impl YamlEditorWindow {
@@ -103,6 +104,8 @@ impl YamlEditorWindow {
         Self {
             content: String::new(),
             show: false,
+            //show_search: true,
+            search_query: String::new(),
         }
     }
 }
@@ -459,7 +462,7 @@ async fn main() {
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         // Setup style
-        let mut style: Style = (*ctx.style()).clone();
+        let mut style: egui::Style = (*ctx.style()).clone();
 
         // Increase font size for different TextStyle
         style.text_styles = [
@@ -2288,16 +2291,28 @@ async fn main() {
 
         if let Ok(mut editor) = yaml_editor_window.lock() {
             if editor.show {
-                egui::Window::new("Edit resource").min_width(900.0).collapsible(false).resizable(true).show(ctx, |ui| {
-                    egui::ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
-                        CodeEditor::default()
-                            .with_theme(ColorTheme::GITHUB_DARK)
-                            .desired_width(f32::INFINITY)
-                            .with_syntax(Syntax::shell())
-                            .with_rows(25)
-                            .with_fontsize(14.0)
-                            .show(ui, &mut editor.content)
+                egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("🔍");
+                        ui.add(egui::TextEdit::singleline(&mut editor.search_query)
+                            .hint_text("Search...")
+                            .desired_width(200.0),
+                        );
+                        if ui.button("×").clicked() {
+                            editor.search_query.clear();
+                        }
                     });
+                    ui.separator();
+
+                    let search = editor.search_query.clone();
+                    egui::ScrollArea::vertical().hscroll(true).show(ui, |ui| {
+                        ui.add(egui::TextEdit::multiline(&mut editor.content)
+                            .font(TextStyle::Monospace)
+                            .code_editor()
+                            .layouter(&mut search_layouter(search)),
+                        );
+                    });
+
                     ui.separator();
                     ui.horizontal(|ui| {
                         if ui.button(egui::RichText::new("✅ Save").size(16.0).color(egui::Color32::GREEN)).clicked() {
