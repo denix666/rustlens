@@ -1,6 +1,6 @@
 use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
-use k8s_openapi::{Metadata, NamespaceResourceScope, Resource};
+use k8s_openapi::{ClusterResourceScope, Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
@@ -122,7 +122,7 @@ pub fn format_age(ts: &Time) -> String {
 }
 
 // get yaml for namespaced resources
-pub async fn get_yaml<T>(client: Arc<Client>, namespace: &str, name: &str, ) -> Result<String, kube::Error>
+pub async fn get_yaml_namespaced<T>(client: Arc<Client>, namespace: &str, name: &str, ) -> Result<String, kube::Error>
 where
     T: Clone
         + Serialize
@@ -133,6 +133,21 @@ where
         + 'static,
 {
     let api: Api<T> = Api::namespaced(client.as_ref().clone(), namespace);
+    let obj = api.get(name).await?;
+    Ok(serde_yaml::to_string(&obj).unwrap())
+}
+
+pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<String, kube::Error>
+where
+    T: Clone
+        + Serialize
+        + DeserializeOwned
+        + std::fmt::Debug
+        + Metadata<Ty = kube::core::ObjectMeta>
+        + Resource<Scope = ClusterResourceScope>
+        + 'static,
+{
+    let api: Api<T> = Api::all(client.as_ref().clone());
     let obj = api.get(name).await?;
     Ok(serde_yaml::to_string(&obj).unwrap())
 }
@@ -302,6 +317,12 @@ pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Op
     let ns = namespace.unwrap_or("default");
     let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), ns);
     secrets.delete(secret_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_namespace(client: Arc<Client>, name: &str) -> Result<(), kube::Error> {
+    let namespaces: Api<Namespace> = Api::all(client.as_ref().clone());
+    namespaces.delete(name, &DeleteParams::default()).await?;
     Ok(())
 }
 
@@ -1488,7 +1509,13 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<super:
                     }
                     if let Some(item) = convert_namespace(ns) {
                         let mut list = ns_list.lock().unwrap();
-                        list.push(item);
+
+                        // Renew if exists. Esle add
+                        if let Some(existing) = list.iter_mut().find(|n| n.name == item.name) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
                     }
                 }
                 watcher::Event::Delete(ns) => {
