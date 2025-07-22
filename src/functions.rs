@@ -17,6 +17,7 @@ use serde::Serialize;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use futures_util::StreamExt;
 use serde_json::json;
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
@@ -28,6 +29,8 @@ use egui::{Ui, TextBuffer, TextFormat, FontId};
 use egui::epaint::{text::LayoutJob};
 use serde::Deserialize;
 use http::{Request, Method};
+use futures::{stream::{FuturesUnordered}};
+use tokio::task;
 
 pub fn search_layouter(search: String) -> Box<dyn FnMut(&Ui, &dyn TextBuffer, f32) -> Arc<egui::Galley>> {
     let search_lower = search.to_lowercase();
@@ -380,6 +383,7 @@ struct Summary {
 #[derive(Debug, Deserialize)]
 struct NodeStats {
     fs: Option<FileSystemStats>,
+    cpu: Option<CPUStats>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -390,7 +394,35 @@ struct FileSystemStats {
     used_bytes: Option<u64>,
 }
 
-pub async fn fetch_real_disk_usage(client: Client, node_name: &str) -> anyhow::Result<(Option<f32>, Option<f32>, Option<f32>)> {
+#[derive(Debug, Deserialize)]
+struct CPUStats {
+    #[serde(rename = "usageCoreNanoSeconds")]
+    usage_core_nano_seconds: Option<u64>,
+}
+
+async fn get_cpu_usage_nanos(client: &Client, node_name: &str) -> anyhow::Result<u64> {
+    let path = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(path)
+        .body(Vec::new())?;
+    let summary: Summary = client.request(req).await?;
+    summary.node.cpu
+        .and_then(|c| c.usage_core_nano_seconds)
+        .ok_or_else(|| anyhow::anyhow!("Missing usage_core_nano_seconds"))
+}
+
+pub async fn fetch_node_metrics(
+    client: Client,
+    node_name: &str,
+) -> anyhow::Result<(
+    Option<f32>, // disk_used
+    Option<f32>, // disk_total
+    Option<f32>, // disk_percent
+    Option<f32>, // cpu_usage
+    Option<f32>, // cpu_capacity
+    Option<f32>, // cpu_percent
+)> {
     let path = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
     let req = Request::builder()
         .method(Method::GET)
@@ -398,34 +430,44 @@ pub async fn fetch_real_disk_usage(client: Client, node_name: &str) -> anyhow::R
         .body(Vec::new())?;
     let summary: Summary = client.request(req).await?;
 
-    if let Some(fs) = summary.node.fs {
+    // Disk
+    let (disk_used, disk_total, disk_percent) = if let Some(fs) = summary.node.fs {
         let used = fs.used_bytes.map(|b| ((b as f32 / 1_073_741_824.0) * 100.0).round() / 100.0);
         let total = fs.capacity_bytes.map(|b| ((b as f32 / 1_073_741_824.0) * 100.0).round() / 100.0);
         let percent = match (used, total) {
             (Some(u), Some(t)) if t > 0.0 => Some(((u / t) * 100.0 * 100.0).round() / 100.0),
             _ => None,
         };
-        Ok((used, total, percent))
+        (used, total, percent)
     } else {
-        Ok((None, None, None))
-    }
+        (None, None, None)
+    };
+
+    // CPU
+    let usage1 = get_cpu_usage_nanos(&client, node_name).await?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let usage2 = get_cpu_usage_nanos(&client, node_name).await?;
+
+    let delta_nanos = usage2.saturating_sub(usage1);
+    let cpu_usage = Some(delta_nanos as f32 / 1_000_000_000.0);
+
+    // Fallback CPU capacity via node API
+    let api: Api<Node> = Api::all(client.clone());
+    let node = api.get(node_name).await?;
+
+    let cpu_total = node.status
+        .as_ref()
+        .and_then(|s| s.capacity.as_ref())
+        .and_then(|c| c.get("cpu"))
+        .and_then(|q| q.0.parse::<f32>().ok());
+
+    let cpu_percent = match (cpu_usage, cpu_total) {
+        (Some(u), Some(c)) if c > 0.0 => Some(((u / c) * 100.0 * 100.0).round() / 100.0),
+        _ => None,
+    };
+
+    Ok((disk_used, disk_total, disk_percent, cpu_usage, cpu_total, cpu_percent))
 }
-
-// pub async fn convert_node_with_metrics(client: Client, node: Node) -> Option<super::NodeItem> {
-//     let base = convert_node(node.clone())?;
-
-//     let (storage_used, storage_total, storage_percent) = match fetch_real_disk_usage(client.clone(), &base.name).await {
-//         Ok(values) => values,
-//         Err(_) => (None, None, None),
-//     };
-
-//     Some(super::NodeItem {
-//         storage_total,
-//         storage_used,
-//         storage_percent,
-//         ..base
-//     })
-// }
 
 pub fn convert_node(node: Node) -> Option<super::NodeItem> {
     let metadata = &node.metadata;
@@ -467,12 +509,16 @@ pub fn convert_node(node: Node) -> Option<super::NodeItem> {
         roles,
         scheduling_disabled,
         taints,
-        cpu_percent: 44.8,
-        mem_percent: 33.9,
         version,
         storage_total: None,
         storage_used: None,
         storage_percent: None,
+        cpu_total: None,
+        cpu_used: None,
+        cpu_percent: None,
+        mem_total: None,
+        mem_used: None,
+        mem_percent: None,
     })
 }
 
@@ -485,71 +531,141 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
     let mut initialized = false;
     load_status.store(true, Ordering::Relaxed);
 
+    {
+        let client = client.clone();
+        let list = Arc::clone(&list);
+        task::spawn(async move {
+            loop {
+                let nodes_snapshot = {
+                    let guard = list.lock().unwrap();
+                    guard.clone()
+                };
+
+                let mut tasks = FuturesUnordered::new();
+                for node in nodes_snapshot {
+                    let client = client.clone();
+                    let list = Arc::clone(&list);
+
+                    tasks.push(async move {
+                        if let Ok((
+                            disk_used,
+                            disk_total,
+                            disk_percent,
+                            cpu_usage,
+                            cpu_total,
+                            cpu_percent,
+                        )) = fetch_node_metrics(client.as_ref().clone(), &node.name).await {
+                            let mut list_guard = list.lock().unwrap();
+                            if let Some(target) = list_guard.iter_mut().find(|n| n.name == node.name) {
+                                target.storage_used = disk_used;
+                                target.storage_total = disk_total;
+                                target.storage_percent = disk_percent;
+                                target.cpu_used = cpu_usage;
+                                target.cpu_total = cpu_total;
+                                target.cpu_percent = cpu_percent;
+                            }
+                        }
+                    });
+                }
+
+                while tasks.next().await.is_some() {}
+                tokio::time::sleep(Duration::from_secs(180)).await;
+            }
+        });
+    }
+
     while let Some(event) = stream.next().await {
         match event {
             Ok(ev) => match ev {
                 Event::Init => initial.clear(),
+
                 Event::InitApply(obj) => {
-                    if let Some(item) = convert_node(obj.clone()) {
+                    if let Some(item) = super::convert_node(obj.clone()) {
                         let item_clone = item.clone();
                         initial.push(item);
 
                         let client = client.clone();
-                        let list = list.clone();
-                        tokio::spawn(async move {
-                            if let Ok((used, total, percent)) = fetch_real_disk_usage(client.as_ref().clone(), &item_clone.name).await {
+                        let list = Arc::clone(&list);
+                        task::spawn(async move {
+                            if let Ok((
+                                disk_used,
+                                disk_total,
+                                disk_percent,
+                                cpu_usage,
+                                cpu_total,
+                                cpu_percent,
+                            )) = fetch_node_metrics(client.as_ref().clone(), &item_clone.name).await {
                                 let mut list_guard = list.lock().unwrap();
                                 if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
-                                    target.storage_used = used;
-                                    target.storage_total = total;
-                                    target.storage_percent = percent;
+                                    target.storage_used = disk_used;
+                                    target.storage_total = disk_total;
+                                    target.storage_percent = disk_percent;
+                                    target.cpu_used = cpu_usage;
+                                    target.cpu_total = cpu_total;
+                                    target.cpu_percent = cpu_percent;
                                 }
                             }
                         });
                     }
                 }
+
                 Event::InitDone => {
                     let mut list_guard = list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
-
                     load_status.store(false, Ordering::Relaxed);
                 }
+
                 Event::Apply(obj) => {
                     if !initialized {
                         continue;
                     }
-                    if let Some(item) = convert_node(obj.clone()) {
-                        let mut list_guard = list.lock().unwrap();
+
+                    if let Some(item) = super::convert_node(obj.clone()) {
                         let item_clone = item.clone();
-                        if let Some(existing) = list_guard.iter_mut().find(|f| f.name == item.name) {
-                            *existing = item; // renew
+                        let mut list_guard = list.lock().unwrap();
+                        if let Some(existing) = list_guard.iter_mut().find(|n| n.name == item.name) {
+                            *existing = item;
                         } else {
-                            list_guard.push(item); // add new
+                            list_guard.push(item);
                         }
 
                         let client = client.clone();
-                        let list = list.clone();
-                        tokio::spawn(async move {
-                            if let Ok((used, total, percent)) = fetch_real_disk_usage(client.as_ref().clone(), &item_clone.name).await {
+                        let list = Arc::clone(&list);
+                        task::spawn(async move {
+                            if let Ok((
+                                disk_used,
+                                disk_total,
+                                disk_percent,
+                                cpu_usage,
+                                cpu_total,
+                                cpu_percent,
+                            )) = fetch_node_metrics(client.as_ref().clone(), &item_clone.name).await {
                                 let mut list_guard = list.lock().unwrap();
                                 if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
-                                    target.storage_used = used;
-                                    target.storage_total = total;
-                                    target.storage_percent = percent;
+                                    target.storage_used = disk_used;
+                                    target.storage_total = disk_total;
+                                    target.storage_percent = disk_percent;
+                                    target.cpu_used = cpu_usage;
+                                    target.cpu_total = cpu_total;
+                                    target.cpu_percent = cpu_percent;
                                 }
                             }
                         });
                     }
                 }
+
                 Event::Delete(obj) => {
-                    if let Some(item) = obj.metadata.name {
-                        let mut obj_vec = list.lock().unwrap();
-                        obj_vec.retain(|n| n.name != item);
+                    if let Some(name) = obj.metadata.name {
+                        let mut list_guard = list.lock().unwrap();
+                        list_guard.retain(|n| n.name != name);
                     }
                 }
             },
-            Err(e) => eprintln!("Nodes watch error: {:?}", e),
+
+            Err(e) => {
+                eprintln!("Nodes watch error: {:?}", e);
+            }
         }
     }
 }
