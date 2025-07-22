@@ -448,10 +448,9 @@ pub async fn fetch_node_metrics(
     tokio::time::sleep(Duration::from_secs(1)).await;
     let usage2 = get_cpu_usage_nanos(&client, node_name).await?;
 
-    let delta_nanos = usage2.saturating_sub(usage1);
+    let delta_nanos = usage2.saturating_sub(usage1) as f32;
     let cpu_usage = Some(delta_nanos as f32 / 1_000_000_000.0);
 
-    // Fallback CPU capacity via node API
     let api: Api<Node> = Api::all(client.clone());
     let node = api.get(node_name).await?;
 
@@ -461,10 +460,7 @@ pub async fn fetch_node_metrics(
         .and_then(|c| c.get("cpu"))
         .and_then(|q| q.0.parse::<f32>().ok());
 
-    let cpu_percent = match (cpu_usage, cpu_total) {
-        (Some(u), Some(c)) if c > 0.0 => Some(((u / c) * 100.0 * 100.0).round() / 100.0),
-        _ => None,
-    };
+    let cpu_percent = Some(((delta_nanos / (1_000_000_000.0 * cpu_total.unwrap_or(1.0)) * 100.0) * 100.0).round() / 100.0);
 
     Ok((disk_used, disk_total, disk_percent, cpu_usage, cpu_total, cpu_percent))
 }
