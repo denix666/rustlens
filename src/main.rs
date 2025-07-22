@@ -2033,7 +2033,7 @@ async fn main() {
                                     for item in sorted_ns.iter_mut() {
                                         let cur_item_name = &item.name;
                                         if filter_namespaces.is_empty() || cur_item_name.contains(&filter_namespaces) {
-                                            if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap().contains(&item.name) {
+                                            if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap() == &item.name {
                                                 ui.colored_label(Color32::LIGHT_BLUE,"⏵");
                                             } else {
                                                 ui.label("");
