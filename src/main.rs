@@ -20,7 +20,8 @@ const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50); // green
 const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36); // red
 const ORANGE_BUTTON: Color32 = Color32::ORANGE; // orange
 const BLUE_BUTTON: Color32 = Color32::LIGHT_BLUE; // blue
-const GRAY_BUTTON: Color32 = Color32::LIGHT_GRAY; // blue
+const MENU_BUTTON: Color32 = Color32::from_rgb(147, 38, 245);
+const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const MAX_LOG_LINES: usize = 7; // DEBUG
 
 const ACTIONS_MENU_LABEL: &str = "🔻";
@@ -684,6 +685,7 @@ async fn main() {
                                     ui.label("Pod selecter");
                                     ui.label("Types");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_network_policies.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -692,6 +694,27 @@ async fn main() {
                                             ui.label(&item.pod_selector);
                                             ui.label(&item.policy_types);
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::networking::v1::NetworkPolicy>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -748,6 +771,7 @@ async fn main() {
                                     ui.label("Current/Desired healthy");
                                     ui.label("Allowed disruptions");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_pdbs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -758,6 +782,27 @@ async fn main() {
                                             ui.label(format!("{} / {}", &item.current_healthy, &item.desired_healthy));
                                             ui.label(format!("{}", &item.allowed_disruptions));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::policy::v1::PodDisruptionBudget>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -813,6 +858,7 @@ async fn main() {
                                     ui.label("Current");
                                     ui.label("Ready");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_daemonsets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -822,6 +868,27 @@ async fn main() {
                                             ui.label(format!("{}", &item.current));
                                             ui.label(format!("{}", &item.ready));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::DaemonSet>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -887,6 +954,7 @@ async fn main() {
                                     ui.label("Current");
                                     ui.label("Ready");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_replicasets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -905,6 +973,27 @@ async fn main() {
                                             ui.label(egui::RichText::new(format!("{}", &item.current)).color(item_color(status)));
                                             ui.label(egui::RichText::new(format!("{}", &item.ready)).color(item_color(status)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::ReplicaSet>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -961,6 +1050,7 @@ async fn main() {
                                     ui.label("Service");
                                     ui.label("Tls");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_ingresses.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -971,6 +1061,27 @@ async fn main() {
                                             ui.label(format!("{}", &item.service));
                                             ui.label(format!("{}", &item.tls));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::networking::v1::Ingress>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1005,6 +1116,7 @@ async fn main() {
                                     ui.label("Storage Capacity");
                                     ui.label("FSGroupPolicy");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in csi_drivers_list.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1015,6 +1127,26 @@ async fn main() {
                                             ui.label(format!("{}", &item.storage_capacity));
                                             ui.label(format!("{}", &item.fs_group_policy));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_global::<k8s_openapi::api::storage::v1::CSIDriver>(client, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1049,6 +1181,7 @@ async fn main() {
                                     ui.label("Volume binding mode");
                                     ui.label("Default class");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in scs_list.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1059,6 +1192,26 @@ async fn main() {
                                             ui.label(format!("{}", &item.volume_binding_mode));
                                             ui.label(format!("{}", &item.is_default));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_global::<k8s_openapi::api::storage::v1::StorageClass>(client, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1093,6 +1246,7 @@ async fn main() {
                                     ui.label("Claim");
                                     ui.label("Status");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in pvs_list.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1104,6 +1258,26 @@ async fn main() {
                                             ui.label(format!("{}", &item.claim));
                                             ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_global::<k8s_openapi::api::core::v1::PersistentVolume>(client, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1160,6 +1334,7 @@ async fn main() {
                                     ui.label("Size");
                                     ui.label("Status");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_pvcs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1170,6 +1345,27 @@ async fn main() {
                                             ui.label(format!("{}", &item.size));
                                             ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::PersistentVolumeClaim>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1224,6 +1420,7 @@ async fn main() {
                                     ui.label("Addresses");
                                     ui.label("Ports");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_endpoints.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1232,6 +1429,27 @@ async fn main() {
                                             ui.label(format!("{}", &item.addresses));
                                             ui.label(format!("{:?}", &item.ports));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Endpoints>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1286,6 +1504,7 @@ async fn main() {
                                     ui.label("Completions");
                                     ui.label("Conditions");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_jobs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1294,6 +1513,27 @@ async fn main() {
                                             ui.label(format!("{}", &item.completions));
                                             ui.label(egui::RichText::new(&item.condition).color(item_color(&item.condition)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::batch::v1::Job>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1352,6 +1592,7 @@ async fn main() {
                                     ui.label("Age");
                                     ui.label("Ports");
                                     ui.label("Selector");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_services.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1364,6 +1605,27 @@ async fn main() {
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(egui::RichText::new(&item.ports).color(egui::Color32::LIGHT_YELLOW));
                                             ui.label(format!("{:?}", &item.selector));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Service>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1420,6 +1682,7 @@ async fn main() {
                                     ui.label("Active");
                                     ui.label("Last schedule");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_cronjobs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -1430,6 +1693,27 @@ async fn main() {
                                             ui.label(format!("{}", &item.active));
                                             ui.label(format!("{}", &item.last_schedule));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::batch::v1::CronJob>(client,&ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -1493,7 +1777,7 @@ async fn main() {
                                             ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                             ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     let name = item.name.clone();
@@ -1554,6 +1838,7 @@ async fn main() {
                                     ui.label("Memory");
                                     ui.label("Storage");
                                     ui.label("Taints");
+                                    ui.label("Version");
                                     ui.label("Role");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         if sort_by == SortBy::Age {
@@ -1582,17 +1867,24 @@ async fn main() {
                                     for item in sorted_nodes.iter() {
                                         let cur_item_name = &item.name;
                                         if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
-                                            ui.label(&item.name);
+                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                             ui.add(egui::ProgressBar::new(item.cpu_percent / 100.0).show_percentage());
                                             ui.add(egui::ProgressBar::new(item.mem_percent / 100.0).show_percentage());
-                                            ui.label(&item.storage.as_ref().unwrap().to_string());
-
+                                            if let Some(p) = &item.storage_percent {
+                                                let hover_text = format!("Used: {} Gb / Total: {} Gb", item.storage_used.unwrap_or(0.0), item.storage_total.unwrap_or(0.0));
+                                                ui.add(egui::ProgressBar::new(p / 100.0).show_percentage()).on_hover_text(hover_text);
+                                            }
                                             if let Some(taints) = &item.taints {
                                                 ui.label(taints.len().to_string())
                                                     .on_hover_cursor(CursorIcon::PointingHand)
                                                     .on_hover_text(format!("{:?}", taints));
                                             } else {
                                                 ui.label("0");
+                                            }
+                                            if let Some(version) = &item.version {
+                                                ui.label(egui::RichText::new(version).color(egui::Color32::LIGHT_YELLOW));
+                                            } else {
+                                                ui.label("unknown");
                                             }
                                             ui.label(format!("{}", item.roles.join(", ")));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
@@ -1606,7 +1898,7 @@ async fn main() {
                                             ui.label( node_status);
                                             ui.label( scheduling_status);
 
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 let node_name = item.name.clone();
                                                 if item.scheduling_disabled {
@@ -1755,7 +2047,7 @@ async fn main() {
                                             }
 
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
 
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1978,7 +2270,7 @@ async fn main() {
                                                 ui.label("");
                                             }
                                             ui.label(item.node_name.clone().unwrap_or("-".into()));
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_pod = item.name.clone();
@@ -2173,7 +2465,7 @@ async fn main() {
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(format!("{}", &item.labels));
                                             ui.label(format!("{}", &item.keys));
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
@@ -2272,7 +2564,7 @@ async fn main() {
                                             ui.label(format!("{:?}", &item.labels));
                                             ui.label(format!("{}", &item.keys.join(", ")));
 
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
 
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2355,7 +2647,7 @@ async fn main() {
                                             ui.label(&item.reason);
                                             ui.label(&item.involved_object);
                                             ui.label(&item.message);
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(16.0).color(GRAY_BUTTON), |ui| {
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     let name = item.involved_object.clone();

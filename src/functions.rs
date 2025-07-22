@@ -26,6 +26,8 @@ use chrono::{Utc, DateTime};
 use serde_yaml;
 use egui::{Ui, TextBuffer, TextFormat, FontId};
 use egui::epaint::{text::LayoutJob};
+use serde::Deserialize;
+use http::{Request, Method};
 
 pub fn search_layouter(search: String) -> Box<dyn FnMut(&Ui, &dyn TextBuffer, f32) -> Arc<egui::Galley>> {
     let search_lower = search.to_lowercase();
@@ -370,202 +372,184 @@ pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<
     Ok(())
 }
 
-// fn parse_quantity_to_f64(q: &Quantity) -> Option<f64> {
-//     let s = &q.0;
-//     if s.ends_with("n") {
-//         s[..s.len()-1].parse::<f64>().ok().map(|v| v / 1e9)
-//     } else if s.ends_with("u") {
-//         s[..s.len()-1].parse::<f64>().ok().map(|v| v / 1e6)
-//     } else if s.ends_with("m") {
-//         s[..s.len()-1].parse::<f64>().ok().map(|v| v / 1000.0)
-//     } else {
-//         s.parse::<f64>().ok()
-//     }
+#[derive(Debug, Deserialize)]
+struct Summary {
+    node: NodeStats,
+}
+
+#[derive(Debug, Deserialize)]
+struct NodeStats {
+    fs: Option<FileSystemStats>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FileSystemStats {
+    #[serde(rename = "capacityBytes")]
+    capacity_bytes: Option<u64>,
+    #[serde(rename = "usedBytes")]
+    used_bytes: Option<u64>,
+}
+
+pub async fn fetch_real_disk_usage(client: Client, node_name: &str) -> anyhow::Result<(Option<f32>, Option<f32>, Option<f32>)> {
+    let path = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(path)
+        .body(Vec::new())?;
+    let summary: Summary = client.request(req).await?;
+
+    if let Some(fs) = summary.node.fs {
+        let used = fs.used_bytes.map(|b| ((b as f32 / 1_073_741_824.0) * 100.0).round() / 100.0);
+        let total = fs.capacity_bytes.map(|b| ((b as f32 / 1_073_741_824.0) * 100.0).round() / 100.0);
+        let percent = match (used, total) {
+            (Some(u), Some(t)) if t > 0.0 => Some(((u / t) * 100.0 * 100.0).round() / 100.0),
+            _ => None,
+        };
+        Ok((used, total, percent))
+    } else {
+        Ok((None, None, None))
+    }
+}
+
+// pub async fn convert_node_with_metrics(client: Client, node: Node) -> Option<super::NodeItem> {
+//     let base = convert_node(node.clone())?;
+
+//     let (storage_used, storage_total, storage_percent) = match fetch_real_disk_usage(client.clone(), &base.name).await {
+//         Ok(values) => values,
+//         Err(_) => (None, None, None),
+//     };
+
+//     Some(super::NodeItem {
+//         storage_total,
+//         storage_used,
+//         storage_percent,
+//         ..base
+//     })
 // }
 
-// fn percentage(used: f64, allocatable: f64) -> u8 {
-//     ((used / allocatable) * 100.0).round().min(100.0) as u8
-// }
+pub fn convert_node(node: Node) -> Option<super::NodeItem> {
+    let metadata = &node.metadata;
+    let name = metadata.name.clone()?;
+    let creation_timestamp = metadata.creation_timestamp.clone();
+    let version = node.status
+        .as_ref()
+        .and_then(|status| status.node_info.as_ref())
+        .and_then(|info| Some(info.kubelet_version.clone()));
+    let scheduling_disabled = node.spec.as_ref().and_then(|spec| spec.unschedulable).unwrap_or(false);
+    let taints = node.spec.as_ref().and_then(|spec| spec.taints.clone());
+    let roles = node.metadata.labels.unwrap_or_default()
+        .iter()
+        .filter_map(|(key, _)| {
+            key.strip_prefix("node-role.kubernetes.io/").map(|s| s.to_string())
+        })
+        .collect::<Vec<_>>();
+    let status = node
+        .status
+        .as_ref()
+        .and_then(|s| s.conditions.as_ref())
+        .and_then(|conds| {
+            conds.iter().find(|c| c.type_ == "Ready").and_then(|c| {
+                match c.status.as_str() {
+                    "True" => Some("Ready"),
+                    "False" => Some("NotReady"),
+                    _ => Some("Unknown"),
+                }
+            })
+        })
+        .unwrap_or("Unknown")
+        .to_string();
 
-pub async fn watch_nodes(client: Arc<Client>, nodes_list: Arc<Mutex<Vec<super::NodeItem>>>, load_status: Arc<AtomicBool>) {
+
+    Some(super::NodeItem {
+        name,
+        creation_timestamp,
+        status,
+        roles,
+        scheduling_disabled,
+        taints,
+        cpu_percent: 44.8,
+        mem_percent: 33.9,
+        version,
+        storage_total: None,
+        storage_used: None,
+        storage_percent: None,
+    })
+}
+
+pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeItem>>>, load_status: Arc<AtomicBool>) {
+    use kube::{Api, runtime::watcher, runtime::watcher::Event};
     let api: Api<Node> = Api::all(client.as_ref().clone());
-    let mut node_stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default()).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
     load_status.store(true, Ordering::Relaxed);
 
-    let percent = |alloc: &str, cap: &str| -> Option<u8> {
-        let parse_quantity = |q: &str| -> Option<f64> {
-            // very naive parser
-            if q.ends_with("m") {
-                q.trim_end_matches('m').parse::<f64>().ok().map(|v| v / 1000.0)
-            } else if q.ends_with("Ki") {
-                q.trim_end_matches("Ki").parse::<f64>().ok().map(|v| v * 1024.0)
-            } else if q.ends_with("Mi") {
-                q.trim_end_matches("Mi").parse::<f64>().ok().map(|v| v * 1024.0 * 1024.0)
-            } else {
-                q.parse::<f64>().ok()
-            }
-        };
-
-        let a = parse_quantity(alloc)?;
-        let c = parse_quantity(cap)?;
-        if c > 0.0 {
-            Some((100.0 * (1.0 - a / c)).round() as u8)
-        } else {
-            None
-        }
-    };
-
-    while let Some(event) = node_stream.next().await {
+    while let Some(event) = stream.next().await {
         match event {
             Ok(ev) => match ev {
-                watcher::Event::Init => initial.clear(),
-                watcher::Event::InitApply(node) => {
-                    if let Some(name) = node.metadata.name {
-                        let status = node
-                            .status
-                            .as_ref()
-                            .and_then(|s| s.conditions.as_ref())
-                            .and_then(|conds| {
-                                conds.iter().find(|c| c.type_ == "Ready").and_then(|c| {
-                                    match c.status.as_str() {
-                                        "True" => Some("Ready"),
-                                        "False" => Some("NotReady"),
-                                        _ => Some("Unknown"),
-                                    }
-                                })
-                            })
-                            .unwrap_or("Unknown")
-                            .to_string();
+                Event::Init => initial.clear(),
+                Event::InitApply(obj) => {
+                    if let Some(item) = convert_node(obj.clone()) {
+                        let item_clone = item.clone();
+                        initial.push(item);
 
-                        let roles = node.metadata.labels.unwrap_or_default()
-                            .iter()
-                            .filter_map(|(key, _)| {
-                                key.strip_prefix("node-role.kubernetes.io/").map(|s| s.to_string())
-                            })
-                            .collect::<Vec<_>>();
-
-                        let scheduling_disabled = node.spec.as_ref().and_then(|spec| spec.unschedulable).unwrap_or(false);
-                        let taints = node.spec.as_ref().and_then(|spec| spec.taints.clone());
-
-                        let alloc = node.status.as_ref().unwrap().allocatable.as_ref().unwrap();
-                        let cap = node.status.as_ref().unwrap().capacity.as_ref().unwrap();
-                        let cpu_percent = percent(alloc.get("cpu").unwrap().0.as_str(), cap.get("cpu").unwrap().0.as_str()).unwrap_or(0) as f32;
-                        let mem_percent = percent(alloc.get("memory").unwrap().0.as_str(), cap.get("memory").unwrap().0.as_str()).unwrap_or(0) as f32;
-
-                        let storage = node.status.as_ref()
-                            .and_then(|s| s.allocatable.as_ref())
-                            .and_then(|res| res.get("ephemeral-storage"))
-                            .map(|q| q.0.clone());
-
-                        let creation_timestamp = node.metadata.creation_timestamp.clone();
-
-                        initial.push(super::NodeItem {
-                            name,
-                            status,
-                            roles,
-                            scheduling_disabled,
-                            taints,
-                            cpu_percent,
-                            mem_percent,
-                            storage,
-                            creation_timestamp,
+                        let client = client.clone();
+                        let list = list.clone();
+                        tokio::spawn(async move {
+                            if let Ok((used, total, percent)) = fetch_real_disk_usage(client.as_ref().clone(), &item_clone.name).await {
+                                let mut list_guard = list.lock().unwrap();
+                                if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
+                                    target.storage_used = used;
+                                    target.storage_total = total;
+                                    target.storage_percent = percent;
+                                }
+                            }
                         });
                     }
                 }
-                watcher::Event::InitDone => {
-                    let mut nodes = nodes_list.lock().unwrap();
-                    *nodes = initial.clone();
+                Event::InitDone => {
+                    let mut list_guard = list.lock().unwrap();
+                    *list_guard = initial.clone();
                     initialized = true;
+
                     load_status.store(false, Ordering::Relaxed);
                 }
-                watcher::Event::Apply(node) => {
+                Event::Apply(obj) => {
                     if !initialized {
                         continue;
                     }
-                    if let Some(name) = node.metadata.name {
-                        let status = node
-                            .status
-                            .as_ref()
-                            .and_then(|s| s.conditions.as_ref())
-                            .and_then(|conds| {
-                                conds.iter().find(|c| c.type_ == "Ready").and_then(|c| {
-                                    match c.status.as_str() {
-                                        "True" => Some("Ready"),
-                                        "False" => Some("NotReady"),
-                                        _ => Some("Unknown"),
-                                    }
-                                })
-                            })
-                            .unwrap_or("Unknown")
-                            .to_string();
-
-                        let roles = node.metadata.labels.unwrap_or_default()
-                            .iter()
-                            .filter_map(|(key, _)| {
-                                key.strip_prefix("node-role.kubernetes.io/").map(|s| s.to_string())
-                            })
-                            .collect::<Vec<_>>();
-
-                        let scheduling_disabled = node.spec.as_ref().and_then(|spec| spec.unschedulable).unwrap_or(false);
-                        let taints = node.spec.as_ref().and_then(|spec| spec.taints.clone());
-
-                        let mut nodes = nodes_list.lock().unwrap();
-
-                        let alloc = node.status.as_ref().unwrap().allocatable.as_ref().unwrap();
-                        let cap = node.status.as_ref().unwrap().capacity.as_ref().unwrap();
-                        let cpu_percent = percent(alloc.get("cpu").unwrap().0.as_str(), cap.get("cpu").unwrap().0.as_str()).unwrap_or(0) as f32;
-                        let mem_percent = percent(alloc.get("memory").unwrap().0.as_str(), cap.get("memory").unwrap().0.as_str()).unwrap_or(0) as f32;
-
-                        // DEBUG
-                        //let cpu_percent = 44.0;
-                        //let mem_percent = 44.0;
-
-                        let storage = node.status.as_ref()
-                            .and_then(|s| s.allocatable.as_ref())
-                            .and_then(|res| res.get("ephemeral-storage"))
-                                .map(|q| q.0.clone());
-
-                        let creation_timestamp = node.metadata.creation_timestamp.clone();
-
-                        if let Some(existing) = nodes.iter_mut().find(|n| n.name == name) {
-                            // renew existing node
-                            existing.status = status;
-                            existing.taints = taints;
-                            existing.roles = roles;
-                            existing.cpu_percent = cpu_percent;
-                            existing.mem_percent = mem_percent;
-                            existing.storage = storage;
-                            existing.creation_timestamp = creation_timestamp;
-                            existing.scheduling_disabled = scheduling_disabled;
+                    if let Some(item) = convert_node(obj.clone()) {
+                        let mut list_guard = list.lock().unwrap();
+                        let item_clone = item.clone();
+                        if let Some(existing) = list_guard.iter_mut().find(|f| f.name == item.name) {
+                            *existing = item; // renew
                         } else {
-                            // add new node
-                            nodes.push(super::NodeItem {
-                                name,
-                                status,
-                                roles,
-                                scheduling_disabled,
-                                taints,
-                                cpu_percent,
-                                mem_percent,
-                                storage,
-                                creation_timestamp,
-                            });
+                            list_guard.push(item); // add new
                         }
+
+                        let client = client.clone();
+                        let list = list.clone();
+                        tokio::spawn(async move {
+                            if let Ok((used, total, percent)) = fetch_real_disk_usage(client.as_ref().clone(), &item_clone.name).await {
+                                let mut list_guard = list.lock().unwrap();
+                                if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
+                                    target.storage_used = used;
+                                    target.storage_total = total;
+                                    target.storage_percent = percent;
+                                }
+                            }
+                        });
                     }
                 }
-                watcher::Event::Delete(node) => {
-                    if let Some(name) = node.metadata.name {
-                        let mut nodes = nodes_list.lock().unwrap();
-                        nodes.retain(|n| n.name != name);
+                Event::Delete(obj) => {
+                    if let Some(item) = obj.metadata.name {
+                        let mut obj_vec = list.lock().unwrap();
+                        obj_vec.retain(|n| n.name != item);
                     }
                 }
             },
-            Err(e) => {
-                eprintln!("Node watch error: {:?}", e);
-            }
+            Err(e) => eprintln!("Nodes watch error: {:?}", e),
         }
     }
 }

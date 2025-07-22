@@ -10,8 +10,11 @@ pub struct NodeItem {
     pub taints: Option<Vec<k8s_openapi::api::core::v1::Taint>>,
     pub cpu_percent: f32,
     pub mem_percent: f32,
-    pub storage: Option<String>,
     pub creation_timestamp: Option<Time>,
+    pub version: Option<String>,
+    pub storage_total: Option<f32>,
+    pub storage_used: Option<f32>,
+    pub storage_percent: Option<f32>,
 }
 
 #[derive(Debug, Clone)]
