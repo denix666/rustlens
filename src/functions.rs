@@ -187,7 +187,7 @@ pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyho
     let mut value: serde_yaml::Value = serde_yaml::from_str(yaml_str)?;
     let meta: kube_discovery::kube::api::TypeMeta = serde_yaml::from_value(value.clone())?;
 
-    // Удаляем metadata.managedFields, если оно есть
+    // Remove metadata.managedFields, if exists
     if let Some(metadata) = value.get_mut("metadata") {
         if let Some(obj) = metadata.as_mapping_mut() {
             obj.remove(&serde_yaml::Value::String("managedFields".to_string()));
@@ -202,7 +202,7 @@ pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyho
     };
     let gvk = kube::api::GroupVersionKind::gvk(group, version, &meta.kind);
 
-    // Discovery из kube-discovery
+    // a lkube-discovery
     let discovery = discovery::Discovery::new(client.clone()).run().await?;
     let (ar, _caps) = discovery
         .resolve_gvk(&gvk)
@@ -384,6 +384,7 @@ struct Summary {
 struct NodeStats {
     fs: Option<FileSystemStats>,
     cpu: Option<CPUStats>,
+    memory: Option<MemoryStats>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -400,6 +401,12 @@ struct CPUStats {
     usage_core_nano_seconds: Option<u64>,
 }
 
+#[derive(Debug, Deserialize)]
+struct MemoryStats {
+    #[serde(rename = "workingSetBytes")]
+    working_set_bytes: Option<u64>,
+}
+
 async fn get_cpu_usage_nanos(client: &Client, node_name: &str) -> anyhow::Result<u64> {
     let path = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
     let req = Request::builder()
@@ -413,7 +420,7 @@ async fn get_cpu_usage_nanos(client: &Client, node_name: &str) -> anyhow::Result
 }
 
 pub async fn fetch_node_metrics(
-    client: Client,
+    client: kube::Client,
     node_name: &str,
 ) -> anyhow::Result<(
     Option<f32>, // disk_used
@@ -422,6 +429,9 @@ pub async fn fetch_node_metrics(
     Option<f32>, // cpu_usage
     Option<f32>, // cpu_capacity
     Option<f32>, // cpu_percent
+    Option<f32>, // mem_used
+    Option<f32>, // mem_total
+    Option<f32>, // mem_percent
 )> {
     let path = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
     let req = Request::builder()
@@ -444,15 +454,49 @@ pub async fn fetch_node_metrics(
     };
 
     // CPU
-    let usage1 = get_cpu_usage_nanos(&client, node_name).await?;
+    let usage1 = match tokio::time::timeout(
+        Duration::from_secs(3),
+        get_cpu_usage_nanos(&client, node_name)
+    ).await {
+        Ok(Ok(usage)) => usage,
+        Ok(Err(e)) => {
+            eprintln!("Error getting CPU usage 1: {}", e);
+            0
+        },
+        Err(_) => {
+            eprintln!("Timeout getting CPU usage 1");
+            0
+        }
+    };
+
     tokio::time::sleep(Duration::from_secs(1)).await;
-    let usage2 = get_cpu_usage_nanos(&client, node_name).await?;
+
+    let usage2 = match tokio::time::timeout(
+        Duration::from_secs(3),
+        get_cpu_usage_nanos(&client, node_name)
+    ).await {
+        Ok(Ok(usage)) => usage,
+        Ok(Err(e)) => {
+            eprintln!("Error getting CPU usage 2: {}", e);
+            usage1
+        },
+        Err(_) => {
+            eprintln!("Timeout getting CPU usage 2");
+            usage1
+        }
+    };
 
     let delta_nanos = usage2.saturating_sub(usage1) as f32;
-    let cpu_usage = Some(delta_nanos as f32 / 1_000_000_000.0);
+    let cpu_usage = Some((delta_nanos / 1_000_000_000.0 * 100.0).round() / 100.0);
 
     let api: Api<Node> = Api::all(client.clone());
-    let node = api.get(node_name).await?;
+    let node = match api.get(node_name).await {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("Error getting node info: {}", e);
+            return Ok((None, None, None, None, None, None, None, None, None));
+        }
+    };
 
     let cpu_total = node.status
         .as_ref()
@@ -460,9 +504,53 @@ pub async fn fetch_node_metrics(
         .and_then(|c| c.get("cpu"))
         .and_then(|q| q.0.parse::<f32>().ok());
 
-    let cpu_percent = Some(((delta_nanos / (1_000_000_000.0 * cpu_total.unwrap_or(1.0)) * 100.0) * 100.0).round() / 100.0);
+    let cpu_percent = if let Some(total) = cpu_total {
+        if total > 0.0 {
+            Some(((delta_nanos / (1_000_000_000.0 * total) * 100.0) * 100.0).round() / 100.0)
+        } else {
+            Some(0.0)
+        }
+    } else {
+        Some(((delta_nanos / 1_000_000_000.0) * 100.0).round() / 100.0)
+    };
 
-    Ok((disk_used, disk_total, disk_percent, cpu_usage, cpu_total, cpu_percent))
+    // Memory
+    let (mem_used, mem_total, mem_percent) = if let Some(memory) = summary.node.memory {
+        let used = memory.working_set_bytes.map(|b| ((b as f32 / 1_073_741_824.0) * 100.0).round() / 100.0);
+
+        let api: Api<Node> = Api::all(client.clone());
+        let node = api.get(node_name).await?;
+
+        let total = node.status
+            .as_ref()
+            .and_then(|s| s.capacity.as_ref())
+            .and_then(|c| c.get("memory"))
+            .and_then(|q| {
+                // Convert Ki, Mi, Gi to bytes
+                let s = q.0.clone();
+                if s.ends_with("Ki") {
+                    s[..s.len()-2].parse::<f32>().ok().map(|v| v * 1024.0)
+                } else if s.ends_with("Mi") {
+                    s[..s.len()-2].parse::<f32>().ok().map(|v| v * 1_048_576.0)
+                } else if s.ends_with("Gi") {
+                    s[..s.len()-2].parse::<f32>().ok().map(|v| v * 1_073_741_824.0)
+                } else {
+                    s.parse::<f32>().ok()
+                }
+            })
+            .map(|bytes| ((bytes / 1_073_741_824.0) * 100.0).round() / 100.0);
+
+        let percent = match (used, total) {
+            (Some(u), Some(t)) if t > 0.0 => Some(((u / t) * 100.0 * 100.0).round() / 100.0),
+            _ => None,
+        };
+
+        (used, total, percent)
+    } else {
+        (None, None, None)
+    };
+
+    Ok((disk_used, disk_total, disk_percent, cpu_usage, cpu_total, cpu_percent, mem_used, mem_total, mem_percent))
 }
 
 pub fn convert_node(node: Node) -> Option<super::NodeItem> {
@@ -550,6 +638,9 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
                             cpu_usage,
                             cpu_total,
                             cpu_percent,
+                            mem_used,
+                            mem_total,
+                            mem_percent,
                         )) = fetch_node_metrics(client.as_ref().clone(), &node.name).await {
                             let mut list_guard = list.lock().unwrap();
                             if let Some(target) = list_guard.iter_mut().find(|n| n.name == node.name) {
@@ -559,6 +650,9 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
                                 target.cpu_used = cpu_usage;
                                 target.cpu_total = cpu_total;
                                 target.cpu_percent = cpu_percent;
+                                target.mem_used = mem_used;
+                                target.mem_total = mem_total;
+                                target.mem_percent = mem_percent;
                             }
                         }
                     });
@@ -590,6 +684,9 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
                                 cpu_usage,
                                 cpu_total,
                                 cpu_percent,
+                                mem_used,
+                                mem_total,
+                                mem_percent,
                             )) = fetch_node_metrics(client.as_ref().clone(), &item_clone.name).await {
                                 let mut list_guard = list.lock().unwrap();
                                 if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
@@ -599,6 +696,9 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
                                     target.cpu_used = cpu_usage;
                                     target.cpu_total = cpu_total;
                                     target.cpu_percent = cpu_percent;
+                                    target.mem_used = mem_used;
+                                    target.mem_total = mem_total;
+                                    target.mem_percent = mem_percent;
                                 }
                             }
                         });
@@ -636,6 +736,9 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
                                 cpu_usage,
                                 cpu_total,
                                 cpu_percent,
+                                mem_used,
+                                mem_total,
+                                mem_percent,
                             )) = fetch_node_metrics(client.as_ref().clone(), &item_clone.name).await {
                                 let mut list_guard = list.lock().unwrap();
                                 if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
@@ -645,6 +748,9 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<super::NodeIte
                                     target.cpu_used = cpu_usage;
                                     target.cpu_total = cpu_total;
                                     target.cpu_percent = cpu_percent;
+                                    target.mem_used = mem_used;
+                                    target.mem_total = mem_total;
+                                    target.mem_percent = mem_percent;
                                 }
                             }
                         });
