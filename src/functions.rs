@@ -295,6 +295,37 @@ pub async fn get_cluster_name() -> Result<String, anyhow::Error> {
     Ok(config.cluster_url.host().unwrap_or("unknown").to_string())
 }
 
+#[derive(Debug, Clone)]
+pub enum ScaleTarget {
+    Deployment,
+    StatefulSet,
+    ReplicaSet,
+}
+
+pub async fn scale_workload(client: Arc<Client>, name: &str, namespace: &str, replicas: i32, kind: ScaleTarget) -> Result<(), kube::Error> {
+    let patch = serde_json::json!({
+            "spec": {
+                "replicas": replicas
+            }
+    });
+
+    match kind {
+        ScaleTarget::Deployment => {
+            let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), namespace);
+            api.patch(name, &PatchParams::apply("scaler"), &Patch::Merge(&patch)).await?;
+        }
+        ScaleTarget::StatefulSet => {
+            let api: Api<StatefulSet> = Api::namespaced(client.as_ref().clone(), namespace);
+            api.patch(name, &PatchParams::apply("scaler"), &Patch::Merge(&patch)).await?;
+        }
+        ScaleTarget::ReplicaSet => {
+            let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), namespace);
+            api.patch(name, &PatchParams::apply("scaler"), &Patch::Merge(&patch)).await?;
+        }
+    }
+    Ok(())
+}
+
 pub async fn cordon_node(client: Arc<Client>, node_name: &str, cordoned: bool) -> Result<(), kube::Error> {
     let nodes: Api<Node> = Api::all(client.as_ref().clone());
     let patch = json!({ "spec": { "unschedulable": cordoned } });

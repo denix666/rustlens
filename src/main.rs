@@ -102,7 +102,6 @@ struct YamlEditorWindow {
     content: String,
     show: bool,
     search_query: String,
-    //show_search: bool,
 }
 
 impl YamlEditorWindow {
@@ -110,8 +109,29 @@ impl YamlEditorWindow {
         Self {
             content: String::new(),
             show: false,
-            //show_search: true,
             search_query: String::new(),
+        }
+    }
+}
+
+struct ScaleWindow {
+    name: Option<String>,
+    namespace: Option<String>,
+    cur_replicas: i32,
+    desired_replicas: i32,
+    show: bool,
+    resource_kind: Option<ScaleTarget>,
+}
+
+impl ScaleWindow {
+    fn new() -> Self {
+        Self {
+            name: None,
+            namespace: None,
+            cur_replicas: 0,
+            desired_replicas: 0,
+            show: false,
+            resource_kind: None,
         }
     }
 }
@@ -167,6 +187,7 @@ async fn main() {
     }
 
     let mut new_resource_window = NewResourceWindow::new();
+    let mut scale_window = ScaleWindow::new();
     let mut log_window = LogWindow::new();
     let yaml_editor_window = Arc::new(Mutex::new(YamlEditorWindow::new()));
 
@@ -207,7 +228,6 @@ async fn main() {
     let mut filter_network_policies = String::new();
     let mut filter_crds = String::new();
 
-    //let cur_yaml = Arc::new(Mutex::new(String::new()));
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
@@ -975,6 +995,15 @@ async fn main() {
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
+                                                    scale_window.show = true;
+                                                    scale_window.name = Some(item.name.clone());
+                                                    scale_window.namespace = selected_ns.clone();
+                                                    scale_window.cur_replicas = item.current;
+                                                    scale_window.desired_replicas = item.desired;
+                                                    scale_window.resource_kind = Some(ScaleTarget::ReplicaSet);
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     let name = item.name.clone();
                                                     let client = client.clone();
@@ -1779,6 +1808,15 @@ async fn main() {
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
+                                                    scale_window.show = true;
+                                                    scale_window.name = Some(item.name.clone());
+                                                    scale_window.namespace = selected_ns.clone();
+                                                    scale_window.cur_replicas = item.ready_replicas;
+                                                    scale_window.desired_replicas = item.ready_replicas;
+                                                    scale_window.resource_kind = Some(ScaleTarget::StatefulSet);
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     let name = item.name.clone();
                                                     let client = client.clone();
@@ -2312,6 +2350,7 @@ async fn main() {
                                                             }
                                                         }
                                                     });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button("📃 Logs").clicked() {
                                                     let cur_pod = item.name.clone();
@@ -2336,6 +2375,9 @@ async fn main() {
                                                         cur_pod.as_str(),
                                                         cur_container.as_str(), buf_clone).await;
                                                     });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🖵 Shell").size(16.0).color(ORANGE_BUTTON)).clicked() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
@@ -2395,6 +2437,7 @@ async fn main() {
                                     ui.label("Up-to-date");
                                     ui.label("Available");
                                     ui.label("Age");
+                                    ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_deployments.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
@@ -2405,6 +2448,47 @@ async fn main() {
                                             ui.label(format!("{}", &item.updated_replicas));
                                             ui.label(format!("{}", &item.available_replicas));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let name = item.name.clone();
+                                                    let client = client.clone();
+                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::Deployment>(client, &ns, &name).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_window.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Failed to get YAML: {}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = selected_ns.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                            eprintln!("Failed to delete deployment: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
+                                                    scale_window.show = true;
+                                                    scale_window.name = Some(item.name.clone());
+                                                    scale_window.namespace = selected_ns.clone();
+                                                    scale_window.cur_replicas = item.replicas;
+                                                    scale_window.desired_replicas = item.replicas;
+                                                    scale_window.resource_kind = Some(ScaleTarget::Deployment);
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
                                             ui.end_row();
                                         }
                                     }
@@ -2871,6 +2955,42 @@ async fn main() {
                     if ui.button(egui::RichText::new("🗙 Close logs window").size(16.0).color(egui::Color32::WHITE)).clicked() {
                         log_window.show = false;
                     }
+            });
+        }
+
+        if scale_window.show {
+            let title = format!("Scale {}", scale_window.name.as_ref().unwrap());
+            egui::Window::new(title).show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Current replicas scale: {}", scale_window.cur_replicas));
+                });
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    ui.label("Desired number of replicas:");
+                    ui.add(egui::Slider::new(&mut scale_window.desired_replicas, 0..=10));
+                });
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    if ui.button(egui::RichText::new("🗙 Cancel").size(16.0).color(egui::Color32::WHITE)).clicked() {
+                        scale_window.show = false;
+                    }
+                    if ui.button(egui::RichText::new("↕ Scale").size(16.0).color(egui::Color32::ORANGE)).clicked() {
+                        eprintln!("Scaling {} to {} replicas", scale_window.name.as_ref().unwrap(), scale_window.desired_replicas);
+                        let client_clone = Arc::clone(&client);
+                        let name = scale_window.name.as_ref().unwrap().clone();
+                        let namespace = scale_window.namespace.as_ref().unwrap().clone();
+                        let replicas = scale_window.desired_replicas;
+                        let kind = scale_window.resource_kind.as_ref().unwrap().clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = scale_workload(client_clone, &name, &namespace, replicas, kind).await {
+                                eprintln!("Scale failed: {:?}", e);
+                            }
+                        });
+                        scale_window.show = false;
+                    }
+                });
             });
         }
 
