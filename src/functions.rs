@@ -450,6 +450,60 @@ async fn get_cpu_usage_nanos(client: &Client, node_name: &str) -> anyhow::Result
         .ok_or_else(|| anyhow::anyhow!("Missing usage_core_nano_seconds"))
 }
 
+pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<super::HelmReleaseItem>>>, load_status: Arc<AtomicBool>) -> Result<(), anyhow::Error> {
+    let namespaces: Api<k8s_openapi::api::core::v1::Namespace> = Api::all(client.as_ref().clone());
+    let ns_list = namespaces.list(&ListParams::default()).await?;
+    load_status.store(true, Ordering::Relaxed);
+
+    let mut result = vec![];
+
+    for ns in ns_list {
+        if let Some(ns_name) = ns.metadata.name {
+            let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), &ns_name);
+
+            let lp = ListParams::default().labels("owner=helm").fields("type=helm.sh/release.v1");
+            let secret_list = secrets.list(&lp).await.unwrap();
+
+            for s in secret_list {
+                if let Some(name) = s.metadata.name {
+                    let unzipped = Vec::new();
+                    let as_str = String::from_utf8_lossy(&unzipped);
+                    let chart_line = as_str.lines().find(|l| l.contains("chart"));
+                    let chart = chart_line
+                        .and_then(|line| line.split('"').nth(1))
+                        .map(|s| s.to_string());
+
+                    let chart_name = chart
+                        .as_ref()
+                        .and_then(|c| c.split('-').next())
+                        .map(|s| s.to_string());
+
+                    let version = chart
+                        .as_ref()
+                        .and_then(|c| c.split('-').last())
+                        .map(|s| s.to_string());
+
+                    let created_at = s.metadata.creation_timestamp;
+
+                    result.push(super::HelmReleaseItem {
+                        name,
+                        chart_name,
+                        version,
+                        namespace: Some(ns_name.clone()),
+                        creation_timestamp: created_at,
+                    });
+                }
+            }
+        }
+    }
+    load_status.store(false, Ordering::Relaxed);
+
+    let mut list_guard = list.lock().unwrap();
+    *list_guard = result;
+
+    Ok(())
+}
+
 pub async fn fetch_node_metrics(
     client: kube::Client,
     node_name: &str,

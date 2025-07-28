@@ -31,6 +31,15 @@ pub struct EndpointItem {
 }
 
 #[derive(Debug, Clone)]
+pub struct HelmReleaseItem {
+    pub name: String,
+    pub chart_name: Option<String>,
+    pub version:  Option<String>,
+    pub namespace: Option<String>,
+    pub creation_timestamp: Option<Time>,
+}
+
+#[derive(Debug, Clone)]
 pub struct NetworkPolicyItem {
     pub name: String,
     pub pod_selector: String,

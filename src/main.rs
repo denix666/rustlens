@@ -57,6 +57,7 @@ enum Category {
     PodDisruptionBudgets,
     NetworkPolicies,
     CustomResourcesDefinitions,
+    HelmReleases,
 }
 
 #[derive(Clone)]
@@ -227,6 +228,7 @@ async fn main() {
     let mut filter_pdbs = String::new();
     let mut filter_network_policies = String::new();
     let mut filter_crds = String::new();
+    let mut filter_helm_releases = String::new();
 
 
     // Client connection
@@ -486,6 +488,10 @@ async fn main() {
         Box::pin(watch_namespaces(c, s, l))
     });
 
+    // HELM RELEASES
+    let helm_releases = Arc::new(Mutex::new(Vec::<HelmReleaseItem>::new()));
+    let helm_releases_loading = Arc::new(AtomicBool::new(true));
+
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         // Setup style
         let mut style: egui::Style = (*ctx.style()).clone();
@@ -611,14 +617,103 @@ async fn main() {
                 });
 
                 egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
-                    ui.label("📰 Charts");
-                    ui.label("📥 Releases");
+                    if ui.selectable_label(current == Category::HelmReleases, "📥 Releases").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::HelmReleases;
+                        tokio::spawn({
+                            let client = Arc::clone(&client);
+                            let list = Arc::clone(&helm_releases);
+                            let helm_releases_loading = Arc::clone(&helm_releases_loading);
+
+                            async move {
+                                if let Err(e) = get_helm_releases(client.clone(), list.clone(), helm_releases_loading).await {
+                                    eprintln!("Helm release fetch failed: {:?}", e);
+                                }
+                            }
+                        });
+                    }
                 });
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::HelmReleases => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_helm_releases: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        helm_releases.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        helm_releases.lock().unwrap().iter().cloned().collect()
+                    };
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Helm releases - {}", helm_releases.lock().unwrap().len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.add(egui::TextEdit::singleline(&mut filter_helm_releases).hint_text("Filter releases...").desired_width(200.0));
+                        filter_helm_releases = filter_helm_releases.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_helm_releases.clear();
+                        }
+                    });
+                    ui.separator();
+                    if helm_releases_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        egui::ScrollArea::vertical().id_salt("helm_releases_scroll").show(ui, |ui| {
+                            egui::Grid::new("helm_releases_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("Name");
+                                ui.label("Chart name");
+                                ui.label("Version");
+                                ui.label("Namespace");
+                                ui.label("Age");
+                                ui.end_row();
+                                for item in visible_helm_releases.iter().rev().take(200) {
+                                    let cur_item_object = &item.name;
+                                    if filter_helm_releases.is_empty() || cur_item_object.contains(&filter_helm_releases) {
+                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        if item.chart_name.is_some() {
+                                            ui.label(format!("{}", item.chart_name.as_ref().unwrap()));
+                                        } else {
+                                            ui.label("");
+                                        }
+                                        if item.version.is_some() {
+                                            ui.label(format!("{}", item.version.as_ref().unwrap()));
+                                        } else {
+                                            ui.label("");
+                                        }
+                                        if item.namespace.is_some() {
+                                            ui.label(format!("{}", item.namespace.as_ref().unwrap()));
+                                        } else {
+                                            ui.label("");
+                                        }
+                                        if item.creation_timestamp.is_some() {
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        } else {
+                                            ui.label("");
+                                        }
+
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                        });
+                    }
+                },
                 Category::CustomResourcesDefinitions => {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Custom Resources Definitions - {}", crds.lock().unwrap().len()));
