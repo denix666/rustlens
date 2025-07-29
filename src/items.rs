@@ -1,26 +1,6 @@
 use std::collections::BTreeMap;
 use k8s_openapi::apimachinery::pkg::{apis::meta::v1::Time};
 
-#[derive(Clone)]
-pub struct NodeItem {
-    pub name: String,
-    pub status: String, // "Ready", "NotReady", "Unknown"
-    pub roles: Vec<String>,
-    pub scheduling_disabled: bool,
-    pub taints: Option<Vec<k8s_openapi::api::core::v1::Taint>>,
-    pub creation_timestamp: Option<Time>,
-    pub cpu_total: Option<f32>,
-    pub cpu_used: Option<f32>,
-    pub cpu_percent: Option<f32>,
-    pub mem_total: Option<f32>,
-    pub mem_used: Option<f32>,
-    pub mem_percent: Option<f32>,
-    pub version: Option<String>,
-    pub storage_total: Option<f32>,
-    pub storage_used: Option<f32>,
-    pub storage_percent: Option<f32>,
-}
-
 #[derive(Debug, Clone)]
 pub struct EndpointItem {
     pub name: String,
@@ -37,15 +17,6 @@ pub struct HelmReleaseItem {
     pub version:  Option<String>,
     pub namespace: Option<String>,
     pub creation_timestamp: Option<Time>,
-}
-
-#[derive(Debug, Clone)]
-pub struct NetworkPolicyItem {
-    pub name: String,
-    pub pod_selector: String,
-    pub policy_types: String,
-    pub creation_timestamp: Option<Time>,
-    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -158,31 +129,6 @@ pub struct StorageClassItem {
     pub reclaim_policy: String,
     pub volume_binding_mode: String,
     pub is_default: String,
-    pub creation_timestamp: Option<Time>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct PvcItem {
-    pub name: String,
-    pub labels: BTreeMap<String, String>,
-    pub storage_class: String,
-    pub size: String,
-    pub volume_name: String,
-    pub status: String,
-    pub creation_timestamp: Option<Time>,
-    pub namespace: Option<String>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct PvItem {
-    pub name: String,
-    pub labels: BTreeMap<String, String>,
-    pub storage_class: String,
-    pub capacity: String,
-    pub claim: String,
-    pub status: String,
     pub creation_timestamp: Option<Time>,
 }
 

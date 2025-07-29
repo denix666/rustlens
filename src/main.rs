@@ -1,4 +1,5 @@
 mod ui;
+mod watchers;
 
 use ui::logs::show_log_window;
 use ui::new_resource::show_new_resource_window;
@@ -6,6 +7,11 @@ use ui::scale::show_scale_window;
 use ui::yaml_editor::show_yaml_editor;
 use ui::templates::*;
 use ui::other::*;
+
+use watchers::pvc::*;
+use watchers::pv::*;
+use watchers::node::*;
+use watchers::network_policy::*;
 
 use eframe::egui::{CursorIcon};
 use eframe::*;
