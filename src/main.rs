@@ -1,6 +1,15 @@
-use eframe::egui::{CursorIcon, Direction, Ui};
+mod ui;
+
+use ui::logs::show_log_window;
+use ui::new_resource::show_new_resource_window;
+use ui::scale::show_scale_window;
+use ui::yaml_editor::show_yaml_editor;
+use ui::templates::*;
+use ui::other::*;
+
+use eframe::egui::{CursorIcon};
 use eframe::*;
-use egui::{Color32, Context, FontId, ScrollArea, TextStyle};
+use egui::{Color32, Context, FontId, TextStyle};
 use std::f32;
 use std::sync::{Arc, Mutex};
 use kube::{Client};
@@ -8,9 +17,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 mod functions;
 use functions::*;
-
-mod templates;
-use templates::*;
 
 mod items;
 use items::*;
@@ -22,9 +28,8 @@ const ORANGE_BUTTON: Color32 = Color32::ORANGE; // orange
 const BLUE_BUTTON: Color32 = Color32::LIGHT_BLUE; // blue
 const MENU_BUTTON: Color32 = Color32::from_rgb(147, 38, 245);
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
-const MAX_LOG_LINES: usize = 7; // DEBUG
-
 const ACTIONS_MENU_LABEL: &str = "🔻";
+const MAX_LOG_LINES: usize = 7; // DEBUG
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -75,103 +80,6 @@ enum ResourceType {
     ExternalSecret,
 }
 
-struct LogWindow {
-    pod_name: String,
-    containers: Vec<ContainerStatusItem>,
-    show: bool,
-    namespace: String,
-    selected_container: String,
-    buffer: Arc<Mutex<String>>,
-    last_container: Option<String>,
-}
-
-impl LogWindow {
-    fn new() -> Self {
-        Self {
-            pod_name: String::new(),
-            containers: Vec::new(),
-            selected_container: String::new(),
-            namespace: String::new(),
-            show: false,
-            buffer: Arc::new(Mutex::new(String::new())),
-            last_container: None,
-        }
-    }
-}
-
-struct YamlEditorWindow {
-    content: String,
-    show: bool,
-    search_query: String,
-}
-
-impl YamlEditorWindow {
-    fn new() -> Self {
-        Self {
-            content: String::new(),
-            show: false,
-            search_query: String::new(),
-        }
-    }
-}
-
-struct ScaleWindow {
-    name: Option<String>,
-    namespace: Option<String>,
-    cur_replicas: i32,
-    desired_replicas: i32,
-    show: bool,
-    resource_kind: Option<ScaleTarget>,
-}
-
-impl ScaleWindow {
-    fn new() -> Self {
-        Self {
-            name: None,
-            namespace: None,
-            cur_replicas: 0,
-            desired_replicas: 0,
-            show: false,
-            resource_kind: None,
-        }
-    }
-}
-
-struct NewResourceWindow {
-    resource_type: ResourceType,
-    content: String,
-    show: bool,
-}
-
-impl NewResourceWindow {
-    fn new() -> Self {
-        Self {
-            resource_type: ResourceType::Blank,
-            content: String::new(),
-            show: false,
-        }
-    }
-}
-
-fn show_loading(ui: &mut Ui) {
-    ui.with_layout(
-        egui::Layout::centered_and_justified(Direction::TopDown),
-        |ui| {
-            ui.spinner();
-            //ui.label(egui::RichText::new("⏳ Loading...").heading());
-        },
-    );
-}
-
-fn show_empty(ui: &mut Ui) {
-    ui.with_layout(
-        egui::Layout::centered_and_justified(Direction::TopDown),
-        |ui| {
-            ui.label(egui::RichText::new("😟 Empty").heading());
-        },
-    );
-}
-
 #[tokio::main]
 async fn main() {
     let mut title = String::from("RustLens v");
@@ -187,10 +95,10 @@ async fn main() {
         options.viewport = options.viewport.with_icon(icon);
     }
 
-    let mut new_resource_window = NewResourceWindow::new();
-    let mut scale_window = ScaleWindow::new();
-    let mut log_window = LogWindow::new();
-    let yaml_editor_window = Arc::new(Mutex::new(YamlEditorWindow::new()));
+    let mut new_resource_window = ui::new_resource::NewResourceWindow::new();
+    let mut scale_window = ui::scale::ScaleWindow::new();
+    let mut log_window = ui::logs::LogWindow::new();
+    let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
 
     //####################################################//
     let mut sort_by = SortBy::Age;
@@ -2000,7 +1908,9 @@ async fn main() {
                                     for item in sorted_nodes.iter() {
                                         let cur_item_name = &item.name;
                                         if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                todo!();
+                                            }
                                             if let Some(p) = &item.cpu_percent {
                                                 let hover_text = format!("Used: {} / Total: {}", item.cpu_used.unwrap_or(0.0), item.cpu_total.unwrap_or(0.0));
                                                 ui.add(egui::ProgressBar::new(p / 100.0).show_percentage()).on_hover_text(hover_text);
@@ -2870,223 +2780,30 @@ async fn main() {
             }
         });
 
+        // YAML editor
         if let Ok(mut editor) = yaml_editor_window.lock() {
             if editor.show {
-                egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("🔍");
-                        ui.add(egui::TextEdit::singleline(&mut editor.search_query)
-                            .hint_text("Search...")
-                            .desired_width(200.0),
-                        );
-                        if ui.button("×").clicked() {
-                            editor.search_query.clear();
-                        }
-                    });
-                    ui.separator();
-
-                    let search = editor.search_query.clone();
-                    egui::ScrollArea::vertical().hscroll(true).show(ui, |ui| {
-                        ui.add(egui::TextEdit::multiline(&mut editor.content)
-                            .font(TextStyle::Monospace)
-                            .code_editor()
-                            .layouter(&mut search_layouter(search)),
-                        );
-                    });
-
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        if ui.button(egui::RichText::new("✅ Save").size(16.0).color(egui::Color32::GREEN)).clicked() {
-                            let content = editor.content.clone();
-
-                            match serde_yaml::from_str::<serde_yaml::Value>(&content) {
-                                Ok(_) => {
-                                    // YAML is valid!
-                                    let client_clone = Arc::clone(&client);
-                                    tokio::spawn(async move {
-                                        if let Err(e) = patch_resource(client_clone, content.as_str()).await {
-                                            println!("Error applying YAML: {:?}", e);
-                                        }
-                                    });
-                                    editor.show = false;
-                                }
-                                Err(e) => {
-                                    eprintln!("YAML Error: {}", e);
-                                }
-                            }
-                        }
-                        if ui.button(egui::RichText::new("🗙 Cancel").size(16.0).color(egui::Color32::RED)).clicked() {
-                            editor.show = false;
-                        }
-                    });
-                });
+                let client_clone = Arc::clone(&client);
+                show_yaml_editor(ctx, &mut editor, client_clone);
             }
         }
 
         // New resource creation window
         if new_resource_window.show {
-            egui::Window::new("Create New Resource").collapsible(false).resizable(true).show(ctx, |ui| {
-                if new_resource_window.content.is_empty() {
-                    new_resource_window.content = match new_resource_window.resource_type {
-                        ResourceType::NameSpace => NAMESPACE_TEMPLATE.to_string(),
-                        ResourceType::Pod => POD_TEMPLATE.to_string(),
-                        ResourceType::Secret => SECRET_TEMPLATE.to_string(),
-                        ResourceType::ExternalSecret => EXTERNAL_SECRET_TEMPLATE.to_string(),
-                        ResourceType::PersistenceVolumeClaim => PVC_TEMPLATE.to_string(),
-                        ResourceType::Blank => "".to_string(),
-                    };
-                }
-
-                ui.horizontal(|ui| {
-                    ui.label("YAML Template:");
-                    egui::ComboBox::from_id_salt("templates_combo").width(150.0)
-                        .selected_text(match new_resource_window.resource_type {
-                            ResourceType::NameSpace => "NameSpace",
-                            ResourceType::Secret => "Secret",
-                            ResourceType::ExternalSecret => "External secret",
-                            ResourceType::Pod => "Pod",
-                            ResourceType::PersistenceVolumeClaim => "PersistenceVolumeClaim",
-                            ResourceType::Blank => "Blank",
-                        }).show_ui(ui, |ui| {
-                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::NameSpace, "NameSpace",).clicked() {
-                                new_resource_window.content = NAMESPACE_TEMPLATE.to_string();
-                            };
-                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Secret, "Secret",).clicked() {
-                                new_resource_window.content = SECRET_TEMPLATE.to_string();
-                            };
-                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Pod, "Pod",).clicked() {
-                                new_resource_window.content = POD_TEMPLATE.to_string();
-                            };
-                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::ExternalSecret, "External secret",).clicked() {
-                                new_resource_window.content = EXTERNAL_SECRET_TEMPLATE.to_string();
-                            };
-                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::PersistenceVolumeClaim,"PersistenceVolumeClaim",).clicked() {
-                                new_resource_window.content = PVC_TEMPLATE.to_string();
-                            };
-                            if ui.selectable_value(&mut new_resource_window.resource_type, ResourceType::Blank,"Blank",).clicked() {
-                                new_resource_window.content = "".to_string();
-                            };
-                        });
-                });
-                ui.separator();
-                egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                    ui.add(egui::TextEdit::multiline(&mut new_resource_window.content)
-                        .font(egui::TextStyle::Monospace)
-                        .code_editor()
-                        .text_color(egui::Color32::LIGHT_YELLOW)
-                        .desired_rows(25)
-                        .lock_focus(true)
-                        .desired_width(f32::INFINITY),
-                    );
-                });
-                ui.separator();
-                ui.horizontal(|ui| {
-                    if ui.button(egui::RichText::new("✔ Apply").size(16.0).color(egui::Color32::GREEN)).clicked() {
-                        let yaml = new_resource_window.content.clone();
-                        let client_clone = Arc::clone(&client);
-                        let resource_type = new_resource_window.resource_type.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = apply_yaml(client_clone, &yaml, resource_type).await {
-                                println!("Error applying YAML: {:?}", e);
-                            }
-                        });
-                        new_resource_window.show = false;
-                    }
-
-                    if ui.button(egui::RichText::new("🗙 Cancel").size(16.0).color(egui::Color32::RED)).clicked() {
-                        new_resource_window.show = false;
-                    }
-                });
-            });
+            let client_clone = Arc::clone(&client);
+            show_new_resource_window(ctx, &mut new_resource_window, client_clone);
         }
 
+        // Logs window
         if log_window.show {
-            egui::Window::new("Logs")
-                .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Container:");
-                        egui::ComboBox::from_id_salt("containers_combo")
-                            .selected_text(&log_window.selected_container)
-                            .width(150.0)
-                            .show_ui(ui, |ui| {
-                                for container in &log_window.containers {
-                                    ui.selectable_value(
-                                        &mut log_window.selected_container,
-                                        container.name.clone(),
-                                        &container.name,
-                                    );
-                                }
-                            });
-                    });
-
-                    if log_window.last_container.as_ref() != Some(&log_window.selected_container) {
-                        log_window.last_container = Some(log_window.selected_container.clone());
-                        let buf_clone = Arc::clone(&log_window.buffer);
-                        let cur_ns = log_window.namespace.clone();
-                        let cur_pod = log_window.pod_name.clone();
-                        let cur_container = log_window.selected_container.clone();
-                        let client_clone = Arc::clone(&client);
-                        tokio::spawn(async move {
-                            fetch_logs(client_clone,
-                            &cur_ns,
-                             &cur_pod,
-                            &cur_container, buf_clone).await;
-                        });
-                    }
-
-                    ScrollArea::vertical().show(ui, |ui| {
-                        if let Ok(logs) = log_window.buffer.lock() {
-                            ui.add(
-                                egui::TextEdit::multiline(&mut logs.clone())
-                                    .font(TextStyle::Monospace)
-                                    .desired_rows(MAX_LOG_LINES)
-                                    .desired_width(f32::INFINITY)
-                                    .code_editor()
-                            );
-                        }
-                    });
-
-                    ui.separator();
-                    if ui.button(egui::RichText::new("🗙 Close logs window").size(16.0).color(egui::Color32::WHITE)).clicked() {
-                        log_window.show = false;
-                    }
-            });
+            let client_clone = Arc::clone(&client);
+            show_log_window(ctx, &mut log_window, client_clone);
         }
 
+        // Scale window
         if scale_window.show {
-            let title = format!("Scale {}", scale_window.name.as_ref().unwrap());
-            egui::Window::new(title).show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(format!("Current replicas scale: {}", scale_window.cur_replicas));
-                });
-                ui.separator();
-
-                ui.horizontal(|ui| {
-                    ui.label("Desired number of replicas:");
-                    ui.add(egui::Slider::new(&mut scale_window.desired_replicas, 0..=10));
-                });
-                ui.separator();
-
-                ui.horizontal(|ui| {
-                    if ui.button(egui::RichText::new("🗙 Cancel").size(16.0).color(egui::Color32::WHITE)).clicked() {
-                        scale_window.show = false;
-                    }
-                    if ui.button(egui::RichText::new("↕ Scale").size(16.0).color(egui::Color32::ORANGE)).clicked() {
-                        eprintln!("Scaling {} to {} replicas", scale_window.name.as_ref().unwrap(), scale_window.desired_replicas);
-                        let client_clone = Arc::clone(&client);
-                        let name = scale_window.name.as_ref().unwrap().clone();
-                        let namespace = scale_window.namespace.as_ref().unwrap().clone();
-                        let replicas = scale_window.desired_replicas;
-                        let kind = scale_window.resource_kind.as_ref().unwrap().clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = scale_workload(client_clone, &name, &namespace, replicas, kind).await {
-                                eprintln!("Scale failed: {:?}", e);
-                            }
-                        });
-                        scale_window.show = false;
-                    }
-                });
-            });
+            let client_clone = Arc::clone(&client);
+            show_scale_window(ctx, &mut scale_window, client_clone);
         }
 
         ctx.request_repaint();
