@@ -365,13 +365,6 @@ pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Op
     Ok(())
 }
 
-// #[derive(Debug, Clone)]
-// pub struct PodInfo {
-//     pub name: String,
-//     pub namespace: String,
-//     pub status: String,
-// }
-
 #[derive(Debug, Clone)]
 pub struct NodeDetails {
     pub name: Option<String>,
@@ -384,7 +377,6 @@ pub struct NodeDetails {
     pub os_image: Option<String>,
     pub kernel_version: Option<String>,
     pub container_runtime: Option<String>,
-    //pub pods: Vec<PodInfo>,
 }
 
 impl NodeDetails {
@@ -400,7 +392,6 @@ impl NodeDetails {
             os_image: None,
             kernel_version: None,
             container_runtime: None,
-            //pods: vec![],
         }
     }
 }
@@ -408,8 +399,6 @@ impl NodeDetails {
 pub async fn get_node_details(client: Arc<Client>, name: &str, details: Arc<Mutex<NodeDetails>>) -> Result<(), kube::Error> {
     let api: Api<Node> = Api::all(client.as_ref().clone());
     let node = api.get(name).await.unwrap();
-    //let pods: Api<Pod> = Api::all(client.as_ref().clone());
-    //let pod_list = pods.list(&Default::default()).await.unwrap();
     let mut details_items = details.lock().unwrap();
 
     let metadata = node.metadata.clone();
@@ -442,26 +431,6 @@ pub async fn get_node_details(client: Arc<Client>, name: &str, details: Arc<Mute
     details_items.os_image = Some(node_info.os_image);
     details_items.kernel_version = Some(node_info.kernel_version);
     details_items.container_runtime = Some(node_info.container_runtime_version);
-
-
-    // let mut pod_names = Vec::new();
-    // for pod in pod_list {
-    //     if let Some(spec) = &pod.spec {
-    //         if let Some(node_name_pod) = &spec.node_name {
-    //             if node_name_pod == name {
-    //                 let name = pod.metadata.name.clone().unwrap_or_else(|| "<no-name>".into());
-    //                 let namespace = pod.metadata.namespace.clone().unwrap_or_else(|| "default".into());
-    //                 let status = pod.status.as_ref().and_then(|s| s.phase.clone());
-    //                 pod_names.push(PodInfo {
-    //                     name,
-    //                     namespace,
-    //                     status: status.unwrap(),
-    //                 });
-    //             }
-    //         }
-    //     }
-    // }
-    // details_items.pods = pod_names;
 
     Ok(())
 }

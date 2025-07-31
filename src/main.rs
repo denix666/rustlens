@@ -2819,7 +2819,9 @@ async fn main() {
         // Node details window
         if node_details_window.show {
             let node_details_clone = Arc::clone(&node_details);
-            show_node_details_window(ctx, &mut node_details_window, node_details_clone);
+            let nodes_clone = Arc::clone(&nodes);
+            let pods_clone = Arc::clone(&pods);
+            show_node_details_window(ctx, &mut node_details_window, node_details_clone, nodes_clone, pods_clone);
         }
 
         // Scale window
