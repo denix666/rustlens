@@ -4,3 +4,12 @@ pub mod scale;
 pub mod yaml_editor;
 pub mod templates;
 pub mod other;
+pub mod node_details;
+
+pub use logs::*;
+pub use new_resource::*;
+pub use scale::*;
+pub use yaml_editor::*;
+pub use templates::*;
+pub use other::*;
+pub use node_details::*;
