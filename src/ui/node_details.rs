@@ -1,10 +1,15 @@
 use std::sync::{Arc, Mutex};
-
 use egui::{Color32, Context};
 
+use crate::functions::item_color;
+
+// Define items colors
 const DETAIL_COLOR: Color32 = Color32::LIGHT_YELLOW;
 const SECOND_DETAIL_COLOR: Color32 = Color32::LIGHT_BLUE;
 const ROW_NAME_COLOR: Color32 = Color32::WHITE;
+const POD_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
+const NAMESPACE_COLUMN_COLOR: Color32 = Color32::CYAN;
+const PODS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 
 pub struct NodeDetailsWindow {
     pub show: bool,
@@ -18,7 +23,13 @@ impl NodeDetailsWindow {
     }
 }
 
-pub fn show_node_details_window(ctx: &Context, node_details_window: &mut NodeDetailsWindow, details: Arc<Mutex<crate::NodeDetails>>, nodes: Arc<Mutex<Vec<crate::NodeItem>>>, pods: Arc<Mutex<Vec<crate::PodItem>>>) {
+pub fn show_node_details_window(
+        ctx: &Context,
+        node_details_window: &mut NodeDetailsWindow,
+        details: Arc<Mutex<crate::NodeDetails>>,
+        nodes: Arc<Mutex<Vec<crate::NodeItem>>>,
+        pods: Arc<Mutex<Vec<crate::PodItem>>>)
+{
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_nodes = nodes.lock().unwrap(); // Nodes with base details already we have
     let guard_pods = pods.lock().unwrap(); // Pods with base details already we have
@@ -52,13 +63,13 @@ pub fn show_node_details_window(ctx: &Context, node_details_window: &mut NodeDet
 
                     if let Some(storage_total) = &item.storage_total {
                         ui.label(egui::RichText::new("Storage total:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(storage_total.to_string()).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(format!("{}Gb", storage_total.round() as i64)).color(DETAIL_COLOR));
                         ui.end_row();
                     }
 
                     if let Some(mem_total) = &item.mem_total {
                         ui.label(egui::RichText::new("Memory total:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(mem_total.to_string()).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(format!("{}Gb", mem_total.round() as i64)).color(DETAIL_COLOR));
                         ui.end_row();
                     }
                 }
@@ -143,14 +154,14 @@ pub fn show_node_details_window(ctx: &Context, node_details_window: &mut NodeDet
                 if pods.len() > 0 {
                     ui.label(egui::RichText::new("Pods:").color(ROW_NAME_COLOR));
                     egui::Grid::new("pods_on_node_details_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                        ui.label("Pod name");
-                        ui.label("Namespace");
-                        ui.label("Status");
+                        ui.label(egui::RichText::new("Pod name").color(PODS_HEAD_GRID_COLOR));
+                        ui.label(egui::RichText::new("Namespace").color(PODS_HEAD_GRID_COLOR));
+                        ui.label(egui::RichText::new("Status").color(PODS_HEAD_GRID_COLOR));
                         ui.end_row();
                         for j in pods.iter() {
-                            ui.label(&j.name.to_string());
-                            ui.label(&j.namespace.as_ref().unwrap().to_string());
-                            ui.label(&j.phase.as_ref().unwrap().to_string());
+                            ui.label(egui::RichText::new(&j.name.to_string()).color(POD_NAME_COLUMN_COLOR));
+                            ui.label(egui::RichText::new(&j.namespace.as_ref().unwrap().to_string()).color(NAMESPACE_COLUMN_COLOR));
+                            ui.label(egui::RichText::new(&j.phase.as_ref().unwrap().to_string()).color(item_color(&j.phase.as_ref().unwrap().to_string())));
                             ui.end_row();
                         }
                     });

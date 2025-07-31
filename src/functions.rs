@@ -10,7 +10,6 @@ use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::BTreeMap;
-//use std::collections::BTreeMap;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -164,6 +163,7 @@ pub fn item_color(item: &str) -> Color32 {
         "Waiting" => Color32::YELLOW,
         "Terminated" => Color32::RED,
         "Complete" => Color32::GREEN,
+        "Succeeded" => Color32::GREEN,
         "Failed" => Color32::RED,
         "Bound" => Color32::GREEN,
         "Available" => Color32::LIGHT_GREEN,
