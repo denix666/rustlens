@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 use egui::{Color32, Context};
-
 use crate::functions::item_color;
 
 // Define items colors

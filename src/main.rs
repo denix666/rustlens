@@ -4,6 +4,12 @@ use ui::*;
 mod watchers;
 use watchers::*;
 
+mod functions;
+use functions::*;
+
+mod get_details;
+use get_details::*;
+
 use eframe::egui::{CursorIcon};
 use eframe::*;
 use egui::{Color32, Context, FontId, TextStyle};
@@ -11,9 +17,6 @@ use std::f32;
 use std::sync::{Arc, Mutex};
 use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
-
-mod functions;
-use functions::*;
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50); // green
@@ -92,6 +95,7 @@ async fn main() {
     let mut new_resource_window = ui::new_resource::NewResourceWindow::new();
     let mut scale_window = ui::scale::ScaleWindow::new();
     let mut node_details_window = ui::node_details::NodeDetailsWindow::new();
+    let mut pod_details_window = ui::pod_details::PodDetailsWindow::new();
     let mut log_window = ui::logs::LogWindow::new();
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
 
@@ -151,6 +155,7 @@ async fn main() {
 
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
+    let pod_details = Arc::new(Mutex::new(PodDetails::new()));
     let pods_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -2228,6 +2233,7 @@ async fn main() {
                                     }
                                     ui.label("Restarts");
                                     ui.label("Controlled by");
+                                    ui.label("QoS");
                                     ui.label("Node");
                                     ui.label("Actions");
                                     ui.end_row();
@@ -2245,10 +2251,25 @@ async fn main() {
                                     });
                                     for item in sorted_pods.iter() {
                                         let cur_item_name = &item.name;
+                                        // TODO:
+                                        // check what bad with nodes filter
                                         // let running_on_node = item.node_name.as_ref().unwrap();
                                         // if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
                                         if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_name.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&pod_details);
+                                                let ns = item.namespace.clone();
+                                                pod_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_pod_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             let status;
                                             let mut ready_color: Color32;
                                             let cur_phase: &str;
@@ -2340,6 +2361,7 @@ async fn main() {
                                             } else {
                                                 ui.label("");
                                             }
+                                            ui.label(egui::RichText::new(item.qos_class.clone().unwrap_or("-".into())).color(item_color(&item.qos_class.clone().unwrap_or("-".to_string()))));
                                             ui.label(item.node_name.clone().unwrap_or("-".into()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
@@ -2756,9 +2778,7 @@ async fn main() {
                                         let cur_item_object = &item.involved_object;
                                         if filter_events.is_empty() || cur_item_object.contains(&filter_events) {
                                             ui.label(&item.timestamp);
-                                            ui.label(
-                                                egui::RichText::new(&item.event_type).color(item_color(&item.event_type)),
-                                            );
+                                            ui.label(egui::RichText::new(&item.event_type).color(item_color(&item.event_type)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(&item.namespace);
                                             ui.label(&item.reason);
@@ -2822,6 +2842,13 @@ async fn main() {
             let nodes_clone = Arc::clone(&nodes);
             let pods_clone = Arc::clone(&pods);
             show_node_details_window(ctx, &mut node_details_window, node_details_clone, nodes_clone, pods_clone);
+        }
+
+        // Pod details window
+        if pod_details_window.show {
+            let pod_details_clone = Arc::clone(&pod_details);
+            let pods_clone = Arc::clone(&pods);
+            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone);
         }
 
         // Scale window

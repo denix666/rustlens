@@ -25,6 +25,7 @@ pub struct PodItem {
     pub terminating: bool,
     pub controller: Option<String>,
     pub namespace: Option<String>,
+    pub qos_class: Option<String>,
 }
 
 fn convert_pod(pod: Pod) -> Option<PodItem> {
@@ -37,6 +38,7 @@ fn convert_pod(pod: Pod) -> Option<PodItem> {
     let mut ready = 0;
     let mut restart_count = 0;
     let mut pod_has_crashloop = false;
+    let qos_class = pod.status.as_ref().and_then(|s| s.qos_class.clone());
 
     let controller = pod.metadata.owner_references.as_ref()
         .and_then(|owners| {
@@ -105,6 +107,7 @@ fn convert_pod(pod: Pod) -> Option<PodItem> {
         terminating,
         controller,
         namespace,
+        qos_class,
     })
 }
 
