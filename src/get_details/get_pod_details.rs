@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, sync::{Arc, Mutex}};
 use kube::{Api, Client};
-use k8s_openapi::{api::{core::v1::Pod}};
+use k8s_openapi::api::core::v1::{Affinity, Pod, PodCondition};
+use k8s_openapi::api::core::v1::Toleration;
+
 
 #[derive(Debug, Clone)]
 pub struct PodDetails {
@@ -11,6 +13,10 @@ pub struct PodDetails {
     pub service_account: Option<String>,
     pub pod_ip: Option<String>,
     pub host_ip: Option<String>,
+    pub tolerations: Vec<Toleration>,
+    pub affinity: Option<Affinity>,
+    pub node_selector: Option<BTreeMap<String, String>>,
+    pub conditions: Vec<PodCondition>,
 }
 
 impl PodDetails {
@@ -23,6 +29,10 @@ impl PodDetails {
             service_account: None,
             pod_ip: None,
             host_ip: None,
+            tolerations: vec![],
+            affinity: None,
+            node_selector: None,
+            conditions: vec![],
         }
     }
 }
@@ -44,6 +54,10 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
     details_items.service_account = spec.and_then(|s| s.service_account_name.clone());
     details_items.pod_ip = status.and_then(|s| s.pod_ip.clone());
     details_items.host_ip = status.and_then(|s| s.host_ip.clone());
+    details_items.tolerations = spec.map(|s| s.tolerations.clone().unwrap_or_default()).unwrap_or_default();
+    details_items.affinity = spec.and_then(|s| s.affinity.clone());
+    details_items.node_selector = spec.map(|s| s.node_selector.clone().unwrap_or_default());
+    details_items.conditions = status.map(|s| s.conditions.clone().unwrap_or_default()).unwrap_or_default();
 
     Ok(())
 }
