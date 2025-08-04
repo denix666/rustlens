@@ -1,14 +1,6 @@
 use std::sync::{Arc, Mutex};
 use egui::{Color32, Context};
-use crate::functions::item_color;
-// use k8s_openapi::api::core::v1::{
-//     NodeAffinity,
-//     PodAffinity,
-//     PodAntiAffinity,
-// };
-// use k8s_openapi::apimachinery::pkg::apis::meta::v1::{
-//     LabelSelectorRequirement,
-// };
+use crate::{functions::item_color, ui::LogWindow};
 
 pub struct PodDetailsWindow {
     pub show: bool,
@@ -29,121 +21,13 @@ const ROW_NAME_COLOR: Color32 = Color32::WHITE;
 const TOLERATIONS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
 
-
-// /// Renders a grid for NodeSelectorRequirement (used in Node Affinity).
-// fn render_node_selector_requirements(ui: &mut Ui, exprs: &[k8s_openapi::api::core::v1::NodeSelectorRequirement], grid_id: &str) {
-//     if !exprs.is_empty() {
-//         egui::Grid::new(grid_id).show(ui, |ui| {
-//             for expr in exprs {
-//                 let key = &expr.key;
-//                 let operator = &expr.operator;
-//                 let values = expr.values.as_ref()
-//                     .map(|v| v.join(", "))
-//                     .unwrap_or_else(|| "None".to_string());
-
-//                 ui.label(key);
-//                 ui.label(format!("{operator} [{values}]"));
-//                 ui.end_row();
-//             }
-//         });
-//     }
-// }
-
-// /// Renders a grid for LabelSelectorRequirement (used in Pod Affinity).
-// fn render_label_selector_requirements(ui: &mut Ui, exprs: &[LabelSelectorRequirement], grid_id: &str) {
-//     if !exprs.is_empty() {
-//         egui::Grid::new(grid_id).show(ui, |ui| {
-//             for expr in exprs {
-//                 let key = &expr.key;
-//                 let operator = &expr.operator;
-//                 let values = expr.values.as_ref()
-//                     .map(|v| v.join(", "))
-//                     .unwrap_or_else(|| "None".to_string());
-
-//                 ui.label(key);
-//                 ui.label(format!("{operator} [{values}]"));
-//                 ui.end_row();
-//             }
-//         });
-//     }
-// }
-
-// /// Renders the UI for Node Affinity.
-// fn render_node_affinity(ui: &mut Ui, node_affinity: &NodeAffinity) {
-//     egui::CollapsingHeader::new("Node Affinity")
-//         .default_open(false)
-//         .show(ui, |ui| {
-//             // RequiredDuringScheduling
-//             if let Some(required) = &node_affinity.required_during_scheduling_ignored_during_execution {
-//                 ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
-//                 for (i, term) in required.node_selector_terms.iter().enumerate() {
-//                     if let Some(exprs) = &term.match_expressions {
-//                         let grid_id = format!("required_node_affinity_grid_{}", i);
-//                         render_node_selector_requirements(ui, exprs, &grid_id);
-//                     }
-//                 }
-//             }
-
-//             // PreferredDuringScheduling
-//             if let Some(preferred) = &node_affinity.preferred_during_scheduling_ignored_during_execution {
-//                 ui.label(egui::RichText::new("PreferredDuringScheduling:").strong());
-//                 for (i, pref) in preferred.iter().enumerate() {
-//                     ui.label(format!("Weight: {}", pref.weight));
-//                     if let Some(exprs) = &pref.preference.match_expressions {
-//                         let grid_id = format!("preferred_node_affinity_grid_{}", i);
-//                         render_node_selector_requirements(ui, exprs, &grid_id);
-//                     }
-//                 }
-//             }
-//         });
-// }
-
-// /// Renders the UI for Pod Affinity.
-// fn render_pod_affinity(ui: &mut Ui, pod_affinity: &PodAffinity) {
-//     egui::CollapsingHeader::new("Pod Affinity")
-//         .default_open(false)
-//         .show(ui, |ui| {
-//             if let Some(required) = &pod_affinity.required_during_scheduling_ignored_during_execution {
-//                 ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
-//                 for (i, term) in required.iter().enumerate() {
-//                     ui.label(format!("TopologyKey: {}", term.topology_key));
-//                     if let Some(selector) = &term.label_selector {
-//                         let grid_id = format!("required_pod_affinity_grid_{}", i);
-//                         if let Some(exprs) = &selector.match_expressions {
-//                             render_label_selector_requirements(ui, exprs, &grid_id);
-//                         }
-//                     }
-//                 }
-//             }
-//         });
-// }
-
-// /// Renders the UI for Pod Anti-Affinity.
-// fn render_pod_anti_affinity(ui: &mut Ui, pod_anti_affinity: &PodAntiAffinity) {
-//     egui::CollapsingHeader::new("Pod Anti-Affinity")
-//         .default_open(false)
-//         .show(ui, |ui| {
-//             if let Some(required) = &pod_anti_affinity.required_during_scheduling_ignored_during_execution {
-//                 ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
-//                 for (i, term) in required.iter().enumerate() {
-//                     ui.label(format!("TopologyKey: {}", term.topology_key));
-//                     if let Some(selector) = &term.label_selector {
-//                         let grid_id = format!("required_pod_anti_affinity_grid_{}", i);
-//                         if let Some(exprs) = &selector.match_expressions {
-//                             render_label_selector_requirements(ui, exprs, &grid_id);
-//                         }
-//                     }
-//                 }
-//             }
-//         });
-// }
-
-
 pub fn show_pod_details_window(
         ctx: &Context,
         pod_details_window: &mut PodDetailsWindow,
         details: Arc<Mutex<crate::PodDetails>>,
-        pods: Arc<Mutex<Vec<crate::PodItem>>>)
+        pods: Arc<Mutex<Vec<crate::PodItem>>>,
+        log_window: Arc<Mutex<LogWindow>>,
+        client: Arc<crate::Client>)
 {
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_pods = pods.lock().unwrap(); // Pods with base details already we have
@@ -153,11 +37,18 @@ pub fn show_pod_details_window(
     }
 
     let pod_item = guard_pods.iter().find(|item| item.name == guard_details.name.clone().unwrap());
+    let cur_ns = &pod_item.unwrap().namespace;
 
     egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
-
+                crate::open_logs_for_pod(
+                    guard_details.name.clone().unwrap(),
+                    cur_ns.to_owned().unwrap(),
+                    pod_item.unwrap().containers.clone(),
+                    Arc::clone(&log_window),
+                    Arc::clone(&client),
+                );
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
@@ -310,25 +201,6 @@ pub fn show_pod_details_window(
                     });
                     ui.end_row();
                 }
-
-                // TODO
-                // if let Some(affinity) = &guard_details.affinity {
-                //     ui.separator(); ui.separator(); ui.end_row();
-                //     ui.label(egui::RichText::new("Affinity").heading());
-
-                //     if let Some(node_affinity) = &affinity.node_affinity {
-                //         render_node_affinity(ui, node_affinity);
-                //     }
-
-                //     if let Some(pod_affinity) = &affinity.pod_affinity {
-                //         render_pod_affinity(ui, pod_affinity);
-                //     }
-
-                //     if let Some(pod_anti_affinity) = &affinity.pod_anti_affinity {
-                //         render_pod_anti_affinity(ui, pod_anti_affinity);
-                //     }
-                // }
-
 
                 if let Some(item) = guard_details.node_selector.clone() {
                     ui.separator(); ui.separator(); ui.end_row();

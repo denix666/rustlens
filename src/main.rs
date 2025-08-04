@@ -97,7 +97,7 @@ async fn main() {
     let mut scale_window = ui::scale::ScaleWindow::new();
     let mut node_details_window = ui::node_details::NodeDetailsWindow::new();
     let mut pod_details_window = ui::pod_details::PodDetailsWindow::new();
-    let mut log_window = ui::logs::LogWindow::new();
+    let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
 
     //####################################################//
@@ -2262,7 +2262,6 @@ async fn main() {
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&pod_details);
                                                 let ns = item.namespace.clone();
-                                                //let log_window_clone = Arc::clone(&log_window);
                                                 pod_details_window.show = true;
                                                 tokio::spawn({
                                                     async move {
@@ -2287,35 +2286,35 @@ async fn main() {
                                             match cur_phase {
                                                 "Running" => {
                                                     status = "✅ Running".to_string();
-                                                    ready_color = Color32::from_rgb(100, 255, 100); // green
+                                                    ready_color = item_color("Running");
                                                 },
                                                 "Terminating" => {
                                                     status = "🗑 Terminating".to_string();
-                                                    ready_color = Color32::from_rgb(128, 128, 128); // gray
+                                                    ready_color = item_color("Terminating");
                                                 },
                                                 "Pending" => {
                                                     status = "⏳ Pending".to_string();
-                                                    ready_color = Color32::from_rgb(255, 165, 0); // orange
+                                                    ready_color = item_color("Pending");
                                                 },
                                                 "Succeeded" => {
                                                     status = "✅ Completed".to_string();
-                                                    ready_color = Color32::from_rgb(0, 255, 176); // green
+                                                    ready_color = item_color("Completed");
                                                 },
                                                 "Failed" => {
                                                     status = "❌ Failed".to_string();
-                                                    ready_color = Color32::from_rgb(255, 0, 0); // red
+                                                    ready_color = item_color("Failed");
                                                 },
                                                 "CrashLoopBackOff" => {
                                                     status = "💥 CrashLoop".to_string();
-                                                    ready_color = Color32::from_rgb(255, 0, 0); // red
+                                                    ready_color = item_color("CrashLoop");
                                                 },
                                                 "Cancelled" => {
                                                     status = "🚫 Cancelled".to_string();
-                                                    ready_color = Color32::from_rgb(128, 128, 128); // gray
+                                                    ready_color = item_color("Cancelled");
                                                 },
                                                 _ => {
                                                     status = "❓ Unknown".to_string();
-                                                    ready_color = Color32::GRAY;
+                                                    ready_color =  item_color("Unknown");
                                                 },
                                             };
 
@@ -2398,28 +2397,13 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button("📃 Logs").clicked() {
-                                                    let cur_pod = item.name.clone();
-                                                    log_window.pod_name = item.name.clone();
-
-                                                    let cur_ns = selected_ns.clone();
-                                                    log_window.namespace = selected_ns.clone().unwrap();
-
-                                                    let cur_container = item.containers[0].name.clone();
-                                                    log_window.selected_container = item.containers[0].name.clone();
-                                                    log_window.last_container = None;
-
-                                                    log_window.containers = item.containers.clone();
-
-                                                    log_window.buffer = Arc::new(Mutex::new(String::new()));
-                                                    let buf_clone = Arc::clone(&log_window.buffer);
-                                                    log_window.show = true;
-                                                    let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        fetch_logs(client_clone,
-                                                        cur_ns.unwrap().as_str(),
-                                                        cur_pod.as_str(),
-                                                        cur_container.as_str(), buf_clone).await;
-                                                    });
+                                                    open_logs_for_pod(
+                                                        item.name.clone(),
+                                                        selected_ns.clone().unwrap(),
+                                                        item.containers.clone(),
+                                                        Arc::clone(&log_window),
+                                                        Arc::clone(&client),
+                                                    );
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("🖵 Shell").size(16.0).color(ORANGE_BUTTON)).clicked() {
@@ -2833,9 +2817,11 @@ async fn main() {
         }
 
         // Logs window
-        if log_window.show {
-            let client_clone = Arc::clone(&client);
-            show_log_window(ctx, &mut log_window, client_clone);
+        if let Ok(mut logs) = log_window.lock() {
+            if logs.show {
+                let client_clone = Arc::clone(&client);
+                show_log_window(ctx, &mut logs, client_clone);
+            }
         }
 
         // Node details window
@@ -2850,7 +2836,9 @@ async fn main() {
         if pod_details_window.show {
             let pod_details_clone = Arc::clone(&pod_details);
             let pods_clone = Arc::clone(&pods);
-            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone);
+            let log_window_clone = Arc::clone(&log_window);
+            let client_clone = Arc::clone(&client);
+            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, client_clone);
         }
 
         // Scale window

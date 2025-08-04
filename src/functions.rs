@@ -157,14 +157,17 @@ where
 pub fn item_color(item: &str) -> Color32 {
     let ret_color = match item {
         "Ready" => Color32::GREEN,
-        "Burstable" => Color32::ORANGE,
-        "Guaranteed" => Color32::LIGHT_GREEN,
-        "BestEffort" => Color32::PURPLE,
+        "Burstable" => Color32::from_rgb(137, 90, 9), // close to orange
+        "Guaranteed" => Color32::from_rgb(6, 140, 0), // green
+        "BestEffort" => Color32::from_rgb(112, 135, 9), // close to red
+        "Cancelled" => Color32::from_rgb(116, 116, 116), // gray
+        "CrashLoop" => Color32::RED,
         "NotReady" => Color32::RED,
         "Running" => Color32::GREEN,
         "Waiting" => Color32::YELLOW,
         "Terminated" => Color32::RED,
         "Complete" => Color32::GREEN,
+        "Completed" => Color32::GREEN,
         "Succeeded" => Color32::GREEN,
         "Failed" => Color32::RED,
         "Bound" => Color32::GREEN,
@@ -182,6 +185,32 @@ pub fn item_color(item: &str) -> Color32 {
 
     return ret_color
 }
+
+pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<crate::ContainerStatusItem>, log_window: Arc<Mutex<crate::LogWindow>>, client: Arc<Client>) {
+    let mut logs = log_window.lock().unwrap();
+    logs.pod_name = pod_name.clone();
+    logs.namespace = namespace.clone();
+    logs.containers = containers.clone();
+    logs.selected_container = containers.get(0).map(|c| c.name.clone()).unwrap_or_default();
+    logs.last_container = None;
+    logs.buffer = Arc::new(Mutex::new(String::new()));
+    logs.show = true;
+
+    let selected_container = containers.get(0).map(|c| c.name.clone()).unwrap_or_default();
+    let buffer = Arc::new(Mutex::new(String::new()));
+
+    tokio::spawn(async move {
+        crate::fetch_logs(
+            client,
+            namespace.as_str(),
+            pod_name.as_str(),
+            selected_container.as_str(),
+            buffer,
+        )
+        .await;
+    });
+}
+
 
 pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyhow::Error> {
     let client = cl.as_ref().clone();
