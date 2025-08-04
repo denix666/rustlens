@@ -3,6 +3,13 @@ use kube::{Api, Client};
 use k8s_openapi::api::core::v1::{Affinity, Pod, PodCondition};
 use k8s_openapi::api::core::v1::Toleration;
 
+#[derive(Debug, Clone)]
+pub struct ContainerDetails {
+    pub name: String,
+    pub image: Option<String>,
+    pub state: Option<String>, // e.g. "Running", "Terminated", "Waiting"
+    pub message: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct PodDetails {
@@ -17,6 +24,7 @@ pub struct PodDetails {
     pub affinity: Option<Affinity>,
     pub node_selector: Option<BTreeMap<String, String>>,
     pub conditions: Vec<PodCondition>,
+    pub containers: Vec<ContainerDetails>,
 }
 
 impl PodDetails {
@@ -33,6 +41,7 @@ impl PodDetails {
             affinity: None,
             node_selector: None,
             conditions: vec![],
+            containers: vec![],
         }
     }
 }
@@ -58,6 +67,41 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
     details_items.affinity = spec.and_then(|s| s.affinity.clone());
     details_items.node_selector = spec.map(|s| s.node_selector.clone().unwrap_or_default());
     details_items.conditions = status.map(|s| s.conditions.clone().unwrap_or_default()).unwrap_or_default();
+
+    if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
+        details_items.containers.clear();
+        for cs in statuses {
+
+            let state = cs.state.as_ref().and_then(|s| {
+                if s.running.is_some() {
+                    Some("Running".to_string())
+                } else if s.waiting.is_some() {
+                    Some("Waiting".to_string())
+                } else if s.terminated.is_some() {
+                    Some("Terminated".to_string())
+                } else {
+                    None
+                }
+            });
+
+            let message = cs.state.as_ref().and_then(|s| {
+                if let Some(waiting) = &s.waiting {
+                    waiting.message.clone()
+                } else if let Some(terminated) = &s.terminated {
+                    terminated.message.clone()
+                } else {
+                    None
+                }
+            });
+
+            details_items.containers.push(ContainerDetails {
+                name: cs.name,
+                image: Some(cs.image),
+                state,
+                message,
+            });
+        }
+    }
 
     Ok(())
 }

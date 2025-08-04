@@ -22,6 +22,7 @@ const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50); // green
 const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36); // red
 const ORANGE_BUTTON: Color32 = Color32::ORANGE; // orange
+const GRAY_BUTTON: Color32 = Color32::GRAY; // gray
 const BLUE_BUTTON: Color32 = Color32::LIGHT_BLUE; // blue
 const MENU_BUTTON: Color32 = Color32::from_rgb(147, 38, 245);
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
@@ -2261,6 +2262,7 @@ async fn main() {
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&pod_details);
                                                 let ns = item.namespace.clone();
+                                                //let log_window_clone = Arc::clone(&log_window);
                                                 pod_details_window.show = true;
                                                 tokio::spawn({
                                                     async move {

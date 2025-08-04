@@ -1,15 +1,14 @@
 use std::sync::{Arc, Mutex};
-use egui::{Color32, Context, Ui};
-//use k8s_openapi::api::core::v1::{NodeAffinity, PodAffinity};
+use egui::{Color32, Context};
 use crate::functions::item_color;
-use k8s_openapi::api::core::v1::{
-    NodeAffinity,
-    PodAffinity,
-    PodAntiAffinity,
-};
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::{
-    LabelSelectorRequirement,
-};
+// use k8s_openapi::api::core::v1::{
+//     NodeAffinity,
+//     PodAffinity,
+//     PodAntiAffinity,
+// };
+// use k8s_openapi::apimachinery::pkg::apis::meta::v1::{
+//     LabelSelectorRequirement,
+// };
 
 pub struct PodDetailsWindow {
     pub show: bool,
@@ -30,117 +29,114 @@ const ROW_NAME_COLOR: Color32 = Color32::WHITE;
 const TOLERATIONS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
 
-// --- Вспомогательные функции ---
 
-/// Renders a grid for NodeSelectorRequirement (used in Node Affinity).
-fn render_node_selector_requirements(ui: &mut Ui, exprs: &[k8s_openapi::api::core::v1::NodeSelectorRequirement], grid_id: &str) {
-    if !exprs.is_empty() {
-        egui::Grid::new(grid_id).show(ui, |ui| {
-            for expr in exprs {
-                let key = &expr.key;
-                let operator = &expr.operator;
-                let values = expr.values.as_ref()
-                    .map(|v| v.join(", "))
-                    .unwrap_or_else(|| "None".to_string());
+// /// Renders a grid for NodeSelectorRequirement (used in Node Affinity).
+// fn render_node_selector_requirements(ui: &mut Ui, exprs: &[k8s_openapi::api::core::v1::NodeSelectorRequirement], grid_id: &str) {
+//     if !exprs.is_empty() {
+//         egui::Grid::new(grid_id).show(ui, |ui| {
+//             for expr in exprs {
+//                 let key = &expr.key;
+//                 let operator = &expr.operator;
+//                 let values = expr.values.as_ref()
+//                     .map(|v| v.join(", "))
+//                     .unwrap_or_else(|| "None".to_string());
 
-                ui.label(key);
-                ui.label(format!("{operator} [{values}]"));
-                ui.end_row();
-            }
-        });
-    }
-}
+//                 ui.label(key);
+//                 ui.label(format!("{operator} [{values}]"));
+//                 ui.end_row();
+//             }
+//         });
+//     }
+// }
 
-/// Renders a grid for LabelSelectorRequirement (used in Pod Affinity).
-fn render_label_selector_requirements(ui: &mut Ui, exprs: &[LabelSelectorRequirement], grid_id: &str) {
-    if !exprs.is_empty() {
-        egui::Grid::new(grid_id).show(ui, |ui| {
-            for expr in exprs {
-                let key = &expr.key;
-                let operator = &expr.operator;
-                let values = expr.values.as_ref()
-                    .map(|v| v.join(", "))
-                    .unwrap_or_else(|| "None".to_string());
+// /// Renders a grid for LabelSelectorRequirement (used in Pod Affinity).
+// fn render_label_selector_requirements(ui: &mut Ui, exprs: &[LabelSelectorRequirement], grid_id: &str) {
+//     if !exprs.is_empty() {
+//         egui::Grid::new(grid_id).show(ui, |ui| {
+//             for expr in exprs {
+//                 let key = &expr.key;
+//                 let operator = &expr.operator;
+//                 let values = expr.values.as_ref()
+//                     .map(|v| v.join(", "))
+//                     .unwrap_or_else(|| "None".to_string());
 
-                ui.label(key);
-                ui.label(format!("{operator} [{values}]"));
-                ui.end_row();
-            }
-        });
-    }
-}
+//                 ui.label(key);
+//                 ui.label(format!("{operator} [{values}]"));
+//                 ui.end_row();
+//             }
+//         });
+//     }
+// }
 
-/// Renders the UI for Node Affinity.
-fn render_node_affinity(ui: &mut Ui, node_affinity: &NodeAffinity) {
-    egui::CollapsingHeader::new("Node Affinity")
-        .default_open(false)
-        .show(ui, |ui| {
-            // RequiredDuringScheduling
-            if let Some(required) = &node_affinity.required_during_scheduling_ignored_during_execution {
-                ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
-                for (i, term) in required.node_selector_terms.iter().enumerate() {
-                    if let Some(exprs) = &term.match_expressions {
-                        let grid_id = format!("required_node_affinity_grid_{}", i);
-                        render_node_selector_requirements(ui, exprs, &grid_id);
-                    }
-                }
-            }
+// /// Renders the UI for Node Affinity.
+// fn render_node_affinity(ui: &mut Ui, node_affinity: &NodeAffinity) {
+//     egui::CollapsingHeader::new("Node Affinity")
+//         .default_open(false)
+//         .show(ui, |ui| {
+//             // RequiredDuringScheduling
+//             if let Some(required) = &node_affinity.required_during_scheduling_ignored_during_execution {
+//                 ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
+//                 for (i, term) in required.node_selector_terms.iter().enumerate() {
+//                     if let Some(exprs) = &term.match_expressions {
+//                         let grid_id = format!("required_node_affinity_grid_{}", i);
+//                         render_node_selector_requirements(ui, exprs, &grid_id);
+//                     }
+//                 }
+//             }
 
-            // PreferredDuringScheduling
-            if let Some(preferred) = &node_affinity.preferred_during_scheduling_ignored_during_execution {
-                ui.label(egui::RichText::new("PreferredDuringScheduling:").strong());
-                for (i, pref) in preferred.iter().enumerate() {
-                    ui.label(format!("Weight: {}", pref.weight));
-                    if let Some(exprs) = &pref.preference.match_expressions {
-                        let grid_id = format!("preferred_node_affinity_grid_{}", i);
-                        render_node_selector_requirements(ui, exprs, &grid_id);
-                    }
-                }
-            }
-        });
-}
+//             // PreferredDuringScheduling
+//             if let Some(preferred) = &node_affinity.preferred_during_scheduling_ignored_during_execution {
+//                 ui.label(egui::RichText::new("PreferredDuringScheduling:").strong());
+//                 for (i, pref) in preferred.iter().enumerate() {
+//                     ui.label(format!("Weight: {}", pref.weight));
+//                     if let Some(exprs) = &pref.preference.match_expressions {
+//                         let grid_id = format!("preferred_node_affinity_grid_{}", i);
+//                         render_node_selector_requirements(ui, exprs, &grid_id);
+//                     }
+//                 }
+//             }
+//         });
+// }
 
-/// Renders the UI for Pod Affinity.
-fn render_pod_affinity(ui: &mut Ui, pod_affinity: &PodAffinity) {
-    egui::CollapsingHeader::new("Pod Affinity")
-        .default_open(false)
-        .show(ui, |ui| {
-            if let Some(required) = &pod_affinity.required_during_scheduling_ignored_during_execution {
-                ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
-                for (i, term) in required.iter().enumerate() {
-                    ui.label(format!("TopologyKey: {}", term.topology_key));
-                    if let Some(selector) = &term.label_selector {
-                        let grid_id = format!("required_pod_affinity_grid_{}", i);
-                        // Используем правильную функцию для LabelSelectorRequirement
-                        if let Some(exprs) = &selector.match_expressions {
-                            render_label_selector_requirements(ui, exprs, &grid_id);
-                        }
-                    }
-                }
-            }
-        });
-}
+// /// Renders the UI for Pod Affinity.
+// fn render_pod_affinity(ui: &mut Ui, pod_affinity: &PodAffinity) {
+//     egui::CollapsingHeader::new("Pod Affinity")
+//         .default_open(false)
+//         .show(ui, |ui| {
+//             if let Some(required) = &pod_affinity.required_during_scheduling_ignored_during_execution {
+//                 ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
+//                 for (i, term) in required.iter().enumerate() {
+//                     ui.label(format!("TopologyKey: {}", term.topology_key));
+//                     if let Some(selector) = &term.label_selector {
+//                         let grid_id = format!("required_pod_affinity_grid_{}", i);
+//                         if let Some(exprs) = &selector.match_expressions {
+//                             render_label_selector_requirements(ui, exprs, &grid_id);
+//                         }
+//                     }
+//                 }
+//             }
+//         });
+// }
 
-/// Renders the UI for Pod Anti-Affinity.
-fn render_pod_anti_affinity(ui: &mut Ui, pod_anti_affinity: &PodAntiAffinity) {
-    egui::CollapsingHeader::new("Pod Anti-Affinity")
-        .default_open(false)
-        .show(ui, |ui| {
-            if let Some(required) = &pod_anti_affinity.required_during_scheduling_ignored_during_execution {
-                ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
-                for (i, term) in required.iter().enumerate() {
-                    ui.label(format!("TopologyKey: {}", term.topology_key));
-                    if let Some(selector) = &term.label_selector {
-                        let grid_id = format!("required_pod_anti_affinity_grid_{}", i);
-                        // Используем правильную функцию для LabelSelectorRequirement
-                        if let Some(exprs) = &selector.match_expressions {
-                            render_label_selector_requirements(ui, exprs, &grid_id);
-                        }
-                    }
-                }
-            }
-        });
-}
+// /// Renders the UI for Pod Anti-Affinity.
+// fn render_pod_anti_affinity(ui: &mut Ui, pod_anti_affinity: &PodAntiAffinity) {
+//     egui::CollapsingHeader::new("Pod Anti-Affinity")
+//         .default_open(false)
+//         .show(ui, |ui| {
+//             if let Some(required) = &pod_anti_affinity.required_during_scheduling_ignored_during_execution {
+//                 ui.label(egui::RichText::new("RequiredDuringScheduling:").strong());
+//                 for (i, term) in required.iter().enumerate() {
+//                     ui.label(format!("TopologyKey: {}", term.topology_key));
+//                     if let Some(selector) = &term.label_selector {
+//                         let grid_id = format!("required_pod_anti_affinity_grid_{}", i);
+//                         if let Some(exprs) = &selector.match_expressions {
+//                             render_label_selector_requirements(ui, exprs, &grid_id);
+//                         }
+//                     }
+//                 }
+//             }
+//         });
+// }
 
 
 pub fn show_pod_details_window(
@@ -159,6 +155,20 @@ pub fn show_pod_details_window(
     let pod_item = guard_pods.iter().find(|item| item.name == guard_details.name.clone().unwrap());
 
     egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
+
+            }
+
+            if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
+
+            }
+
+            if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
+
+            }
+        });
+        ui.separator();
         egui::ScrollArea::vertical().max_height(600.0).show(ui, |ui| {
             egui::Grid::new("pod_details_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
 
@@ -301,22 +311,23 @@ pub fn show_pod_details_window(
                     ui.end_row();
                 }
 
-                if let Some(affinity) = &guard_details.affinity {
-                    ui.separator(); ui.separator(); ui.end_row();
-                    ui.label(egui::RichText::new("Affinity").heading());
+                // TODO
+                // if let Some(affinity) = &guard_details.affinity {
+                //     ui.separator(); ui.separator(); ui.end_row();
+                //     ui.label(egui::RichText::new("Affinity").heading());
 
-                    if let Some(node_affinity) = &affinity.node_affinity {
-                        render_node_affinity(ui, node_affinity);
-                    }
+                //     if let Some(node_affinity) = &affinity.node_affinity {
+                //         render_node_affinity(ui, node_affinity);
+                //     }
 
-                    if let Some(pod_affinity) = &affinity.pod_affinity {
-                        render_pod_affinity(ui, pod_affinity);
-                    }
+                //     if let Some(pod_affinity) = &affinity.pod_affinity {
+                //         render_pod_affinity(ui, pod_affinity);
+                //     }
 
-                    if let Some(pod_anti_affinity) = &affinity.pod_anti_affinity {
-                        render_pod_anti_affinity(ui, pod_anti_affinity);
-                    }
-                }
+                //     if let Some(pod_anti_affinity) = &affinity.pod_anti_affinity {
+                //         render_pod_anti_affinity(ui, pod_anti_affinity);
+                //     }
+                // }
 
 
                 if let Some(item) = guard_details.node_selector.clone() {
@@ -355,6 +366,28 @@ pub fn show_pod_details_window(
                         }
                     });
                     ui.end_row();
+                }
+            });
+
+            ui.separator();
+            ui.heading("Containers:");
+            egui::Grid::new("containers_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                if !guard_details.containers.is_empty() {
+                    for container in &guard_details.containers {
+                        ui.separator(); ui.separator(); ui.end_row();
+                        ui.label(egui::RichText::new("■").size(16.0).color(item_color(container.state.as_deref().unwrap_or_default())));
+                        ui.label(&container.name);
+                        ui.end_row();
+
+                        ui.label("Status:");
+                        let st = format!("{} {}", container.state.as_deref().unwrap_or("Unknown"), container.message.as_deref().unwrap_or(""));
+                        ui.label(st);
+                        ui.end_row();
+
+                        ui.label("Image:");
+                        ui.label(container.image.as_deref().unwrap());
+                        ui.end_row();
+                    }
                 }
             });
         });
