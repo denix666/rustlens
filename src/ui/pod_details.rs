@@ -259,6 +259,26 @@ pub fn show_pod_details_window(
                         ui.label("Image:");
                         ui.label(container.image.as_deref().unwrap());
                         ui.end_row();
+
+                        if let Some(item) = &container.mem_request {
+                            ui.label("Memory request:"); ui.label(item);
+                            ui.end_row();
+                        }
+
+                        if let Some(item) = &container.mem_limit {
+                            ui.label("Memory limit:"); ui.label(item);
+                            ui.end_row();
+                        }
+
+                        if let Some(item) = &container.cpu_request {
+                            ui.label("CPU request:"); ui.label(item);
+                            ui.end_row();
+                        }
+
+                        if let Some(item) = &container.cpu_limit {
+                            ui.label("CPU limit:"); ui.label(item);
+                            ui.end_row();
+                        }
                     }
                 }
             });

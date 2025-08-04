@@ -9,6 +9,10 @@ pub struct ContainerDetails {
     pub image: Option<String>,
     pub state: Option<String>, // e.g. "Running", "Terminated", "Waiting"
     pub message: Option<String>,
+    pub cpu_request: Option<String>,
+    pub mem_request: Option<String>,
+    pub cpu_limit: Option<String>,
+    pub mem_limit: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,9 +72,37 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
     details_items.node_selector = spec.map(|s| s.node_selector.clone().unwrap_or_default());
     details_items.conditions = status.map(|s| s.conditions.clone().unwrap_or_default()).unwrap_or_default();
 
-    if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {
+    if let (Some(pod_spec), Some(statuses)) = (pod.spec.as_ref(), pod.status.as_ref().and_then(|s| s.container_statuses.clone())) {
         details_items.containers.clear();
+
         for cs in statuses {
+            let spec_container = pod_spec.containers.iter().find(|c| c.name == cs.name);
+
+            let (cpu_request, mem_request, cpu_limit, mem_limit) = if let Some(container) = spec_container {
+                if let Some(resources) = &container.resources {
+                    let cpu_req = resources.requests.as_ref()
+                        .and_then(|r| r.get("cpu"))
+                        .map(|q| q.0.clone());
+
+                    let mem_req = resources.requests.as_ref()
+                        .and_then(|r| r.get("memory"))
+                        .map(|q| q.0.clone());
+
+                    let cpu_lim = resources.limits.as_ref()
+                        .and_then(|l| l.get("cpu"))
+                        .map(|q| q.0.clone());
+
+                    let mem_lim = resources.limits.as_ref()
+                        .and_then(|l| l.get("memory"))
+                        .map(|q| q.0.clone());
+
+                    (cpu_req, mem_req, cpu_lim, mem_lim)
+                } else {
+                    (None, None, None, None)
+                }
+            } else {
+                (None, None, None, None)
+            };
 
             let state = cs.state.as_ref().and_then(|s| {
                 if s.running.is_some() {
@@ -99,6 +131,10 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 image: Some(cs.image),
                 state,
                 message,
+                mem_limit,
+                mem_request,
+                cpu_limit,
+                cpu_request,
             });
         }
     }
