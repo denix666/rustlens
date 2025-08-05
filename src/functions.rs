@@ -161,6 +161,8 @@ pub fn item_color(item: &str) -> Color32 {
         "Guaranteed" => Color32::from_rgb(6, 140, 0), // green
         "BestEffort" => Color32::from_rgb(112, 135, 9), // close to red
         "Cancelled" => Color32::from_rgb(116, 116, 116), // gray
+        "RW" => Color32::from_rgb(137, 90, 9), // close to orange
+        "RO" => Color32::from_rgb(6, 140, 0), // green
         "CrashLoop" => Color32::RED,
         "NotReady" => Color32::RED,
         "Running" => Color32::GREEN,

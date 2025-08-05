@@ -3,6 +3,13 @@ use kube::{Api, Client};
 use k8s_openapi::api::core::v1::{Affinity, Pod, PodCondition};
 use k8s_openapi::api::core::v1::Toleration;
 
+#[derive(Clone, Debug)]
+pub struct ContainerMount {
+    pub volume_name: String,
+    pub mount_path: String,
+    pub read_only: Option<bool>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ContainerDetails {
     pub name: String,
@@ -13,6 +20,7 @@ pub struct ContainerDetails {
     pub mem_request: Option<String>,
     pub cpu_limit: Option<String>,
     pub mem_limit: Option<String>,
+    pub mounts: Vec<ContainerMount>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +115,18 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 (None, None, None, None)
             };
 
+
+            let mut container_mounts = vec![];
+            if let Some(mounts) = &cs.volume_mounts {
+                for mount in mounts {
+                    container_mounts.push(ContainerMount {
+                        volume_name: mount.name.clone(),
+                        mount_path: mount.mount_path.clone(),
+                        read_only: mount.read_only,
+                    });
+                }
+            };
+
             let state = cs.state.as_ref().and_then(|s| {
                 if s.running.is_some() {
                     Some("Running".to_string())
@@ -138,6 +158,7 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 mem_request,
                 cpu_limit,
                 cpu_request,
+                mounts: container_mounts,
             });
         }
     }

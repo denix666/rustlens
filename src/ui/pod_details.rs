@@ -288,6 +288,26 @@ pub fn show_pod_details_window(
                             ui.label(egui::RichText::new(item).color(DETAIL_COLOR));
                             ui.end_row();
                         }
+
+                        if !container.mounts.is_empty() {
+                            ui.label(egui::RichText::new("Mounts:").color(ROW_NAME_COLOR));
+                            let grid_id = format!("pod_details_mounts_grid_{}", container.name);
+                            egui::Grid::new(grid_id).striped(true).min_col_width(20.0).show(ui, |ui| {
+                                ui.label("");
+                                ui.end_row();
+                                for mount in container.mounts.iter() {
+                                    ui.label(egui::RichText::new(&mount.volume_name).color(DETAIL_COLOR));
+                                    ui.label(egui::RichText::new(&mount.mount_path).color(SECOND_DETAIL_COLOR));
+                                    if mount.read_only.unwrap_or_default() {
+                                        ui.label(egui::RichText::new("RO".to_string()).color(item_color("RO")));
+                                    } else {
+                                        ui.label(egui::RichText::new("RW".to_string()).color(item_color("RW")));
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                            ui.end_row();
+                        }
                     }
                 }
             });
