@@ -23,6 +23,7 @@ pub struct PodDetails {
     pub labels: Option<BTreeMap<String, String>>,
     pub service_account: Option<String>,
     pub pod_ip: Option<String>,
+    pub namespace: Option<String>,
     pub host_ip: Option<String>,
     pub tolerations: Vec<Toleration>,
     pub affinity: Option<Affinity>,
@@ -35,6 +36,7 @@ impl PodDetails {
     pub fn new() -> Self {
         Self {
             name: None,
+            namespace: None,
             uid: None,
             annotations: None,
             labels: None,
@@ -63,6 +65,7 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
     details_items.annotations = metadata.annotations.clone();
     details_items.uid = metadata.uid;
     details_items.name = metadata.name;
+    details_items.namespace = Some(ns);
     details_items.labels = metadata.labels;
     details_items.service_account = spec.and_then(|s| s.service_account_name.clone());
     details_items.pod_ip = status.and_then(|s| s.pod_ip.clone());

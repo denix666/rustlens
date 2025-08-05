@@ -2262,6 +2262,7 @@ async fn main() {
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&pod_details);
                                                 let ns = item.namespace.clone();
+
                                                 pod_details_window.show = true;
                                                 tokio::spawn({
                                                     async move {

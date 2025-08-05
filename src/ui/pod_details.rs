@@ -36,7 +36,10 @@ pub fn show_pod_details_window(
         return;
     }
 
-    let pod_item = guard_pods.iter().find(|item| item.name == guard_details.name.clone().unwrap());
+    let pod_item = guard_pods.iter().find(|item| item.name == guard_details.name.clone().unwrap() && item.namespace == guard_details.namespace.clone());
+    if pod_item.is_none() {
+        return;
+    }
     let cur_ns = &pod_item.unwrap().namespace;
 
     egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).show(ctx, |ui| {
@@ -248,35 +251,41 @@ pub fn show_pod_details_window(
                     for container in &guard_details.containers {
                         ui.separator(); ui.separator(); ui.end_row();
                         ui.label(egui::RichText::new("■").size(16.0).color(item_color(container.state.as_deref().unwrap_or_default())));
-                        ui.label(&container.name);
+                        ui.label(egui::RichText::new(&container.name).color(SECOND_DETAIL_COLOR));
                         ui.end_row();
 
-                        ui.label("Status:");
-                        let st = format!("{} {}", container.state.as_deref().unwrap_or("Unknown"), container.message.as_deref().unwrap_or(""));
-                        ui.label(st);
+                        ui.label(egui::RichText::new("Status:").color(ROW_NAME_COLOR));
+                        let status = container.state.as_deref().unwrap_or("Unknown");
+                        let message = container.message.as_deref().unwrap_or("");
+                        let label_text = format!("{} {}", status, message);
+                        ui.label(egui::RichText::new(&label_text).color(DETAIL_COLOR));
                         ui.end_row();
 
-                        ui.label("Image:");
-                        ui.label(container.image.as_deref().unwrap());
+                        ui.label(egui::RichText::new("Image:").color(ROW_NAME_COLOR));
+                        ui.label(egui::RichText::new(container.image.as_deref().unwrap()).color(DETAIL_COLOR));
                         ui.end_row();
 
                         if let Some(item) = &container.mem_request {
-                            ui.label("Memory request:"); ui.label(item);
+                            ui.label(egui::RichText::new("Memory request:").color(ROW_NAME_COLOR));
+                            ui.label(egui::RichText::new(item).color(DETAIL_COLOR));
                             ui.end_row();
                         }
 
                         if let Some(item) = &container.mem_limit {
-                            ui.label("Memory limit:"); ui.label(item);
+                            ui.label(egui::RichText::new("Memory limit:").color(ROW_NAME_COLOR));
+                            ui.label(egui::RichText::new(item).color(DETAIL_COLOR));
                             ui.end_row();
                         }
 
                         if let Some(item) = &container.cpu_request {
-                            ui.label("CPU request:"); ui.label(item);
+                            ui.label(egui::RichText::new("CPU request:").color(ROW_NAME_COLOR));
+                            ui.label(egui::RichText::new(item).color(DETAIL_COLOR));
                             ui.end_row();
                         }
 
                         if let Some(item) = &container.cpu_limit {
-                            ui.label("CPU limit:"); ui.label(item);
+                            ui.label(egui::RichText::new("CPU limit:").color(ROW_NAME_COLOR));
+                            ui.label(egui::RichText::new(item).color(DETAIL_COLOR));
                             ui.end_row();
                         }
                     }
