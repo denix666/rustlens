@@ -10,6 +10,12 @@ pub struct ContainerMount {
     pub read_only: Option<bool>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ContainerEnv {
+    pub name: String,
+    pub value: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ContainerDetails {
     pub name: String,
@@ -21,6 +27,8 @@ pub struct ContainerDetails {
     pub cpu_limit: Option<String>,
     pub mem_limit: Option<String>,
     pub mounts: Vec<ContainerMount>,
+    pub env_vars: Vec<ContainerEnv>,
+    pub image_pull_policy: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -127,6 +135,18 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 }
             };
 
+            let mut env_vars = vec![];
+            if let Some(container_envs) = spec_container {
+                if let Some(envs) = &container_envs.env {
+                    for env in envs {
+                        env_vars.push(ContainerEnv {
+                            name: env.name.clone(),
+                            value: env.value.clone(),
+                        });
+                    }
+                }
+            };
+
             let state = cs.state.as_ref().and_then(|s| {
                 if s.running.is_some() {
                     Some("Running".to_string())
@@ -149,6 +169,9 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 }
             });
 
+            let image_pull_policy = spec_container.as_ref().and_then(|container| container.image_pull_policy.as_ref())
+                .map(|policy| policy.to_string());
+
             details_items.containers.push(ContainerDetails {
                 name: cs.name,
                 image: Some(cs.image),
@@ -159,6 +182,8 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 cpu_limit,
                 cpu_request,
                 mounts: container_mounts,
+                env_vars,
+                image_pull_policy,
             });
         }
     }

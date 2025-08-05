@@ -262,7 +262,11 @@ pub fn show_pod_details_window(
                         ui.end_row();
 
                         ui.label(egui::RichText::new("Image:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(container.image.as_deref().unwrap()).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(container.image.as_deref().unwrap_or_else(|| "Undefined")).color(DETAIL_COLOR));
+                        ui.end_row();
+
+                        ui.label(egui::RichText::new("Image pull policy:").color(ROW_NAME_COLOR));
+                        ui.label(egui::RichText::new(container.image_pull_policy.as_deref().unwrap_or_else(|| "Undefined")).color(DETAIL_COLOR));
                         ui.end_row();
 
                         if let Some(item) = &container.mem_request {
@@ -302,6 +306,25 @@ pub fn show_pod_details_window(
                                         ui.label(egui::RichText::new("RO".to_string()).color(item_color("RO")));
                                     } else {
                                         ui.label(egui::RichText::new("RW".to_string()).color(item_color("RW")));
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                            ui.end_row();
+                        }
+
+                        if !container.env_vars.is_empty() {
+                            ui.label(egui::RichText::new("Environment variables:").color(ROW_NAME_COLOR));
+                            let grid_id = format!("pod_details_env_vars_grid_{}", container.name);
+                            egui::Grid::new(grid_id).striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
+                                ui.label("");
+                                ui.end_row();
+                                for env_var in container.env_vars.iter() {
+                                    ui.label(egui::RichText::new(&env_var.name).color(DETAIL_COLOR));
+                                    if let Some(value) = &env_var.value {
+                                        ui.label(egui::RichText::new(value).color(SECOND_DETAIL_COLOR));
+                                    } else {
+                                        ui.label("");
                                     }
                                     ui.end_row();
                                 }

@@ -2,6 +2,11 @@
 name = "rustlens"
 version = "0.1.1"
 edition = "2024"
+authors = ["Denis Salmanovich"]
+readme = "README.md"
+description = "Free and open-source user interface designed for managing Kubernetes clusters"
+repository = "https://github.com/denix666/rustlens"
+license = "MIT"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
