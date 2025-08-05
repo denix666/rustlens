@@ -2579,18 +2579,18 @@ async fn main() {
                                     ui.label("Name");
                                     ui.label("Type");
                                     ui.label("Age");
-                                    ui.label("Labels"); // Limit width!
-                                    ui.label("Keys");
+                                    //ui.label("Labels"); // Limit width!
+                                    //ui.label("Keys");
                                     ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_secrets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
                                             ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                            ui.label(format!("{}", &item.type_));
+                                            ui.label(format!("{}", &item.secret_type));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            ui.label(format!("{}", &item.labels));
-                                            ui.label(format!("{}", &item.keys));
+                                            //ui.label(format!("{}", &item.labels));
+                                            //ui.label(format!("{}", &item.keys));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {

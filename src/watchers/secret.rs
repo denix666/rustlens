@@ -8,9 +8,9 @@ use kube::runtime::reflector::Lookup;
 #[derive(Clone, Debug)]
 pub struct SecretItem {
     pub name: String,
-    pub labels: String,
-    pub keys: String,
-    pub type_: String,
+    //pub labels: String,
+    //pub keys: String,
+    pub secret_type: String,
     pub creation_timestamp: Option<Time>,
     pub namespace: Option<String>,
 }
@@ -20,9 +20,9 @@ fn convert_secret(secret: Secret) -> Option<SecretItem> {
     let namespace = secret.metadata.namespace.clone();
     Some(SecretItem {
         name,
-        labels: secret.metadata.labels.unwrap_or_default().into_iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "),
-        keys: secret.data.as_ref().map(|d| d.keys().cloned().collect::<Vec<_>>().join(", ")).unwrap_or_else(|| "-".into()),
-        type_: secret.type_.unwrap_or_else(|| "-".into()),
+        //labels: secret.metadata.labels.unwrap_or_default().into_iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "),
+        //keys: secret.data.as_ref().map(|d| d.keys().cloned().collect::<Vec<_>>().join(", ")).unwrap_or_else(|| "-".into()),
+        secret_type: secret.type_.unwrap_or_else(|| "-".into()),
         creation_timestamp: secret.metadata.creation_timestamp,
         namespace,
     })
