@@ -148,7 +148,7 @@ pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<PodItem>>>
                     }
                     if let Some(item) = convert_pod(pod) {
                         let mut list = pods_list.lock().unwrap();
-                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name && p.namespace == item.namespace) {
                             *existing = item;
                         } else {
                             list.push(item);

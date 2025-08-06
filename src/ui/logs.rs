@@ -27,7 +27,7 @@ impl LogWindow {
 }
 
 pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Client>) {
-    egui::Window::new("Logs")
+    egui::Window::new("Logs").auto_sized()
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Container:");

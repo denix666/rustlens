@@ -221,7 +221,7 @@ pub fn show_pod_details_window(
                 if !guard_details.conditions.is_empty() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Conditions:").color(ROW_NAME_COLOR));
-                    egui::Grid::new("pod_details_conditions_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                    egui::Grid::new("pod_details_conditions_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                         for item in guard_details.conditions.iter() {
                             let cond_type = item.type_.clone();
                             let status = item.status.clone();
@@ -258,7 +258,8 @@ pub fn show_pod_details_window(
                         let status = container.state.as_deref().unwrap_or("Unknown");
                         let message = container.message.as_deref().unwrap_or("");
                         let label_text = format!("{} {}", status, message);
-                        ui.label(egui::RichText::new(&label_text).color(DETAIL_COLOR));
+                        let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(DETAIL_COLOR)).wrap();
+                        ui.add(label);
                         ui.end_row();
 
                         ui.label(egui::RichText::new("Image:").color(ROW_NAME_COLOR));
@@ -334,6 +335,19 @@ pub fn show_pod_details_window(
                     }
                 }
             });
+
+            ui.separator();
+            ui.heading(egui::RichText::new("Events:").color(ROW_NAME_COLOR));
+            if !guard_details.events.is_empty() {
+                egui::Grid::new("pod_details_events_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
+                    for event in &guard_details.events {
+                        ui.label(egui::RichText::new(event.timestamp.clone().unwrap_or_default()).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(event.reason.clone().unwrap_or_default()).color(SECOND_DETAIL_COLOR));
+                        ui.label(egui::RichText::new(event.message.clone().unwrap_or_default()).color(item_color(&event.event_type.clone().unwrap_or_default())));
+                        ui.end_row();
+                    }
+                });
+            }
         });
         ui.separator();
         if ui.button(egui::RichText::new("🗙 Close").size(16.0).color(egui::Color32::WHITE)).clicked() {

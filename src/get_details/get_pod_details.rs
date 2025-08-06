@@ -17,6 +17,14 @@ pub struct ContainerEnv {
 }
 
 #[derive(Debug, Clone)]
+pub struct EventDetails {
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub event_type: Option<String>,
+    pub timestamp: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ContainerDetails {
     pub name: String,
     pub image: Option<String>,
@@ -46,6 +54,7 @@ pub struct PodDetails {
     pub node_selector: Option<BTreeMap<String, String>>,
     pub conditions: Vec<PodCondition>,
     pub containers: Vec<ContainerDetails>,
+    pub events: Vec<EventDetails>,
 }
 
 impl PodDetails {
@@ -64,6 +73,7 @@ impl PodDetails {
             node_selector: None,
             conditions: vec![],
             containers: vec![],
+            events: vec![],
         }
     }
 }
@@ -72,6 +82,12 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), ns.as_str());
     let pod = api.get(name).await.unwrap();
+
+    let pod_events = crate::get_pod_events(
+        client.clone(),
+        ns.clone().as_str(),
+        name).await.unwrap();
+
     let mut details_items = details.lock().unwrap();
 
     let metadata = pod.metadata.clone();
@@ -90,6 +106,15 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
     details_items.affinity = spec.and_then(|s| s.affinity.clone());
     details_items.node_selector = spec.map(|s| s.node_selector.clone().unwrap_or_default());
     details_items.conditions = status.map(|s| s.conditions.clone().unwrap_or_default()).unwrap_or_default();
+
+    details_items.events = pod_events.iter().map(|e| {
+        EventDetails {
+            reason: e.reason.clone(),
+            message: e.message.clone(),
+            event_type: e.type_.clone(),
+            timestamp: e.last_timestamp.as_ref().map(|ts| ts.0.to_rfc3339()),
+        }
+    }).collect();
 
     if let (Some(pod_spec), Some(statuses)) = (pod.spec.as_ref(), pod.status.as_ref().and_then(|s| s.container_statuses.clone())) {
         details_items.containers.clear();
