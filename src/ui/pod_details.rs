@@ -42,7 +42,7 @@ pub fn show_pod_details_window(
     }
     let cur_ns = &pod_item.unwrap().namespace;
 
-    egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).show(ctx, |ui| {
+    egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).open(&mut pod_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 crate::open_logs_for_pod(
@@ -153,7 +153,7 @@ pub fn show_pod_details_window(
                 if let Some(i) = guard_details.annotations.clone() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Annotations:").color(ROW_NAME_COLOR));
-                    egui::Grid::new("pod_details_annotations_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                    egui::Grid::new("pod_details_annotations_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                         for (j, y) in i.iter() {
                             ui.label(egui::RichText::new(j).color(DETAIL_COLOR));
                             ui.label(egui::RichText::new(y).color(SECOND_DETAIL_COLOR));
@@ -350,8 +350,8 @@ pub fn show_pod_details_window(
             }
         });
         ui.separator();
-        if ui.button(egui::RichText::new("🗙 Close").size(16.0).color(egui::Color32::WHITE)).clicked() {
-            pod_details_window.show = false;
-        }
+        // if ui.button(egui::RichText::new("🗙 Close").size(16.0).color(egui::Color32::WHITE)).clicked() {
+        //     pod_details_window.show = false;
+        // }
     });
 }

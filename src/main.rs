@@ -2410,6 +2410,23 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("🖵 Shell").size(16.0).color(ORANGE_BUTTON)).clicked() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
+
+                                                if ui.button(egui::RichText::new("🔍 Details").size(16.0).color(BLUE_BUTTON)).clicked() {
+                                                    let name = cur_item_name.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    let details = Arc::clone(&pod_details);
+                                                    let ns = item.namespace.clone();
+
+                                                    pod_details_window.show = true;
+                                                    tokio::spawn({
+                                                        async move {
+                                                            if let Err(e) = get_pod_details(client_clone, &name, ns, details).await {
+                                                                eprintln!("Details fetch failed: {:?}", e);
+                                                            }
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
                                             });
                                             ui.end_row();
                                         }
