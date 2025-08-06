@@ -218,8 +218,14 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
     let taints = node.spec.as_ref().and_then(|spec| spec.taints.clone());
     let roles = node.metadata.labels.unwrap_or_default()
         .iter()
-        .filter_map(|(key, _)| {
-            key.strip_prefix("node-role.kubernetes.io/").map(|s| s.to_string())
+        .filter_map(|(key, value)| {
+            if let Some(s) = key.strip_prefix("node-role.kubernetes.io/") {
+                Some(s.to_string())
+            } else if key == "kubernetes.io/role" {
+                Some(value.to_string())
+            } else {
+                None
+            }
         })
         .collect::<Vec<_>>();
     let status = node
