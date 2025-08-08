@@ -2379,22 +2379,29 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Pod>(client, &ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    // let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    // let name = item.name.clone();
+                                                    // let client = client.clone();
+                                                    // let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                    // tokio::spawn(async move {
+                                                    //     match get_yaml_namespaced::<k8s_openapi::api::core::v1::Pod>(client, &ns, &name).await {
+                                                    //         Ok(yaml) => {
+                                                    //             let mut editor = yaml_editor_window.lock().unwrap();
+                                                    //             editor.content = yaml;
+                                                    //             editor.show = true;
+                                                    //         }
+                                                    //         Err(e) => {
+                                                    //             eprintln!("Failed to get YAML: {}", e);
+                                                    //         }
+                                                    //     }
+                                                    // });
+
+                                                    edit_yaml_for_pod(
+                                                        item.name.clone(),
+                                                        selected_ns.clone().unwrap(),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client),
+                                                    );
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button("📃 Logs").clicked() {
@@ -2855,8 +2862,9 @@ async fn main() {
             let pod_details_clone = Arc::clone(&pod_details);
             let pods_clone = Arc::clone(&pods);
             let log_window_clone = Arc::clone(&log_window);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, client_clone);
+            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Scale window

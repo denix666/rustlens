@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use egui::{Color32, Context};
-use crate::{functions::item_color, ui::LogWindow};
+use crate::{functions::item_color, ui::{LogWindow, YamlEditorWindow}};
 
 pub struct PodDetailsWindow {
     pub show: bool,
@@ -33,6 +33,7 @@ pub fn show_pod_details_window(
         details: Arc<Mutex<crate::PodDetails>>,
         pods: Arc<Mutex<Vec<crate::PodItem>>>,
         log_window: Arc<Mutex<LogWindow>>,
+        yaml_editor_window: Arc<Mutex<YamlEditorWindow>>,
         client: Arc<crate::Client>)
 {
     let guard_details = details.lock().unwrap(); // More detailed info
@@ -61,7 +62,12 @@ pub fn show_pod_details_window(
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
-
+                crate::edit_yaml_for_pod(
+                    guard_details.name.clone().unwrap(),
+                    cur_ns.to_owned().unwrap(),
+                    Arc::clone(&yaml_editor_window),
+                    Arc::clone(&client),
+                );
             }
 
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {

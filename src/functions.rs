@@ -5,7 +5,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret};
+use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Node, PersistentVolumeClaim, Pod, Secret};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -85,18 +85,6 @@ pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
     let (width, height) = img.dimensions();
     let rgba = img.into_raw();
     Ok(crate::egui::IconData { rgba, width, height })
-}
-
-pub async fn get_pod_events(client: Arc<Client>, namespace: &str, pod_name: &str) -> anyhow::Result<Vec<Event>> {
-    let events_api: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
-
-    let lp = ListParams::default()
-        .fields(&format!("involvedObject.name={}", pod_name))
-        .timeout(5);
-
-    let events = events_api.list(&lp).await?;
-
-    Ok(events.items)
 }
 
 pub fn spawn_watcher<T, F>(
@@ -198,6 +186,21 @@ pub fn item_color(item: &str) -> Color32 {
     };
 
     return ret_color
+}
+
+pub fn edit_yaml_for_pod(pod_name: String, namespace: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) {
+    tokio::spawn(async move {
+        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Pod>(client, &namespace, &pod_name).await {
+            Ok(yaml) => {
+                let mut editor = yaml_editor_window.lock().unwrap();
+                editor.content = yaml;
+                editor.show = true;
+            }
+            Err(e) => {
+                eprintln!("Failed to get YAML: {}", e);
+            }
+        }
+    });
 }
 
 pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<crate::ContainerStatusItem>, log_window: Arc<Mutex<crate::LogWindow>>, client: Arc<Client>) {
