@@ -4,12 +4,16 @@ use crate::{functions::item_color, ui::LogWindow};
 
 pub struct PodDetailsWindow {
     pub show: bool,
+    pub confirm_delete: bool,
+    pub pending_delete_pod_name: Option<(String, String)>, // (name, namespace)
 }
 
 impl PodDetailsWindow {
     pub fn new() -> Self {
         Self {
             show: false,
+            confirm_delete: false,
+            pending_delete_pod_name: None,
         }
     }
 }
@@ -20,6 +24,8 @@ const SECOND_DETAIL_COLOR: Color32 = Color32::LIGHT_BLUE;
 const ROW_NAME_COLOR: Color32 = Color32::WHITE;
 const TOLERATIONS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
+
+
 
 pub fn show_pod_details_window(
         ctx: &Context,
@@ -59,7 +65,11 @@ pub fn show_pod_details_window(
             }
 
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
-
+                if let Some(name) = guard_details.name.clone() {
+                    let ns = cur_ns.clone().unwrap_or_else(|| "default".to_string());
+                    pod_details_window.pending_delete_pod_name = Some((name, ns));
+                    pod_details_window.confirm_delete = true;
+                }
             }
         });
         ui.separator();
@@ -350,8 +360,34 @@ pub fn show_pod_details_window(
             }
         });
         ui.separator();
-        // if ui.button(egui::RichText::new("🗙 Close").size(16.0).color(egui::Color32::WHITE)).clicked() {
-        //     pod_details_window.show = false;
-        // }
+
+        if pod_details_window.confirm_delete {
+            egui::Window::new("Confirm deletion")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .fixed_size(egui::vec2(400.0, 100.0))
+                .show(ctx, |ui| {
+                    ui.label("Are you sure you want to delete this pod?");
+                    ui.horizontal(|ui| {
+                        if ui.button(egui::RichText::new("Delete").color(crate::RED_BUTTON)).clicked() {
+                            if let Some((pod_name, pod_ns)) = pod_details_window.pending_delete_pod_name.take() {
+                                let client_clone = Arc::clone(&client);
+                                tokio::spawn(async move {
+                                    if let Err(err) = crate::delete_pod(client_clone, &pod_name, Some(&pod_ns), true).await {
+                                        eprintln!("Failed to delete pod: {}", err);
+                                    }
+                                });
+                            }
+                            pod_details_window.confirm_delete = false;
+                        }
+
+                        if ui.button(egui::RichText::new("Cancel").color(crate::GREEN_BUTTON)).clicked() {
+                            pod_details_window.confirm_delete = false;
+                            pod_details_window.pending_delete_pod_name = None;
+                        }
+                    });
+                });
+        }
     });
 }
