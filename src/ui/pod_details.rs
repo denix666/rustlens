@@ -144,11 +144,11 @@ pub fn show_pod_details_window(
                     ui.end_row();
                 }
 
-                if let Some(i) = guard_details.labels.clone() {
+                if let Some(labels) = guard_details.labels.clone() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Labels:").color(ROW_NAME_COLOR));
                     egui::Grid::new("pod_details_labels_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                        for (j, y) in i.iter() {
+                        for (j, y) in labels.iter() {
                             ui.label(egui::RichText::new(j).color(DETAIL_COLOR));
                             ui.label(egui::RichText::new(y).color(SECOND_DETAIL_COLOR));
                             ui.end_row();
@@ -157,11 +157,11 @@ pub fn show_pod_details_window(
                     ui.end_row();
                 }
 
-                if let Some(i) = guard_details.annotations.clone() {
+                if let Some(annotations) = guard_details.annotations.clone() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Annotations:").color(ROW_NAME_COLOR));
                     egui::Grid::new("pod_details_annotations_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
-                        for (j, y) in i.iter() {
+                        for (j, y) in annotations.iter() {
                             ui.label(egui::RichText::new(j).color(DETAIL_COLOR));
                             ui.label(egui::RichText::new(y).color(SECOND_DETAIL_COLOR));
                             ui.end_row();
@@ -212,11 +212,11 @@ pub fn show_pod_details_window(
                     ui.end_row();
                 }
 
-                if let Some(item) = guard_details.node_selector.clone() {
+                if let Some(node_selector) = guard_details.node_selector.clone() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Node selector:").color(ROW_NAME_COLOR));
                     egui::Grid::new("pod_details_node_selector_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                        for (j, y) in item.iter() {
+                        for (j, y) in node_selector.iter() {
                             ui.label(egui::RichText::new(j).color(DETAIL_COLOR));
                             ui.label(egui::RichText::new(y).color(SECOND_DETAIL_COLOR));
                             ui.end_row();

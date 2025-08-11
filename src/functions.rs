@@ -5,7 +5,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Node, PersistentVolumeClaim, Pod, Secret};
+use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -20,6 +20,18 @@ use chrono::{Utc, DateTime};
 use serde_yaml;
 use egui::{Ui, TextBuffer, TextFormat, FontId};
 use egui::epaint::{text::LayoutJob};
+
+pub async fn get_resource_events(client: Arc<Client>, kind: &str, namespace: &str, name: &str) -> Result<Vec<Event>, kube::Error> {
+    let events: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
+
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.kind={},involvedObject.name={}",
+        kind, name
+    ));
+
+    let event_list = events.list(&lp).await?;
+    Ok(event_list.items)
+}
 
 pub fn search_layouter(search: String) -> Box<dyn FnMut(&Ui, &dyn TextBuffer, f32) -> Arc<egui::Galley>> {
     let search_lower = search.to_lowercase();
@@ -173,6 +185,7 @@ pub fn item_color(item: &str) -> Color32 {
         "Succeeded" => Color32::GREEN,
         "Failed" => Color32::RED,
         "Bound" => Color32::GREEN,
+        "Progressing" => Color32::LIGHT_BLUE,
         "Available" => Color32::LIGHT_GREEN,
         "Released" => Color32::GRAY,
         "Pending" => Color32::ORANGE,

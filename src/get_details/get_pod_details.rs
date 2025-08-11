@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::{Arc, Mutex}};
-use kube::{api::ListParams, Api, Client};
-use k8s_openapi::api::core::v1::{Affinity, Pod, PodCondition, Event};
+use kube::{Api, Client};
+use k8s_openapi::api::core::v1::{Affinity, Pod, PodCondition};
 use k8s_openapi::api::core::v1::Toleration;
 
 #[derive(Clone, Debug)]
@@ -78,27 +78,24 @@ impl PodDetails {
     }
 }
 
-pub async fn get_pod_events(client: Arc<Client>, namespace: &str, pod_name: &str) -> anyhow::Result<Vec<Event>> {
-    let events_api: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
+// pub async fn get_pod_events(client: Arc<Client>, namespace: &str, pod_name: &str) -> anyhow::Result<Vec<Event>> {
+//     let events_api: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
 
-    let lp = ListParams::default()
-        .fields(&format!("involvedObject.name={}", pod_name))
-        .timeout(5);
+//     let lp = ListParams::default()
+//         .fields(&format!("involvedObject.name={}", pod_name))
+//         .timeout(5);
 
-    let events = events_api.list(&lp).await?;
+//     let events = events_api.list(&lp).await?;
 
-    Ok(events.items)
-}
+//     Ok(events.items)
+// }
 
 pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<PodDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), ns.as_str());
     let pod = api.get(name).await.unwrap();
 
-    let pod_events = get_pod_events(
-        client.clone(),
-        ns.clone().as_str(),
-        name).await.unwrap();
+    let pod_events = crate::get_resource_events(client.clone(), "Pod", ns.clone().as_str(), name).await.unwrap();
 
     let mut details_items = details.lock().unwrap();
 

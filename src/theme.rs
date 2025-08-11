@@ -7,6 +7,9 @@ pub const ROW_NAME_COLOR: Color32 = Color32::WHITE;
 pub const TOLERATIONS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 pub const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
 
+pub const SELECTOR_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
+pub const SELECTOR_NAME_COLUMN_COLOR: Color32 = Color32::BROWN;
+
 pub const POD_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
 pub const NAMESPACE_COLUMN_COLOR: Color32 = Color32::CYAN;
 pub const PODS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
