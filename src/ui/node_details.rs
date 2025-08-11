@@ -1,14 +1,6 @@
 use std::sync::{Arc, Mutex};
-use egui::{Color32, Context};
-use crate::functions::item_color;
-
-// Define items colors
-const DETAIL_COLOR: Color32 = Color32::LIGHT_YELLOW;
-const SECOND_DETAIL_COLOR: Color32 = Color32::LIGHT_BLUE;
-const ROW_NAME_COLOR: Color32 = Color32::WHITE;
-const POD_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
-const NAMESPACE_COLUMN_COLOR: Color32 = Color32::CYAN;
-const PODS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
+use egui::Context;
+use crate::{functions::item_color, theme::*};
 
 pub struct NodeDetailsWindow {
     pub show: bool,
@@ -168,10 +160,5 @@ pub fn show_node_details_window(
                 }
             });
         });
-
-        // ui.separator();
-        // if ui.button(egui::RichText::new("🗙 Close").size(16.0).color(egui::Color32::WHITE)).clicked() {
-        //     node_details_window.show = false;
-        // }
     });
 }

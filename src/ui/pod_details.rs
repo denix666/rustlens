@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
-use egui::{Color32, Context};
-use crate::{functions::item_color, ui::{LogWindow, YamlEditorWindow}};
+use egui::Context;
+use crate::{functions::item_color, ui::{LogWindow, YamlEditorWindow}, theme::*};
 
 pub struct PodDetailsWindow {
     pub show: bool,
@@ -17,15 +17,6 @@ impl PodDetailsWindow {
         }
     }
 }
-
-// Define items colors
-const DETAIL_COLOR: Color32 = Color32::LIGHT_YELLOW;
-const SECOND_DETAIL_COLOR: Color32 = Color32::LIGHT_BLUE;
-const ROW_NAME_COLOR: Color32 = Color32::WHITE;
-const TOLERATIONS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
-const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
-
-
 
 pub fn show_pod_details_window(
         ctx: &Context,

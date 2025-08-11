@@ -188,9 +188,24 @@ pub fn item_color(item: &str) -> Color32 {
     return ret_color
 }
 
-pub fn edit_yaml_for_pod(pod_name: String, namespace: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) {
+pub fn edit_yaml_for_pod(name: String, namespace: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) {
     tokio::spawn(async move {
-        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Pod>(client, &namespace, &pod_name).await {
+        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Pod>(client, &namespace, &name).await {
+            Ok(yaml) => {
+                let mut editor = yaml_editor_window.lock().unwrap();
+                editor.content = yaml;
+                editor.show = true;
+            }
+            Err(e) => {
+                eprintln!("Failed to get YAML: {}", e);
+            }
+        }
+    });
+}
+
+pub fn edit_yaml_for_deployment(name: String, namespace: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) {
+    tokio::spawn(async move {
+        match get_yaml_namespaced::<Deployment>(client, &namespace, &name).await {
             Ok(yaml) => {
                 let mut editor = yaml_editor_window.lock().unwrap();
                 editor.content = yaml;

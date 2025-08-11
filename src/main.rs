@@ -4,6 +4,9 @@ use ui::*;
 mod watchers;
 use watchers::*;
 
+mod theme;
+use theme::*;
+
 mod functions;
 use functions::*;
 
@@ -19,12 +22,6 @@ use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
-const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50); // green
-const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36); // red
-const ORANGE_BUTTON: Color32 = Color32::ORANGE; // orange
-const GRAY_BUTTON: Color32 = Color32::GRAY; // gray
-const BLUE_BUTTON: Color32 = Color32::LIGHT_BLUE; // blue
-const MENU_BUTTON: Color32 = Color32::from_rgb(147, 38, 245);
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const ACTIONS_MENU_LABEL: &str = "🔻";
 const MAX_LOG_LINES: usize = 7; // DEBUG
@@ -97,6 +94,7 @@ async fn main() {
     let mut scale_window = ui::scale::ScaleWindow::new();
     let mut node_details_window = ui::node_details::NodeDetailsWindow::new();
     let mut pod_details_window = ui::pod_details::PodDetailsWindow::new();
+    let mut deployment_details_window = ui::deployment_details::DeploymentDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
 
@@ -344,6 +342,7 @@ async fn main() {
 
     // DEPLOYMENTS
     let deployments = Arc::new(Mutex::new(Vec::<DeploymentItem>::new()));
+    let deployment_details = Arc::new(Mutex::new(DeploymentDetails::new()));
     let deployments_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -2379,23 +2378,6 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    // let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    // let name = item.name.clone();
-                                                    // let client = client.clone();
-                                                    // let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    // tokio::spawn(async move {
-                                                    //     match get_yaml_namespaced::<k8s_openapi::api::core::v1::Pod>(client, &ns, &name).await {
-                                                    //         Ok(yaml) => {
-                                                    //             let mut editor = yaml_editor_window.lock().unwrap();
-                                                    //             editor.content = yaml;
-                                                    //             editor.show = true;
-                                                    //         }
-                                                    //         Err(e) => {
-                                                    //             eprintln!("Failed to get YAML: {}", e);
-                                                    //         }
-                                                    //     }
-                                                    // });
-
                                                     edit_yaml_for_pod(
                                                         item.name.clone(),
                                                         selected_ns.clone().unwrap(),
@@ -2415,6 +2397,7 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("🖵 Shell").size(16.0).color(ORANGE_BUTTON)).clicked() {
+                                                    // TODO
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
 
@@ -2496,7 +2479,20 @@ async fn main() {
                                     for item in visible_deployments.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&deployment_details);
+                                                let ns = item.namespace.clone();
+                                                deployment_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_deployment_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                             ui.label(format!("{}", &item.replicas));
                                             ui.label(format!("{}", &item.updated_replicas));
@@ -2865,6 +2861,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Deployment details window
+        if deployment_details_window.show {
+            let deployment_details_clone = Arc::clone(&deployment_details);
+            let deployments_clone = Arc::clone(&deployments);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Scale window
