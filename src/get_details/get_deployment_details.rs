@@ -19,7 +19,7 @@ pub struct EventDetails {
     pub timestamp: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct DeploymentDetails {
     pub name: Option<String>,
     pub labels: Option<BTreeMap<String, String>>,
@@ -31,40 +31,11 @@ pub struct DeploymentDetails {
     pub events: Vec<EventDetails>,
 }
 
-impl DeploymentDetails {
-    pub fn new() -> Self {
-        Self {
-            name: None,
-            labels: None,
-            namespace: None,
-            annotations: None,
-            strategy: None,
-            selector: vec![],
-            conditions: vec![],
-            events: vec![],
-        }
-    }
-}
-
-// pub async fn get_deployment_events(client: Arc<Client>, namespace: &str, deployment_name: &str) -> Result<Vec<Event>, kube::Error> {
-//     let events: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
-
-//     let lp = ListParams::default().fields(&format!(
-//         "involvedObject.kind=Deployment,involvedObject.name={}",
-//         deployment_name
-//     ));
-
-//     let event_list = events.list(&lp).await?;
-//     Ok(event_list.items)
-// }
-
 pub async fn get_deployment_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<DeploymentDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), ns.as_str());
     let deployment = api.get(name).await.unwrap();
-
     let deployment_events = crate::get_resource_events(client.clone(), "Deployment", ns.clone().as_str(), name).await.unwrap();
-
     let mut details_items = details.lock().unwrap();
 
     let metadata = deployment.metadata.clone();

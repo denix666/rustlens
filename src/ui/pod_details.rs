@@ -53,7 +53,7 @@ pub fn show_pod_details_window(
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
-                crate::edit_yaml_for_pod(
+                crate::edit_yaml_for::<k8s_openapi::api::core::v1::Pod>(
                     guard_details.name.clone().unwrap(),
                     cur_ns.to_owned().unwrap(),
                     Arc::clone(&yaml_editor_window),

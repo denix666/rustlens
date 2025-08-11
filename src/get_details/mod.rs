@@ -6,3 +6,6 @@ pub use get_pod_details::*;
 
 pub mod get_deployment_details;
 pub use get_deployment_details::*;
+
+pub mod get_daemonset_details;
+pub use get_daemonset_details::*;

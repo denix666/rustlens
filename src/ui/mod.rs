@@ -7,6 +7,7 @@ pub mod other;
 pub mod node_details;
 pub mod pod_details;
 pub mod deployment_details;
+pub mod daemonset_details;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -17,3 +18,4 @@ pub use other::*;
 pub use node_details::*;
 pub use pod_details::*;
 pub use deployment_details::*;
+pub use daemonset_details::*;

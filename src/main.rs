@@ -95,6 +95,7 @@ async fn main() {
     let mut node_details_window = ui::node_details::NodeDetailsWindow::new();
     let mut pod_details_window = ui::pod_details::PodDetailsWindow::new();
     let mut deployment_details_window = ui::deployment_details::DeploymentDetailsWindow::new();
+    let mut daemonset_details_window = ui::daemonset_details::DaemonSetDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
 
@@ -265,6 +266,7 @@ async fn main() {
 
     // DAEMONSETS
     let daemonsets = Arc::new(Mutex::new(Vec::<DaemonSetItem>::new()));
+    let daemonset_details = Arc::new(Mutex::new(DaemonSetDetails::default()));
     let daemonsets_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -342,7 +344,7 @@ async fn main() {
 
     // DEPLOYMENTS
     let deployments = Arc::new(Mutex::new(Vec::<DeploymentItem>::new()));
-    let deployment_details = Arc::new(Mutex::new(DeploymentDetails::new()));
+    let deployment_details = Arc::new(Mutex::new(DeploymentDetails::default()));
     let deployments_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -721,22 +723,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::networking::v1::NetworkPolicy>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::networking::v1::NetworkPolicy>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -809,22 +801,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::policy::v1::PodDisruptionBudget>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::policy::v1::PodDisruptionBudget>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -887,7 +869,20 @@ async fn main() {
                                     for item in visible_daemonsets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_daemonsets.is_empty() || cur_item_object.contains(&filter_daemonsets) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&daemonset_details);
+                                                let ns = item.namespace.clone();
+                                                daemonset_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_daemonset_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             ui.label(format!("{}", &item.desired));
                                             ui.label(format!("{}", &item.current));
                                             ui.label(format!("{}", &item.ready));
@@ -895,22 +890,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::DaemonSet>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::apps::v1::DaemonSet>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1009,22 +994,12 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::ReplicaSet>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::apps::v1::ReplicaSet>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1097,22 +1072,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::networking::v1::Ingress>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::networking::v1::Ingress>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1381,22 +1346,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::PersistentVolumeClaim>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::PersistentVolumeClaim>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1465,22 +1420,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Endpoints>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::Endpoints>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1549,22 +1494,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::batch::v1::Job>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::batch::v1::Job>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1641,22 +1576,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Service>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::Service>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1729,22 +1654,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::batch::v1::CronJob>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::batch::v1::CronJob>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -1822,22 +1737,12 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::StatefulSet>(client,&ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::apps::v1::StatefulSet>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -2378,7 +2283,7 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    edit_yaml_for_pod(
+                                                    edit_yaml_for::<k8s_openapi::api::core::v1::Pod>(
                                                         item.name.clone(),
                                                         selected_ns.clone().unwrap(),
                                                         Arc::clone(&yaml_editor_window),
@@ -2501,22 +2406,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::apps::v1::Deployment>(client, &ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::apps::v1::Deployment>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
@@ -2599,8 +2494,6 @@ async fn main() {
                                     ui.label("Name");
                                     ui.label("Type");
                                     ui.label("Age");
-                                    //ui.label("Labels"); // Limit width!
-                                    //ui.label("Keys");
                                     ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_secrets.iter().rev().take(200) {
@@ -2609,27 +2502,15 @@ async fn main() {
                                             ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
                                             ui.label(format!("{}", &item.secret_type));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            //ui.label(format!("{}", &item.labels));
-                                            //ui.label(format!("{}", &item.keys));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Secret>(client, &ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::Secret>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
@@ -2714,22 +2595,12 @@ async fn main() {
                                                 ui.set_width(200.0);
 
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
-                                                    let name = item.name.clone();
-                                                    let client = client.clone();
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::ConfigMap>(client, &ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::ConfigMap>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
 
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
@@ -2794,22 +2665,12 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
-                                                    let name = item.involved_object.clone();
-                                                    let ns = item.namespace.clone();
-                                                    let client = client.clone();
-                                                    let yaml_editor_window = Arc::clone(&yaml_editor_window);
-                                                    tokio::spawn(async move {
-                                                        match get_yaml_namespaced::<k8s_openapi::api::core::v1::Event>(client, &ns, &name).await {
-                                                            Ok(yaml) => {
-                                                                let mut editor = yaml_editor_window.lock().unwrap();
-                                                                editor.content = yaml;
-                                                                editor.show = true;
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to get YAML: {}", e);
-                                                            }
-                                                        }
-                                                    });
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::Event>(
+                                                        item.involved_object.clone(),
+                                                        item.namespace.clone(),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
                                                 }
                                             });
                                             ui.end_row();
@@ -2870,6 +2731,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // DaemonSet details window
+        if daemonset_details_window.show {
+            let daemonset_details_clone = Arc::clone(&daemonset_details);
+            let daemonsets_clone = Arc::clone(&daemonsets);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_daemonset_details_window(ctx, &mut daemonset_details_window, daemonset_details_clone, daemonsets_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Scale window

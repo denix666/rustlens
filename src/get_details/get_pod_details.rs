@@ -57,6 +57,7 @@ pub struct PodDetails {
     pub events: Vec<EventDetails>,
 }
 
+// TODO (add default macro and remove)
 impl PodDetails {
     pub fn new() -> Self {
         Self {
@@ -77,18 +78,6 @@ impl PodDetails {
         }
     }
 }
-
-// pub async fn get_pod_events(client: Arc<Client>, namespace: &str, pod_name: &str) -> anyhow::Result<Vec<Event>> {
-//     let events_api: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
-
-//     let lp = ListParams::default()
-//         .fields(&format!("involvedObject.name={}", pod_name))
-//         .timeout(5);
-
-//     let events = events_api.list(&lp).await?;
-
-//     Ok(events.items)
-// }
 
 pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<PodDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
