@@ -18,8 +18,6 @@ use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostPar
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
 use serde_yaml;
-use egui::{Ui, TextBuffer, TextFormat, FontId};
-use egui::epaint::{text::LayoutJob};
 
 pub async fn get_resource_events(client: Arc<Client>, kind: &str, namespace: &str, name: &str) -> Result<Vec<Event>, kube::Error> {
     let events: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
@@ -31,65 +29,6 @@ pub async fn get_resource_events(client: Arc<Client>, kind: &str, namespace: &st
 
     let event_list = events.list(&lp).await?;
     Ok(event_list.items)
-}
-
-pub fn search_layouter(search: String) -> Box<dyn FnMut(&Ui, &dyn TextBuffer, f32) -> Arc<egui::Galley>> {
-    let search_lower = search.to_lowercase();
-
-    Box::new(move |ui: &egui::Ui, text: &dyn TextBuffer, _wrap_width: f32| {
-        let mut job = LayoutJob::default();
-        let text_str = text.as_str();
-
-        if search_lower.is_empty() {
-            job.append(text_str, 0.0, TextFormat::default());
-        } else {
-            for line in text_str.lines() {
-                let line_lower = line.to_lowercase();
-                let mut cursor = 0;
-
-                while cursor < line.len() {
-                    let rel_pos = line_lower[cursor..].find(&search_lower);
-
-                    match rel_pos {
-                        Some(found_pos) => {
-                            let found_start = cursor + found_pos;
-                            let found_end = found_start + search.len(); // ok since search and search_lower same len
-
-                            // Добавляем текст до найденного совпадения
-                            if cursor < found_start {
-                                job.append(
-                                    &line[cursor..found_start],
-                                    0.0,
-                                    TextFormat::default(),
-                                );
-                            }
-
-                            // Подсветка совпадения
-                            job.append(
-                                &line[found_start..found_end],
-                                0.0,
-                                TextFormat {
-                                    background: ui.visuals().selection.bg_fill,
-                                    font_id: FontId::monospace(14.0),
-                                    ..Default::default()
-                                },
-                            );
-
-                            cursor = found_end;
-                        }
-                        None => {
-                            job.append(&line[cursor..], 0.0, TextFormat::default());
-                            break;
-                        }
-                    }
-                }
-
-                job.append("\n", 0.0, TextFormat::default());
-            }
-        }
-
-        ui.fonts(|f| f.layout_job(job))
-    })
 }
 
 pub fn load_embedded_icon() -> Result<crate::egui::IconData, String> {
