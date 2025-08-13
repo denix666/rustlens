@@ -10,9 +10,11 @@ pub const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
 pub const SELECTOR_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 pub const SELECTOR_NAME_COLUMN_COLOR: Color32 = Color32::BROWN;
 
+pub const ITEM_NAME_COLOR: Color32 = Color32::WHITE;
+
 pub const POD_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
-pub const NAMESPACE_COLUMN_COLOR: Color32 = Color32::CYAN;
 pub const PODS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
+pub const NAMESPACE_COLUMN_COLOR: Color32 = Color32::LIGHT_BLUE;
 
 pub const GREEN_BUTTON: Color32 = Color32::from_rgb(0x4C, 0xAF, 0x50); // green
 pub const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36); // red

@@ -607,10 +607,8 @@ async fn main() {
                                         } else {
                                             ui.label("");
                                         }
-                                        if item.namespace.is_some() {
-                                            ui.label(format!("{}", item.namespace.as_ref().unwrap()));
-                                        } else {
-                                            ui.label("");
+                                        if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            *selected_ns = item.namespace.clone();
                                         }
                                         if item.creation_timestamp.is_some() {
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
@@ -708,6 +706,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("network_policies_scroll").show(ui, |ui| {
                                 egui::Grid::new("network_policies_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Pod selecter");
                                     ui.label("Types");
                                     ui.label("Age");
@@ -716,7 +715,10 @@ async fn main() {
                                     for item in visible_network_policies.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_network_policies.is_empty() || cur_item_object.contains(&filter_network_policies) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(&item.pod_selector);
                                             ui.label(&item.policy_types);
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
@@ -782,6 +784,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
                                 egui::Grid::new("pdbs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Min available");
                                     ui.label("Max unavailable");
                                     ui.label("Current/Desired healthy");
@@ -792,7 +795,10 @@ async fn main() {
                                     for item in visible_pdbs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_pdbs.is_empty() || cur_item_object.contains(&filter_pdbs) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(&item.min_available.clone().unwrap_or_else(|| "-".to_string()));
                                             ui.label(&item.max_unavailable.clone().unwrap_or_else(|| "-".to_string()));
                                             ui.label(format!("{} / {}", &item.current_healthy, &item.desired_healthy));
@@ -860,6 +866,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
                                 egui::Grid::new("daemonsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Desired");
                                     ui.label("Current");
                                     ui.label("Ready");
@@ -869,7 +876,7 @@ async fn main() {
                                     for item in visible_daemonsets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_daemonsets.is_empty() || cur_item_object.contains(&filter_daemonsets) {
-                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 let name = cur_item_object.clone();
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&daemonset_details);
@@ -882,6 +889,9 @@ async fn main() {
                                                         }
                                                     }
                                                 });
+                                            }
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(format!("{}", &item.desired));
                                             ui.label(format!("{}", &item.current));
@@ -959,6 +969,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("replicasets_scroll").show(ui, |ui| {
                                 egui::Grid::new("replicasets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Desired");
                                     ui.label("Current");
                                     ui.label("Ready");
@@ -977,7 +988,10 @@ async fn main() {
                                             "Ready"
                                         };
                                         if filter_replicasets.is_empty() || cur_item_object.contains(&filter_replicasets) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(egui::RichText::new(format!("{}", &item.desired)).color(item_color(status)));
                                             ui.label(egui::RichText::new(format!("{}", &item.current)).color(item_color(status)));
                                             ui.label(egui::RichText::new(format!("{}", &item.ready)).color(item_color(status)));
@@ -1053,6 +1067,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("ingresses_scroll").show(ui, |ui| {
                                 egui::Grid::new("ingresses_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Host");
                                     ui.label("Paths");
                                     ui.label("Service");
@@ -1063,7 +1078,10 @@ async fn main() {
                                     for item in visible_ingresses.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_ingresses.is_empty() || cur_item_object.contains(&filter_ingresses) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.host));
                                             ui.label(format!("{}", &item.paths));
                                             ui.label(format!("{}", &item.service));
@@ -1327,6 +1345,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
                                 egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("StorageClass");
                                     ui.label("Volume");
                                     ui.label("Size");
@@ -1337,7 +1356,10 @@ async fn main() {
                                     for item in visible_pvcs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_pvcs.is_empty() || cur_item_object.contains(&filter_pvcs) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.storage_class));
                                             ui.label(format!("{}", &item.volume_name));
                                             ui.label(format!("{}", &item.size));
@@ -1405,6 +1427,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
                                 egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Addresses");
                                     ui.label("Ports");
                                     ui.label("Age");
@@ -1413,7 +1436,10 @@ async fn main() {
                                     for item in visible_endpoints.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_endpoints.is_empty() || cur_item_object.contains(&filter_endpoints) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.addresses));
                                             ui.label(format!("{:?}", &item.ports));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
@@ -1479,6 +1505,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
                                 egui::Grid::new("jobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Completions");
                                     ui.label("Conditions");
                                     ui.label("Age");
@@ -1487,7 +1514,10 @@ async fn main() {
                                     for item in visible_jobs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_jobs.is_empty() || cur_item_object.contains(&filter_jobs) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.completions));
                                             ui.label(egui::RichText::new(&item.condition).color(item_color(&item.condition)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
@@ -1553,6 +1583,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
                                 egui::Grid::new("services_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Type");
                                     ui.label("Cluster IP");
                                     ui.label("External IP");
@@ -1565,7 +1596,10 @@ async fn main() {
                                     for item in visible_services.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_services.is_empty() || cur_item_object.contains(&filter_services) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.svc_type));
                                             ui.label(format!("{:?}", &item.cluster_ip));
                                             ui.label(format!("{:?}", &item.external_ip));
@@ -1635,6 +1669,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
                                 egui::Grid::new("cronjobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Schedule");
                                     ui.label("Suspend");
                                     ui.label("Active");
@@ -1645,7 +1680,10 @@ async fn main() {
                                     for item in visible_cronjobs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_cronjobs.is_empty() || cur_item_object.contains(&filter_cronjobs) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.schedule));
                                             ui.label(format!("{}", &item.suspend));
                                             ui.label(format!("{}", &item.active));
@@ -1713,6 +1751,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
                                 egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Ready");
                                     ui.label("Service name");
                                     ui.label("Age");
@@ -1721,7 +1760,10 @@ async fn main() {
                                     for item in visible_statefulsets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_statefulsets.is_empty() || cur_item_object.contains(&filter_statefulsets) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                             ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
@@ -2161,7 +2203,7 @@ async fn main() {
                                         // let running_on_node = item.node_name.as_ref().unwrap();
                                         // if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
                                         if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
-                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 let name = cur_item_name.clone();
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&pod_details);
@@ -2285,7 +2327,7 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     edit_yaml_for::<k8s_openapi::api::core::v1::Pod>(
                                                         item.name.clone(),
-                                                        selected_ns.clone().unwrap(),
+                                                        item.namespace.clone().unwrap(),
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client),
                                                     );
@@ -2294,7 +2336,7 @@ async fn main() {
                                                 if ui.button("📃 Logs").clicked() {
                                                     open_logs_for_pod(
                                                         item.name.clone(),
-                                                        selected_ns.clone().unwrap(),
+                                                        item.namespace.clone().unwrap(),
                                                         item.containers.clone(),
                                                         Arc::clone(&log_window),
                                                         Arc::clone(&client),
@@ -2374,6 +2416,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
                                 egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Ready");
                                     ui.label("Desired");
                                     ui.label("Up-to-date");
@@ -2384,7 +2427,7 @@ async fn main() {
                                     for item in visible_deployments.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
-                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 let name = cur_item_object.clone();
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&deployment_details);
@@ -2397,6 +2440,9 @@ async fn main() {
                                                         }
                                                     }
                                                 });
+                                            }
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
                                             ui.label(format!("{}", &item.replicas));
@@ -2492,6 +2538,7 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
                                 egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Type");
                                     ui.label("Age");
                                     ui.label("Actions");
@@ -2499,7 +2546,10 @@ async fn main() {
                                     for item in visible_secrets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.secret_type));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
@@ -2514,7 +2564,7 @@ async fn main() {
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
-                                                    let cur_ns = selected_ns.clone();
+                                                    let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
                                                         if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
@@ -2575,9 +2625,9 @@ async fn main() {
                             egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
                                 egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
+                                    ui.label("Namespace");
                                     ui.label("Type");
                                     ui.label("Age");
-                                    ui.label("Labels");
                                     ui.label("Keys");
                                     ui.label("Actions");
                                     ui.end_row();
@@ -2585,10 +2635,12 @@ async fn main() {
                                     for item in visible_configmaps.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_configmaps.is_empty() || cur_item_object.contains(&filter_configmaps) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(format!("{}", &item.type_));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            ui.label(format!("{:?}", &item.labels));
                                             ui.label(format!("{}", &item.keys.join(", ")));
 
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
@@ -2605,7 +2657,7 @@ async fn main() {
 
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
-                                                    let cur_ns = selected_ns.clone();
+                                                    let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
                                                         if let Err(err) = delete_configmap(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {

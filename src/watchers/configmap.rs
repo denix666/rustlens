@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}};
+use std::{sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}};
 use futures_util::StreamExt;
 use k8s_openapi::{api::{core::v1::ConfigMap}, apimachinery::pkg::apis::meta::v1::Time};
 use kube::{api::ListParams, Client};
@@ -7,7 +7,7 @@ use kube::{Api, runtime::watcher};
 #[derive(Debug, Clone)]
 pub struct ConfigMapItem {
     pub name: String,
-    pub labels: BTreeMap<String, String>,
+    //pub labels: BTreeMap<String, String>,
     pub keys: Vec<String>,
     pub type_: String,
     pub creation_timestamp: Option<Time>,
@@ -17,7 +17,7 @@ pub struct ConfigMapItem {
 pub fn convert_configmap(cm: ConfigMap) -> Option<ConfigMapItem> {
     Some(ConfigMapItem {
         name: cm.metadata.name.clone()?,
-        labels: cm.metadata.labels.unwrap_or_default(),
+        //labels: cm.metadata.labels.unwrap_or_default(),
         keys: cm.data.as_ref().map(|d| d.keys().cloned().collect()).unwrap_or_default(),
         type_: "Opaque".to_string(),
         creation_timestamp: cm.metadata.creation_timestamp,
