@@ -39,7 +39,7 @@ pub struct ContainerDetails {
     pub image_pull_policy: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct PodDetails {
     pub name: Option<String>,
     pub uid: Option<String>,
@@ -55,28 +55,6 @@ pub struct PodDetails {
     pub conditions: Vec<PodCondition>,
     pub containers: Vec<ContainerDetails>,
     pub events: Vec<EventDetails>,
-}
-
-// TODO (add default macro and remove)
-impl PodDetails {
-    pub fn new() -> Self {
-        Self {
-            name: None,
-            namespace: None,
-            uid: None,
-            annotations: None,
-            labels: None,
-            service_account: None,
-            pod_ip: None,
-            host_ip: None,
-            tolerations: vec![],
-            affinity: None,
-            node_selector: None,
-            conditions: vec![],
-            containers: vec![],
-            events: vec![],
-        }
-    }
 }
 
 pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<PodDetails>>) -> Result<(), kube::Error> {

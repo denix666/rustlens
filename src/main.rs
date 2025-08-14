@@ -96,6 +96,9 @@ async fn main() {
     let mut pod_details_window = ui::pod_details::PodDetailsWindow::new();
     let mut deployment_details_window = ui::deployment_details::DeploymentDetailsWindow::new();
     let mut daemonset_details_window = ui::daemonset_details::DaemonSetDetailsWindow::new();
+    let mut configmap_details_window = ui::configmap_details::ConfigMapDetailsWindow::new();
+    let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
+    let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
 
@@ -155,7 +158,7 @@ async fn main() {
 
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
-    let pod_details = Arc::new(Mutex::new(PodDetails::new()));
+    let pod_details = Arc::new(Mutex::new(PodDetails::default()));
     let pods_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -211,6 +214,7 @@ async fn main() {
 
     // SERVICES
     let services = Arc::new(Mutex::new(Vec::<ServiceItem>::new()));
+    let service_details = Arc::new(Mutex::new(ServiceDetails::default()));
     let services_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -356,6 +360,7 @@ async fn main() {
 
     // SECRETS
     let secrets = Arc::new(Mutex::new(Vec::<SecretItem>::new()));
+    let secret_details = Arc::new(Mutex::new(SecretDetails::default()));
     let secrets_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -367,6 +372,7 @@ async fn main() {
 
     // CONFIGMAPS
     let configmaps = Arc::new(Mutex::new(Vec::<ConfigMapItem>::new()));
+    let configmap_details = Arc::new(Mutex::new(ConfigMapDetails::default()));
     let configmaps_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -1596,7 +1602,20 @@ async fn main() {
                                     for item in visible_services.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_services.is_empty() || cur_item_object.contains(&filter_services) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&service_details);
+                                                let ns = item.namespace.clone();
+                                                service_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_service_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -2546,7 +2565,20 @@ async fn main() {
                                     for item in visible_secrets.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_secrets.is_empty() || cur_item_object.contains(&filter_secrets) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&secret_details);
+                                                let ns = item.namespace.clone();
+                                                secret_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_secret_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -2635,7 +2667,20 @@ async fn main() {
                                     for item in visible_configmaps.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_configmaps.is_empty() || cur_item_object.contains(&filter_configmaps) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&configmap_details);
+                                                let ns = item.namespace.clone();
+                                                configmap_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_configmap_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -2785,6 +2830,24 @@ async fn main() {
             show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone);
         }
 
+        // Service details window
+        if service_details_window.show {
+            let service_details_clone = Arc::clone(&service_details);
+            let services_clone = Arc::clone(&services);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_service_details_window(ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Secret details window
+        if secret_details_window.show {
+            let secret_details_clone = Arc::clone(&secret_details);
+            let secrets_clone = Arc::clone(&secrets);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_secret_details_window(ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone);
+        }
+
         // DaemonSet details window
         if daemonset_details_window.show {
             let daemonset_details_clone = Arc::clone(&daemonset_details);
@@ -2792,6 +2855,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_daemonset_details_window(ctx, &mut daemonset_details_window, daemonset_details_clone, daemonsets_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // ConfigMap details window
+        if configmap_details_window.show {
+            let configmap_details_clone = Arc::clone(&configmap_details);
+            let configmaps_clone = Arc::clone(&configmaps);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_configmap_details_window(ctx, &mut configmap_details_window, configmap_details_clone, configmaps_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Scale window

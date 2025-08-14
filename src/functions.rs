@@ -49,23 +49,27 @@ pub fn format_age(ts: &Time) -> String {
     let now = Utc::now();
     let created: DateTime<Utc> = ts.0;
     let duration = now - created;
-    let total_days = duration.num_days();
-    if total_days >= 365 {
-        let years = total_days / 365;
-        let remaining_days = total_days % 365;
-        if remaining_days > 0 {
-            format!("{}y {}d", years, remaining_days)
-        } else {
-            format!("{}y", years)
-        }
-    } else if total_days > 0 {
-        format!("{}d", total_days)
-    } else if duration.num_hours() > 0 {
-        format!("{}h", duration.num_hours())
-    } else if duration.num_minutes() > 0 {
-        format!("{}m", duration.num_minutes())
+
+    let total_seconds = duration.num_seconds();
+
+    if total_seconds < 60 {
+        format!("{}s", total_seconds)
+    } else if total_seconds < 3600 {
+        let minutes = total_seconds / 60;
+        let seconds = total_seconds % 60;
+        format!("{}m {}s", minutes, seconds)
+    } else if total_seconds < 86400 {
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        format!("{}h {}m", hours, minutes)
+    } else if total_seconds < 31536000 {
+        let days = total_seconds / 86400;
+        let hours = (total_seconds % 86400) / 3600;
+        format!("{}d {}h", days, hours)
     } else {
-        format!("{}s", duration.num_seconds())
+        let years = total_seconds / 31536000;
+        let days = (total_seconds % 31536000) / 86400;
+        format!("{}y {}d", years, days)
     }
 }
 
