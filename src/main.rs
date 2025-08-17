@@ -98,6 +98,8 @@ async fn main() {
     let mut daemonset_details_window = ui::daemonset_details::DaemonSetDetailsWindow::new();
     let mut configmap_details_window = ui::configmap_details::ConfigMapDetailsWindow::new();
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
+    let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
+    let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
@@ -170,6 +172,7 @@ async fn main() {
 
     // ENDPOINTS
     let endpoints = Arc::new(Mutex::new(Vec::<EndpointItem>::new()));
+    let endpoint_details = Arc::new(Mutex::new(EndpointDetails::default()));
     let endpoints_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -226,6 +229,7 @@ async fn main() {
 
     // INGRESSES
     let ingresses = Arc::new(Mutex::new(Vec::<IngressItem>::new()));
+    let ingress_details = Arc::new(Mutex::new(IngressDetails::default()));
     let ingresses_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -1084,7 +1088,20 @@ async fn main() {
                                     for item in visible_ingresses.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_ingresses.is_empty() || cur_item_object.contains(&filter_ingresses) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&ingress_details);
+                                                let ns = item.namespace.clone();
+                                                ingress_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_ingress_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -1442,7 +1459,20 @@ async fn main() {
                                     for item in visible_endpoints.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_endpoints.is_empty() || cur_item_object.contains(&filter_endpoints) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&endpoint_details);
+                                                let ns = item.namespace.clone();
+                                                endpoint_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_endpoint_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -2837,6 +2867,24 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_service_details_window(ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Endpoint details window
+        if endpoint_details_window.show {
+            let endpoint_details_clone = Arc::clone(&endpoint_details);
+            let endpoints_clone = Arc::clone(&endpoints);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_endpoint_details_window(ctx, &mut endpoint_details_window, endpoint_details_clone, endpoints_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Ingress details window
+        if ingress_details_window.show {
+            let ingress_details_clone = Arc::clone(&ingress_details);
+            let ingresses_clone = Arc::clone(&ingresses);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_ingress_details_window(ctx, &mut ingress_details_window, ingress_details_clone, ingresses_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Secret details window

@@ -11,6 +11,8 @@ pub mod daemonset_details;
 pub mod configmap_details;
 pub mod secret_details;
 pub mod service_details;
+pub mod endpoint_details;
+pub mod ingress_details;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -25,3 +27,5 @@ pub use daemonset_details::*;
 pub use configmap_details::*;
 pub use secret_details::*;
 pub use service_details::*;
+pub use endpoint_details::*;
+pub use ingress_details::*;
