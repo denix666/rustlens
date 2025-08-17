@@ -10,6 +10,15 @@ pub use get_deployment_details::*;
 pub mod get_daemonset_details;
 pub use get_daemonset_details::*;
 
+pub mod get_statefulset_details;
+pub use get_statefulset_details::*;
+
+pub mod get_replicaset_details;
+pub use get_replicaset_details::*;
+
+pub mod get_job_details;
+pub use get_job_details::*;
+
 pub mod get_ingress_details;
 pub use get_ingress_details::*;
 
