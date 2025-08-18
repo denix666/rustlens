@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const ACTIONS_MENU_LABEL: &str = "🔻";
-const MAX_LOG_LINES: usize = 7; // DEBUG
+const MAX_LOG_LINES: usize = 600;
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -100,6 +100,7 @@ async fn main() {
     let mut statefulset_details_window = ui::statefulset_details::StatefulSetDetailsWindow::new();
     let mut configmap_details_window = ui::configmap_details::ConfigMapDetailsWindow::new();
     let mut job_details_window = ui::job_details::JobDetailsWindow::new();
+    let mut cronjob_details_window = ui::cronjob_details::CronJobDetailsWindow::new();
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
@@ -198,6 +199,7 @@ async fn main() {
 
     // CRONJOBS
     let cronjobs = Arc::new(Mutex::new(Vec::<CronJobItem>::new()));
+    let cronjob_details = Arc::new(Mutex::new(CronJobDetails::default()));
     let cronjobs_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -1761,7 +1763,20 @@ async fn main() {
                                     for item in visible_cronjobs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_cronjobs.is_empty() || cur_item_object.contains(&filter_cronjobs) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&cronjob_details);
+                                                let ns = item.namespace.clone();
+                                                cronjob_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_cronjob_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -2968,6 +2983,15 @@ async fn main() {
             show_job_details_window(ctx, &mut job_details_window, job_details_clone, jobs_clone, yaml_editor_window_clone, client_clone);
         }
 
+        // CronJob details window
+        if cronjob_details_window.show {
+            let cronjob_details_clone = Arc::clone(&cronjob_details);
+            let cronjobs_clone = Arc::clone(&cronjobs);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_cronjob_details_window(ctx, &mut cronjob_details_window, cronjob_details_clone, cronjobs_clone, yaml_editor_window_clone, client_clone);
+        }
+
         // StatefulSet details window
         if statefulset_details_window.show {
             let statefulset_details_clone = Arc::clone(&statefulset_details);
@@ -2992,7 +3016,7 @@ async fn main() {
             show_scale_window(ctx, &mut scale_window, client_clone);
         }
 
-        ctx.request_repaint();
+        //ctx.request_repaint();
     })
     .unwrap();
 }

@@ -1,6 +1,7 @@
 use egui::{Context, ScrollArea, TextStyle};
 use kube::Client;
-use std::sync::{Arc, Mutex};
+use std::{fs, sync::{Arc, Mutex}, time::{Duration, Instant}};
+use rfd::FileDialog;
 
 pub struct LogWindow {
     pub pod_name: String,
@@ -10,6 +11,7 @@ pub struct LogWindow {
     pub selected_container: String,
     pub buffer: Arc<Mutex<String>>,
     pub last_container: Option<String>,
+    pub export_message: Option<(String, Instant)>,
 }
 
 impl LogWindow {
@@ -22,29 +24,67 @@ impl LogWindow {
             show: false,
             buffer: Arc::new(Mutex::new(String::new())),
             last_container: None,
+            export_message: None,
         }
     }
 }
 
-
 pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Client>) {
-    egui::Window::new("Logs").collapsible(false).resizable(true).open(&mut log_window.show).auto_sized().show(ctx, |ui| {
+    egui::Window::new("Logs").collapsible(false).resizable(true).open(&mut log_window.show).auto_sized().max_height(500.0).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("Container:");
-            egui::ComboBox::from_id_salt("containers_combo")
-                .selected_text(&log_window.selected_container)
-                .width(150.0)
-                .show_ui(ui, |ui| {
-                    for container in &log_window.containers {
-                        ui.selectable_value(
-                            &mut log_window.selected_container,
-                            container.name.clone(),
-                            &container.name,
-                        );
+            egui::ComboBox::from_id_salt("containers_combo").selected_text(&log_window.selected_container).width(150.0).show_ui(ui, |ui| {
+                for container in &log_window.containers {
+                    ui.selectable_value(
+                        &mut log_window.selected_container,
+                        container.name.clone(),
+                        &container.name,
+                    );
+                }
+            });
+            ui.separator();
+            if ui.button("💾 Export to file").clicked() {
+                if let Ok(logs) = log_window.buffer.lock() {
+                    if let Some(path) = FileDialog::new()
+                        .set_file_name(format!(
+                            "{}_{}_{}.log",
+                            log_window.namespace,
+                            log_window.pod_name,
+                            log_window.selected_container
+                        ))
+                        .save_file()
+                    {
+                        match fs::write(&path, logs.as_bytes()) {
+                            Ok(_) => {
+                                log_window.export_message =
+                                    Some((format!("✅ Exported to {:?}", path), Instant::now()));
+                            }
+                            Err(e) => {
+                                log_window.export_message =
+                                    Some((format!("❌ Failed to export: {}", e), Instant::now()));
+                            }
+                        }
                     }
-                });
+                }
+            }
         });
 
+        if let Some((msg, when)) = &log_window.export_message {
+            ui.colored_label(
+                if msg.starts_with('✅') {
+                    egui::Color32::GREEN
+                } else {
+                    egui::Color32::RED
+                },
+                msg,
+            );
+
+            if when.elapsed() > Duration::from_secs(3) {
+                log_window.export_message = None;
+            }
+        }
+
+        ui.separator();
         if log_window.last_container.as_ref() != Some(&log_window.selected_container) {
             log_window.last_container = Some(log_window.selected_container.clone());
             let buf_clone = Arc::clone(&log_window.buffer);
@@ -60,21 +100,23 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Cl
             });
         }
 
-        ScrollArea::vertical().show(ui, |ui| {
-            if let Ok(logs) = log_window.buffer.lock() {
-                ui.add(
-                    egui::TextEdit::multiline(&mut logs.clone())
-                        .font(TextStyle::Monospace)
-                        .desired_rows(crate::MAX_LOG_LINES)
-                        .desired_width(f32::INFINITY)
-                        .code_editor()
+        ScrollArea::vertical().stick_to_bottom(true).auto_shrink([false; 2]).show(ui, |ui| {
+            if let Ok(mut logs) = log_window.buffer.lock() {
+                let line_count = logs.lines().count();
+                let rows = line_count.min(crate::MAX_LOG_LINES);
+
+                if line_count == 0 {
+                    *logs = "no log for this container".to_string();
+                }
+
+                ui.add(egui::TextEdit::multiline(&mut logs.clone())
+                    .font(TextStyle::Monospace)
+                    .desired_rows(rows)
+                    .desired_width(f32::INFINITY)
+                    .code_editor()
+                    .cursor_at_end(true)
                 );
             }
         });
-
-        // ui.separator();
-        // if ui.button(egui::RichText::new("🗙 Close logs window").size(16.0).color(egui::Color32::WHITE)).clicked() {
-        //     log_window.show = false;
-        // }
     });
 }

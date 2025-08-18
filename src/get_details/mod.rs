@@ -16,6 +16,9 @@ pub use get_statefulset_details::*;
 pub mod get_replicaset_details;
 pub use get_replicaset_details::*;
 
+pub mod get_cronjob_details;
+pub use get_cronjob_details::*;
+
 pub mod get_job_details;
 pub use get_job_details::*;
 
