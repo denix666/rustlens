@@ -20,6 +20,8 @@ pub mod cronjob;
 pub mod ingress;
 pub mod endpoint;
 pub mod service;
+pub mod service_account;
+pub mod role;
 
 pub use pvc::*;
 pub use pv::*;
@@ -43,3 +45,5 @@ pub use node::*;
 pub use pdb::*;
 pub use network_policy::*;
 pub use crd::*;
+pub use service_account::*;
+pub use role::*;

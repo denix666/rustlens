@@ -58,6 +58,11 @@ enum Category {
     NetworkPolicies,
     CustomResourcesDefinitions,
     HelmReleases,
+    Roles,
+    SeriviceAccounts,
+    ClusterRoles,
+    ClusterRoleBindings,
+    RoleBindings,
 }
 
 #[derive(Clone)]
@@ -73,6 +78,8 @@ enum ResourceType {
     Pod,
     Secret,
     ExternalSecret,
+    ServiceAccount,
+    Role,
 }
 
 #[tokio::main]
@@ -102,6 +109,8 @@ async fn main() {
     let mut job_details_window = ui::job_details::JobDetailsWindow::new();
     let mut cronjob_details_window = ui::cronjob_details::CronJobDetailsWindow::new();
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
+    let mut service_account_details_window = ui::service_account_details::ServiceAccountDetailsWindow::new();
+    let mut role_details_window = ui::role_details::RoleDetailsWindow::new();
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
@@ -129,10 +138,12 @@ async fn main() {
     let mut filter_deployments = String::new();
     let mut filter_replicasets = String::new();
     let mut filter_secrets = String::new();
+    let mut filter_roles = String::new();
     let mut filter_statefulsets = String::new();
     let mut filter_jobs = String::new();
     let mut filter_pvcs = String::new();
     let mut filter_pvs = String::new();
+    let mut filter_service_accounts = String::new();
     let mut filter_scs = String::new();
     let mut filter_csi_drivers = String::new();
     let mut filter_services = String::new();
@@ -186,6 +197,18 @@ async fn main() {
         Box::pin(watch_endpoints(c, s, l))
     });
 
+    // ROLES
+    let roles = Arc::new(Mutex::new(Vec::<RoleItem>::new()));
+    let role_details = Arc::new(Mutex::new(RoleDetails::default()));
+    let roles_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&roles),
+        Arc::clone(&roles_loading),
+        |c, s, l| {
+        Box::pin(watch_roles(c, s, l))
+    });
+
     // POD DISRUPTION BUDGET
     let pdbs = Arc::new(Mutex::new(Vec::<PodDisruptionBudgetItem>::new()));
     let pdbs_loading = Arc::new(AtomicBool::new(true));
@@ -195,6 +218,18 @@ async fn main() {
         Arc::clone(&pdbs_loading),
         |c, s, l| {
         Box::pin(watch_pod_disruption_budgets(c, s, l))
+    });
+
+    // SERVICE ACCOUNT
+    let service_accounts = Arc::new(Mutex::new(Vec::<ServiceAccountItem>::new()));
+    let service_account_details = Arc::new(Mutex::new(ServiceAccountDetails::default()));
+    let service_accounts_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&service_accounts),
+        Arc::clone(&service_accounts_loading),
+        |c, s, l| {
+        Box::pin(watch_service_accounts(c, s, l))
     });
 
     // CRONJOBS
@@ -489,7 +524,7 @@ async fn main() {
                     }
                 });
 
-                egui::CollapsingHeader::new("🛠 Config").default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new("🛠 Config").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::ConfigMaps, "🗺 ConfigMaps").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::ConfigMaps;
                     }
@@ -503,7 +538,7 @@ async fn main() {
                     }
                 });
 
-                egui::CollapsingHeader::new("🖧 Network").default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new("🖧 Network").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::Services, "🔗 Services").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::Services;
                     }
@@ -521,7 +556,7 @@ async fn main() {
                     }
                 });
 
-                egui::CollapsingHeader::new("🖴 Storage").default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new("🖴 Storage").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::PersistentVolumeClaims, "⛃ PersistentVolumeClaims").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::PersistentVolumeClaims;
                     }
@@ -539,13 +574,35 @@ async fn main() {
                     }
                 });
 
-                egui::CollapsingHeader::new("🖥 Administration").default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new("🛡 Access control").default_open(false).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::SeriviceAccounts, "👤 Service accounts").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::SeriviceAccounts;
+                    }
+
+                    if ui.selectable_label(current == Category::Roles, "📜 Roles").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Roles;
+                    }
+
+                    if ui.selectable_label(current == Category::ClusterRoles, "📁 Cluster roles").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ClusterRoles;
+                    }
+
+                    if ui.selectable_label(current == Category::RoleBindings, "🔒 Role bindings").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::RoleBindings;
+                    }
+
+                    if ui.selectable_label(current == Category::ClusterRoleBindings, "🔐 Cluster role bindings").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ClusterRoleBindings;
+                    }
+                });
+
+                egui::CollapsingHeader::new("🖥 Administration").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::CustomResourcesDefinitions, "📢 Custom Resources Definitions").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::CustomResourcesDefinitions;
                     }
                 });
 
-                egui::CollapsingHeader::new("⎈ Helm").default_open(true).show(ui, |ui| {
+                egui::CollapsingHeader::new("⎈ Helm").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::HelmReleases, "📥 Releases").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::HelmReleases;
                         tokio::spawn({
@@ -566,6 +623,225 @@ async fn main() {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::SeriviceAccounts => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_service_accounts: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        service_accounts.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        service_accounts.lock().unwrap().iter().cloned().collect()
+                    };
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Service accounts - {}", visible_service_accounts.len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::ServiceAccount;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_service_accounts).hint_text("Filter service accounts...").desired_width(200.0));
+                        filter_service_accounts = filter_service_accounts.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_service_accounts.clear();
+                        }
+                    });
+                    ui.separator();
+                    if service_accounts_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        if visible_service_accounts.len() == 0 {
+                            show_empty(ui);
+                        } else {
+                            egui::ScrollArea::vertical().id_salt("sservice_accounts_scroll").show(ui, |ui| {
+                                egui::Grid::new("service_accounts_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                    ui.label("Name");
+                                    ui.label("Namespace");
+                                    ui.label("Age");
+                                    ui.label("Actions");
+                                    ui.end_row();
+                                    for item in visible_service_accounts.iter().rev().take(200) {
+                                        let cur_item_object = &item.name;
+                                        if filter_service_accounts.is_empty() || cur_item_object.contains(&filter_service_accounts) {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&service_account_details);
+                                                let ns = item.namespace.clone();
+                                                service_account_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_service_account_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    crate::edit_yaml_for::<k8s_openapi::api::core::v1::ServiceAccount>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = delete_service_account(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                            eprintln!("Failed to delete service account: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
+                },
+                Category::Roles => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_roles: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        roles.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        roles.lock().unwrap().iter().cloned().collect()
+                    };
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Roles - {}", visible_roles.len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::Role;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_roles).hint_text("Filter roles...").desired_width(200.0));
+                        filter_roles = filter_roles.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_roles.clear();
+                        }
+                    });
+                    ui.separator();
+                    if roles_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        if visible_roles.len() == 0 {
+                            show_empty(ui);
+                        } else {
+                            egui::ScrollArea::vertical().id_salt("roles_scroll").show(ui, |ui| {
+                                egui::Grid::new("roles_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                    ui.label("Name");
+                                    ui.label("Namespace");
+                                    ui.label("Age");
+                                    ui.label("Actions");
+                                    ui.end_row();
+                                    for item in visible_roles.iter().rev().take(200) {
+                                        let cur_item_object = &item.name;
+                                        if filter_roles.is_empty() || cur_item_object.contains(&filter_roles) {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&role_details);
+                                                let ns = item.namespace.clone();
+                                                role_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_role_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    crate::edit_yaml_for::<k8s_openapi::api::rbac::v1::Role>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = delete_role(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                            eprintln!("Failed to delete role: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
+                },
+                Category::ClusterRoles => {
+
+                },
+                Category::RoleBindings => {
+
+                },
+                Category::ClusterRoleBindings => {
+
+                },
                 Category::HelmReleases => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
@@ -2945,6 +3221,24 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_ingress_details_window(ctx, &mut ingress_details_window, ingress_details_clone, ingresses_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Service account details window
+        if service_account_details_window.show {
+            let service_account_details_clone = Arc::clone(&service_account_details);
+            let service_accounts_clone = Arc::clone(&service_accounts);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_service_account_details_window(ctx, &mut service_account_details_window, service_account_details_clone, service_accounts_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Role details window
+        if role_details_window.show {
+            let role_details_clone = Arc::clone(&role_details);
+            let roles_clone = Arc::clone(&roles);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_role_details_window(ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Secret details window

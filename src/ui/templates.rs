@@ -39,6 +39,20 @@ data:
 type: Opaque
 "#;
 
+pub const SERVICE_ACCOUNT_TEMPLATE: &'static str = r#"apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: service-account-name
+  namespace: default
+"#;
+
+pub const ROLE_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: role-name
+  namespace: default
+"#;
+
 pub const EXTERNAL_SECRET_TEMPLATE: &'static str = r#"apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:

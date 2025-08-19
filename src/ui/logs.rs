@@ -106,7 +106,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Cl
                 let rows = line_count.min(crate::MAX_LOG_LINES);
 
                 if line_count == 0 {
-                    *logs = "no log for this container".to_string();
+                    *logs = "log not found...".to_string();
                 }
 
                 ui.add(egui::TextEdit::multiline(&mut logs.clone())

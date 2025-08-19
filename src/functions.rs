@@ -1,11 +1,12 @@
 use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
+use k8s_openapi::api::rbac::v1::Role;
 use k8s_openapi::{ClusterResourceScope, Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret};
+use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, ServiceAccount};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -237,6 +238,18 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
 
     match resource_type {
         crate::ResourceType::Blank => {},
+        crate::ResourceType::ServiceAccount => {
+            let obj: ServiceAccount = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<ServiceAccount> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::Role => {
+            let obj: Role = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<Role> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
         crate::ResourceType::ExternalSecret => {
             use kube::{api::{Api, DynamicObject, GroupVersionKind}};
             let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
@@ -367,6 +380,20 @@ pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Op
     let ns = namespace.unwrap_or("default");
     let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), ns);
     secrets.delete(secret_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_service_account(client: Arc<Client>, service_account_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+    let ns = namespace.unwrap_or("default");
+    let service_accounts: Api<ServiceAccount> = Api::namespaced(client.as_ref().clone(), ns);
+    service_accounts.delete(service_account_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_role(client: Arc<Client>, role_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+    let ns = namespace.unwrap_or("default");
+    let roles: Api<Role> = Api::namespaced(client.as_ref().clone(), ns);
+    roles.delete(role_name, &DeleteParams::default()).await?;
     Ok(())
 }
 
