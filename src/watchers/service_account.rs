@@ -60,7 +60,11 @@ pub async fn watch_service_accounts(client: Arc<Client>, service_accounts_list: 
                     }
                     if let Some(item) = convert_service_account(service_account) {
                         let mut list = service_accounts_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name && p.namespace == item.namespace) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
                     }
                 }
                 watcher::Event::Delete(service_account) => {

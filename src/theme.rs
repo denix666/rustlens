@@ -10,6 +10,8 @@ pub const TOLERATION_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
 pub const SELECTOR_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 pub const SELECTOR_NAME_COLUMN_COLOR: Color32 = Color32::BROWN;
 
+pub const SEARCH_MATCH_COLOR: Color32 = Color32::from_rgb(160, 220, 67); // yellow-green
+
 pub const ITEM_NAME_COLOR: Color32 = Color32::WHITE;
 
 pub const POD_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;

@@ -3310,7 +3310,7 @@ async fn main() {
             show_scale_window(ctx, &mut scale_window, client_clone);
         }
 
-        //ctx.request_repaint();
+        ctx.request_repaint();
     })
     .unwrap();
 }

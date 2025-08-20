@@ -53,7 +53,6 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<Secr
                     let mut list = secrets_list.lock().unwrap();
                     *list = initial.clone();
                     initialized = true;
-
                     load_status.store(false, Ordering::Relaxed);
                 }
                 watcher::Event::Apply(secret) => {
@@ -62,7 +61,11 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<Secr
                     }
                     if let Some(item) = convert_secret(secret) {
                         let mut list = secrets_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name && p.namespace == item.namespace) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
                     }
                 }
                 watcher::Event::Delete(secret) => {

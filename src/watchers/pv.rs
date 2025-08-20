@@ -76,7 +76,11 @@ pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<PvItem>>>, lo
                     }
                     if let Some(item) = convert_pv(pv) {
                         let mut list = pv_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
                     }
                 }
                 Event::Delete(pv) => {

@@ -60,7 +60,11 @@ pub async fn watch_roles(client: Arc<Client>, roles_list: Arc<Mutex<Vec<RoleItem
                     }
                     if let Some(item) = convert_role(role) {
                         let mut list = roles_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|p| p.name == item.name && p.namespace == item.namespace) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
                     }
                 }
                 watcher::Event::Delete(role) => {
