@@ -27,6 +27,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                 crate::ResourceType::Secret => crate::SECRET_TEMPLATE.to_string(),
                 crate::ResourceType::ExternalSecret => crate::EXTERNAL_SECRET_TEMPLATE.to_string(),
                 crate::ResourceType::Role => crate::ROLE_TEMPLATE.to_string(),
+                crate::ResourceType::ClusterRole => crate::CLUSTER_ROLE_TEMPLATE.to_string(),
                 crate::ResourceType::ServiceAccount => crate::SERVICE_ACCOUNT_TEMPLATE.to_string(),
                 crate::ResourceType::PersistenceVolumeClaim => crate::PVC_TEMPLATE.to_string(),
                 crate::ResourceType::Blank => "".to_string(),
@@ -40,6 +41,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     crate::ResourceType::NameSpace => "NameSpace",
                     crate::ResourceType::Secret => "Secret",
                     crate::ResourceType::Role => "Role",
+                    crate::ResourceType::ClusterRole => "Cluster role",
                     crate::ResourceType::ExternalSecret => "External secret",
                     crate::ResourceType::Pod => "Pod",
                     crate::ResourceType::ServiceAccount => "Service account",
@@ -60,6 +62,9 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Role, "Role",).clicked() {
                         new_resource_window.content = crate::ROLE_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ClusterRole, "Cluster role",).clicked() {
+                        new_resource_window.content = crate::CLUSTER_ROLE_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ExternalSecret, "External secret",).clicked() {
                         new_resource_window.content = crate::EXTERNAL_SECRET_TEMPLATE.to_string();

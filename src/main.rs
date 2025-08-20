@@ -80,6 +80,7 @@ enum ResourceType {
     ExternalSecret,
     ServiceAccount,
     Role,
+    ClusterRole,
 }
 
 #[tokio::main]
@@ -111,6 +112,7 @@ async fn main() {
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
     let mut service_account_details_window = ui::service_account_details::ServiceAccountDetailsWindow::new();
     let mut role_details_window = ui::role_details::RoleDetailsWindow::new();
+    let mut cluster_role_details_window = ui::cluster_role_details::ClusterRoleDetailsWindow::new();
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
@@ -139,6 +141,7 @@ async fn main() {
     let mut filter_replicasets = String::new();
     let mut filter_secrets = String::new();
     let mut filter_roles = String::new();
+    let mut filter_cluster_roles = String::new();
     let mut filter_statefulsets = String::new();
     let mut filter_jobs = String::new();
     let mut filter_pvcs = String::new();
@@ -207,6 +210,18 @@ async fn main() {
         Arc::clone(&roles_loading),
         |c, s, l| {
         Box::pin(watch_roles(c, s, l))
+    });
+
+    // CLUSTER ROLES
+    let cluster_roles = Arc::new(Mutex::new(Vec::<ClusterRoleItem>::new()));
+    let cluster_role_details = Arc::new(Mutex::new(ClusterRoleDetails::default()));
+    let cluster_roles_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&cluster_roles),
+        Arc::clone(&cluster_roles_loading),
+        |c, s, l| {
+        Box::pin(watch_cluster_roles(c, s, l))
     });
 
     // POD DISRUPTION BUDGET
@@ -834,7 +849,79 @@ async fn main() {
                     }
                 },
                 Category::ClusterRoles => {
-
+                    let visible_cluster_roles = cluster_roles.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Cluster roles - {}", visible_cluster_roles.len()));
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::ClusterRole;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_cluster_roles).hint_text("Filter cluster roles...").desired_width(200.0));
+                        filter_cluster_roles = filter_cluster_roles.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_cluster_roles.clear();
+                        }
+                    });
+                    ui.separator();
+                    if cluster_roles_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        if visible_cluster_roles.len() == 0 {
+                            show_empty(ui);
+                        } else {
+                            egui::ScrollArea::vertical().id_salt("cluster_roles_scroll").show(ui, |ui| {
+                                egui::Grid::new("cluster_roles_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                    ui.label("Name");
+                                    ui.label("Age");
+                                    ui.label("Actions");
+                                    ui.end_row();
+                                    for item in visible_cluster_roles.iter().rev().take(200) {
+                                        let cur_item_object = &item.name;
+                                        if filter_cluster_roles.is_empty() || cur_item_object.contains(&filter_cluster_roles) {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&cluster_role_details);
+                                                cluster_role_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_cluster_role_details(client_clone, &name, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    crate::edit_cluster_yaml_for::<k8s_openapi::api::rbac::v1::ClusterRole>(
+                                                        item.name.clone(),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = delete_cluster_role(client_clone, &cur_item.clone()).await {
+                                                            eprintln!("Failed to delete cluster role: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
                 },
                 Category::RoleBindings => {
 
@@ -3239,6 +3326,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_role_details_window(ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone);
+        }
+
+        // Cluser role details window
+        if cluster_role_details_window.show {
+            let cluster_role_details_clone = Arc::clone(&cluster_role_details);
+            let cluster_roles_clone = Arc::clone(&cluster_roles);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_cluster_role_details_window(ctx, &mut cluster_role_details_window, cluster_role_details_clone, cluster_roles_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Secret details window

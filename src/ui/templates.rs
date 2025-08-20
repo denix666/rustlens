@@ -53,6 +53,12 @@ metadata:
   namespace: default
 "#;
 
+pub const CLUSTER_ROLE_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: role-name
+"#;
+
 pub const EXTERNAL_SECRET_TEMPLATE: &'static str = r#"apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:

@@ -19,6 +19,7 @@ pub mod job_details;
 pub mod cronjob_details;
 pub mod service_account_details;
 pub mod role_details;
+pub mod cluster_role_details;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -41,3 +42,4 @@ pub use job_details::*;
 pub use cronjob_details::*;
 pub use service_account_details::*;
 pub use role_details::*;
+pub use cluster_role_details::*;

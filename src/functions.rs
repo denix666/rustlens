@@ -1,6 +1,6 @@
 use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
-use k8s_openapi::api::rbac::v1::Role;
+use k8s_openapi::api::rbac::v1::{ClusterRole, Role};
 use k8s_openapi::{ClusterResourceScope, Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
@@ -161,6 +161,29 @@ pub fn edit_yaml_for<K>(name: String, namespace: String, yaml_editor_window: Arc
     });
 }
 
+pub fn edit_cluster_yaml_for<K>(name: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) where
+    K: Clone
+        + serde::de::DeserializeOwned
+        + Serialize
+        + Metadata<Ty = kube::core::ObjectMeta>
+        + Resource<Scope = kube::core::ClusterResourceScope>
+        + std::fmt::Debug
+        + 'static,
+{
+    tokio::spawn(async move {
+        match get_yaml_global::<K>(client, &name).await {
+            Ok(yaml) => {
+                let mut editor = yaml_editor_window.lock().unwrap();
+                editor.content = yaml;
+                editor.show = true;
+            }
+            Err(e) => {
+                eprintln!("Failed to get YAML: {}", e);
+            }
+        }
+    });
+}
+
 pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<crate::ContainerStatusItem>, log_window: Arc<Mutex<crate::LogWindow>>, client: Arc<Client>) {
     let mut logs = log_window.lock().unwrap();
     logs.pod_name = pod_name.clone();
@@ -261,6 +284,11 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
         crate::ResourceType::NameSpace => {
             let obj: Namespace = serde_yaml::from_value(value)?;
             let api: Api<Namespace> = Api::all(client.as_ref().clone());
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::ClusterRole => {
+            let obj: ClusterRole = serde_yaml::from_value(value)?;
+            let api: Api<ClusterRole> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::PersistenceVolumeClaim => {
@@ -394,6 +422,12 @@ pub async fn delete_role(client: Arc<Client>, role_name: &str, namespace: Option
     let ns = namespace.unwrap_or("default");
     let roles: Api<Role> = Api::namespaced(client.as_ref().clone(), ns);
     roles.delete(role_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_cluster_role(client: Arc<Client>, cluster_role_name: &str) -> Result<(), kube::Error> {
+    let roles: Api<Role> = Api::all(client.as_ref().clone());
+    roles.delete(cluster_role_name, &DeleteParams::default()).await?;
     Ok(())
 }
 
