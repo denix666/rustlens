@@ -19,6 +19,61 @@ use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostPar
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
 use serde_yaml;
+use crate::ui::OverviewStats;
+
+pub fn compute_overview_stats(
+    pods: &Vec<crate::watchers::PodItem>,
+    deployments: &Vec<crate::watchers::DeploymentItem>,
+    daemonsets: &Vec<crate::watchers::DaemonSetItem>,
+    statefulsets: &Vec<crate::watchers::StatefulSetItem>,
+    replicasets: &Vec<crate::watchers::ReplicaSetItem>,
+) -> OverviewStats {
+    let mut stats = OverviewStats::default();
+
+    // Pods
+    for pod in pods {
+        if pod.ready_containers < pod.total_containers {
+            stats.pods_pending += 1;
+        } else {
+            stats.pods_running += 1;
+        }
+    }
+
+    // Deployments
+    for deployment in deployments {
+        stats.deployments_pending += deployment.unavailable_replicas as usize;
+    }
+    stats.deployments_running = deployments.len() - stats.deployments_pending;
+
+    // Daemonsets
+    for daemonset in daemonsets {
+        if daemonset.ready < daemonset.desired {
+            stats.pods_pending += 1;
+        } else {
+            stats.daemonsets_running += 1;
+        }
+    }
+
+    // Statefulsets
+    for statefulset in statefulsets {
+        if statefulset.ready_replicas < statefulset.replicas {
+            stats.statefulsets_pending += 1;
+        } else {
+            stats.statefulsets_running += 1;
+        }
+    }
+
+    // Replicasets
+    for replicaset in replicasets {
+        if replicaset.ready < replicaset.desired {
+            stats.replicasets_pending += 1;
+        } else {
+            stats.replicasets_running += 1;
+        }
+    }
+
+    stats
+}
 
 pub async fn get_resource_events(client: Arc<Client>, kind: &str, namespace: &str, name: &str) -> Result<Vec<Event>, kube::Error> {
     let events: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);

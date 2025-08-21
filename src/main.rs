@@ -481,7 +481,7 @@ async fn main() {
             (TextStyle::Body, FontId::new(14.0, egui::FontFamily::Monospace)),
             (TextStyle::Monospace, FontId::new(14.0, egui::FontFamily::Monospace)),
             (TextStyle::Button, FontId::new(16.0, egui::FontFamily::Proportional)),
-            (TextStyle::Small, FontId::new(12.0, egui::FontFamily::Proportional)),
+            (TextStyle::Small, FontId::new(13.0, egui::FontFamily::Proportional)),
         ]
         .into();
 
@@ -1305,6 +1305,19 @@ async fn main() {
                         ui.label(format!("Connected to: {}", cluster.name));
                         ui.label(format!("Cluster name: {}", cluster_name));
                         ui.label(format!("User name: {}", user_name));
+                    });
+
+                    ui.add_space(20.0);
+
+                    let stats = compute_overview_stats(
+                        &pods.lock().unwrap(),
+                        &deployments.lock().unwrap(),
+                        &daemonsets.lock().unwrap(),
+                        &statefulsets.lock().unwrap(),
+                        &replicasets.lock().unwrap(),
+                    );
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        show_overview(ui, &stats);
                     });
                 },
                 Category::ReplicaSets => {
