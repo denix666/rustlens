@@ -6,7 +6,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, ServiceAccount};
+use k8s_openapi::api::core::v1::{Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, ServiceAccount};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -20,6 +20,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
 use serde_yaml;
 use crate::ui::OverviewStats;
+use k8s_openapi::Resource as K8sResource;
 
 pub fn compute_overview_stats(
     pods: &Vec<crate::watchers::PodItem>,
@@ -467,29 +468,36 @@ pub async fn delete_pod(client: Arc<Client>, pod_name: &str, namespace: Option<&
     Ok(())
 }
 
-pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
-    let ns = namespace.unwrap_or("default");
-    let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), ns);
-    secrets.delete(secret_name, &DeleteParams::default()).await?;
-    Ok(())
-}
+// pub async fn delete_secret(client: Arc<Client>, secret_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+//     let ns = namespace.unwrap_or("default");
+//     let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), ns);
+//     secrets.delete(secret_name, &DeleteParams::default()).await?;
+//     Ok(())
+// }
 
-pub async fn delete_service_account(client: Arc<Client>, service_account_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
-    let ns = namespace.unwrap_or("default");
-    let service_accounts: Api<ServiceAccount> = Api::namespaced(client.as_ref().clone(), ns);
-    service_accounts.delete(service_account_name, &DeleteParams::default()).await?;
-    Ok(())
-}
+// pub async fn delete_pvc(client: Arc<Client>, pvc_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+//     let ns = namespace.unwrap_or("default");
+//     let pvcs: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), ns);
+//     pvcs.delete(pvc_name, &DeleteParams::default()).await?;
+//     Ok(())
+// }
 
-pub async fn delete_role(client: Arc<Client>, role_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
-    let ns = namespace.unwrap_or("default");
-    let roles: Api<Role> = Api::namespaced(client.as_ref().clone(), ns);
-    roles.delete(role_name, &DeleteParams::default()).await?;
-    Ok(())
-}
+// pub async fn delete_service_account(client: Arc<Client>, service_account_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+//     let ns = namespace.unwrap_or("default");
+//     let service_accounts: Api<ServiceAccount> = Api::namespaced(client.as_ref().clone(), ns);
+//     service_accounts.delete(service_account_name, &DeleteParams::default()).await?;
+//     Ok(())
+// }
+
+// pub async fn delete_role(client: Arc<Client>, role_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+//     let ns = namespace.unwrap_or("default");
+//     let roles: Api<Role> = Api::namespaced(client.as_ref().clone(), ns);
+//     roles.delete(role_name, &DeleteParams::default()).await?;
+//     Ok(())
+// }
 
 pub async fn delete_cluster_role(client: Arc<Client>, cluster_role_name: &str) -> Result<(), kube::Error> {
-    let roles: Api<Role> = Api::all(client.as_ref().clone());
+    let roles: Api<ClusterRole> = Api::all(client.as_ref().clone());
     roles.delete(cluster_role_name, &DeleteParams::default()).await?;
     Ok(())
 }
@@ -500,10 +508,24 @@ pub async fn delete_namespace(client: Arc<Client>, name: &str) -> Result<(), kub
     Ok(())
 }
 
-pub async fn delete_configmap(client: Arc<Client>, configmap_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+// pub async fn delete_configmap(client: Arc<Client>, configmap_name: &str, namespace: Option<&str>) -> Result<(), kube::Error> {
+//     let ns = namespace.unwrap_or("default");
+//     let configmaps: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), ns);
+//     configmaps.delete(configmap_name, &DeleteParams::default()).await?;
+//     Ok(())
+// }
+
+pub async fn delete_namespaced_component_for<K>(name: String, namespace: Option<&str>, client: Arc<Client>) -> Result<(), kube::Error> where
+    K: Clone
+        + Resource<Scope = kube::core::NamespaceResourceScope>
+        + serde::de::DeserializeOwned
+        + K8sResource
+        + Metadata<Ty = kube::core::ObjectMeta>
+        + std::fmt::Debug
+{
     let ns = namespace.unwrap_or("default");
-    let configmaps: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), ns);
-    configmaps.delete(configmap_name, &DeleteParams::default()).await?;
+    let api: Api<K> = Api::namespaced(client.as_ref().clone(), ns);
+    api.delete(&name, &DeleteParams::default()).await?;
     Ok(())
 }
 

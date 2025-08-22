@@ -738,7 +738,7 @@ async fn main() {
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
-                                                        if let Err(err) = delete_service_account(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::ServiceAccount>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
                                                             eprintln!("Failed to delete service account: {}", err);
                                                         }
                                                     });
@@ -843,7 +843,7 @@ async fn main() {
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
-                                                        if let Err(err) = delete_role(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::rbac::v1::Role>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
                                                             eprintln!("Failed to delete role: {}", err);
                                                         }
                                                     });
@@ -1834,6 +1834,17 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::PersistentVolumeClaim>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
+                                                            eprintln!("Failed to delete PVC: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -2993,7 +3004,7 @@ async fn main() {
                                                     let cur_ns = selected_ns.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
-                                                        if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::apps::v1::Deployment>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
                                                             eprintln!("Failed to delete deployment: {}", err);
                                                         }
                                                     });
@@ -3109,7 +3120,7 @@ async fn main() {
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
-                                                        if let Err(err) = delete_secret(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::Secret>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
                                                             eprintln!("Failed to delete secret: {}", err);
                                                         }
                                                     });
@@ -3215,7 +3226,7 @@ async fn main() {
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
-                                                        if let Err(err) = delete_configmap(client_clone, &cur_item.clone(), cur_ns.as_deref()).await {
+                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::ConfigMap>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
                                                             eprintln!("Failed to delete configmap: {}", err);
                                                         }
                                                     });

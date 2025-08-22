@@ -7,7 +7,6 @@ use futures_util::StreamExt;
 #[derive(Debug, Clone)]
 pub struct PvcItem {
     pub name: String,
-    //pub labels: BTreeMap<String, String>,
     pub storage_class: String,
     pub size: String,
     pub volume_name: String,
@@ -19,7 +18,6 @@ pub struct PvcItem {
 pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<PvcItem> {
     Some(PvcItem {
         name: pvc.metadata.name.clone()?,
-        //labels: pvc.metadata.labels.clone().unwrap_or_default(),
         storage_class: pvc
             .spec
             .as_ref()
@@ -88,7 +86,12 @@ pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<PvcItem>>>,
                         }
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(pvc) => {
+                    if let Some(item) = pvc.metadata.name {
+                        let mut pvc_vec = pvc_list.lock().unwrap();
+                        pvc_vec.retain(|p| p.name != item);
+                    }
+                }
             },
             Err(e) => eprintln!("PVC watch error: {:?}", e),
         }

@@ -26,6 +26,7 @@ pub fn show_secret_details_window(
 {
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_secrets = secrets.lock().unwrap(); // Secrets with base details already we have
+
     if guard_details.name.is_none() {
         return;
     }
@@ -34,6 +35,7 @@ pub fn show_secret_details_window(
         return;
     }
     let cur_ns = &secret_item.unwrap().namespace;
+    let ns = cur_ns.clone();
 
     egui::Window::new("Secret details").min_width(800.0).collapsible(false).resizable(true).open(&mut secret_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
@@ -45,15 +47,20 @@ pub fn show_secret_details_window(
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
                 crate::edit_yaml_for::<k8s_openapi::api::core::v1::Secret>(
                     guard_details.name.clone().unwrap(),
-                    cur_ns.to_owned().unwrap(),
+                    ns.to_owned().unwrap(),
                     Arc::clone(&yaml_editor_window),
                     Arc::clone(&client),
                 );
             }
 
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
-                // TODO
-                println!("TODO");
+                if let Some(name) = guard_details.name.clone() {
+                    tokio::spawn(async move {
+                        if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::Secret>(name.clone(), ns.as_deref(), Arc::clone(&client)).await {
+                            eprintln!("Failed to delete secret: {}", err);
+                        }
+                    });
+                }
             }
         });
         ui.separator();
