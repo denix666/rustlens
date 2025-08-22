@@ -4,16 +4,12 @@ use crate::{functions::item_color, ui::{LogWindow, YamlEditorWindow}, theme::*};
 
 pub struct PodDetailsWindow {
     pub show: bool,
-    pub confirm_delete: bool,
-    pub pending_delete_pod_name: Option<(String, String)>, // (name, namespace)
 }
 
 impl PodDetailsWindow {
     pub fn new() -> Self {
         Self {
             show: false,
-            confirm_delete: false,
-            pending_delete_pod_name: None,
         }
     }
 }
@@ -25,8 +21,9 @@ pub fn show_pod_details_window(
         pods: Arc<Mutex<Vec<crate::PodItem>>>,
         log_window: Arc<Mutex<LogWindow>>,
         yaml_editor_window: Arc<Mutex<YamlEditorWindow>>,
-        client: Arc<crate::Client>)
-{
+        client: Arc<crate::Client>,
+        delete_confirm: &mut super::DeleteConfirmation,
+) {
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_pods = pods.lock().unwrap(); // Pods with base details already we have
 
@@ -40,12 +37,16 @@ pub fn show_pod_details_window(
     }
     let cur_ns = &pod_item.unwrap().namespace;
 
+
     egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).open(&mut pod_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
+                let name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+
                 crate::open_logs_for_pod(
-                    guard_details.name.clone().unwrap(),
-                    cur_ns.to_owned().unwrap(),
+                    name,
+                    ns.to_owned().unwrap(),
                     pod_item.unwrap().containers.clone(),
                     Arc::clone(&log_window),
                     Arc::clone(&client),
@@ -53,20 +54,28 @@ pub fn show_pod_details_window(
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
+                let name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+
                 crate::edit_yaml_for::<k8s_openapi::api::core::v1::Pod>(
-                    guard_details.name.clone().unwrap(),
-                    cur_ns.to_owned().unwrap(),
+                    name.clone(),
+                    ns.to_owned().unwrap(),
                     Arc::clone(&yaml_editor_window),
                     Arc::clone(&client),
                 );
             }
 
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
-                if let Some(name) = guard_details.name.clone() {
-                    let ns = cur_ns.clone().unwrap_or_else(|| "default".to_string());
-                    pod_details_window.pending_delete_pod_name = Some((name, ns));
-                    pod_details_window.confirm_delete = true;
-                }
+                let name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+
+                delete_confirm.request(name.clone(), Some("dd".to_string()), move || {
+                    tokio::spawn(async move {
+                        if let Err(err) = crate::delete_pod(Arc::clone(&client), name.clone(), ns.as_deref(), true).await {
+                            eprintln!("Failed to delete secret: {}", err);
+                        }
+                    });
+                });
             }
         });
         ui.separator();
@@ -357,34 +366,5 @@ pub fn show_pod_details_window(
             }
         });
         ui.separator();
-
-        if pod_details_window.confirm_delete {
-            egui::Window::new("Confirm deletion")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .fixed_size(egui::vec2(400.0, 100.0))
-                .show(ctx, |ui| {
-                    ui.label("Are you sure you want to delete this pod?");
-                    ui.horizontal(|ui| {
-                        if ui.button(egui::RichText::new("Delete").color(crate::RED_BUTTON)).clicked() {
-                            if let Some((pod_name, pod_ns)) = pod_details_window.pending_delete_pod_name.take() {
-                                let client_clone = Arc::clone(&client);
-                                tokio::spawn(async move {
-                                    if let Err(err) = crate::delete_pod(client_clone, &pod_name, Some(&pod_ns), true).await {
-                                        eprintln!("Failed to delete pod: {}", err);
-                                    }
-                                });
-                            }
-                            pod_details_window.confirm_delete = false;
-                        }
-
-                        if ui.button(egui::RichText::new("Cancel").color(crate::GREEN_BUTTON)).clicked() {
-                            pod_details_window.confirm_delete = false;
-                            pod_details_window.pending_delete_pod_name = None;
-                        }
-                    });
-                });
-        }
     });
 }

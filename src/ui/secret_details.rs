@@ -22,8 +22,9 @@ pub fn show_secret_details_window(
         details: Arc<Mutex<crate::SecretDetails>>,
         secrets: Arc<Mutex<Vec<crate::SecretItem>>>,
         yaml_editor_window: Arc<Mutex<YamlEditorWindow>>,
-        client: Arc<crate::Client>)
-{
+        client: Arc<crate::Client>,
+        delete_confirm: &mut super::DeleteConfirmation,
+) {
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_secrets = secrets.lock().unwrap(); // Secrets with base details already we have
 
@@ -35,7 +36,6 @@ pub fn show_secret_details_window(
         return;
     }
     let cur_ns = &secret_item.unwrap().namespace;
-    let ns = cur_ns.clone();
 
     egui::Window::new("Secret details").min_width(800.0).collapsible(false).resizable(true).open(&mut secret_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
@@ -45,8 +45,11 @@ pub fn show_secret_details_window(
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
+                let name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+
                 crate::edit_yaml_for::<k8s_openapi::api::core::v1::Secret>(
-                    guard_details.name.clone().unwrap(),
+                    name,
                     ns.to_owned().unwrap(),
                     Arc::clone(&yaml_editor_window),
                     Arc::clone(&client),
@@ -54,13 +57,20 @@ pub fn show_secret_details_window(
             }
 
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
-                if let Some(name) = guard_details.name.clone() {
+                let name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+
+                delete_confirm.request(name.clone(), ns.clone(), move || {
                     tokio::spawn(async move {
-                        if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::Secret>(name.clone(), ns.as_deref(), Arc::clone(&client)).await {
+                        if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::Secret>(
+                            name,
+                            ns.as_deref(),
+                            Arc::clone(&client),
+                        ).await {
                             eprintln!("Failed to delete secret: {}", err);
                         }
                     });
-                }
+                });
             }
         });
         ui.separator();
@@ -127,4 +137,6 @@ pub fn show_secret_details_window(
             }
         });
     });
+
+    crate::show_delete_confirmation(ctx, delete_confirm);
 }

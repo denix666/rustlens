@@ -22,6 +22,7 @@ pub mod role_details;
 pub mod cluster_role_details;
 pub mod overview;
 pub mod about;
+pub mod confirmation_dialog;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -47,3 +48,4 @@ pub use role_details::*;
 pub use cluster_role_details::*;
 pub use overview::*;
 pub use about::*;
+pub use confirmation_dialog::*;

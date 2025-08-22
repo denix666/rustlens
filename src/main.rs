@@ -128,6 +128,8 @@ async fn main() {
     let cluster_name = ctx_info.context.unwrap().cluster;
     let user_name = ctx_info.name;
 
+    let mut confirmation_dialog = DeleteConfirmation::new();
+
     let selected_category = Arc::new(Mutex::new(Category::ClusterOverview));
     let selected_category_ui = Arc::clone(&selected_category);
 
@@ -2854,13 +2856,15 @@ async fn main() {
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
-                                                    let cur_pod = item.name.clone();
-                                                    let cur_ns = selected_ns.clone();
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_pod(client_clone, &cur_pod.clone(), cur_ns.as_deref(), true).await {
-                                                            eprintln!("Failed to delete pod: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = delete_pod(client_clone, cur_item.clone(), cur_ns.as_deref(), true).await {
+                                                                eprintln!("Failed to delete pod: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -3119,10 +3123,16 @@ async fn main() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::Secret>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
-                                                            eprintln!("Failed to delete secret: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::Secret>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete secret: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -3339,7 +3349,7 @@ async fn main() {
             let log_window_clone = Arc::clone(&log_window);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone);
+            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Deployment details window
@@ -3411,7 +3421,7 @@ async fn main() {
             let secrets_clone = Arc::clone(&secrets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_secret_details_window(ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone);
+            show_secret_details_window(ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // DaemonSet details window
@@ -3473,6 +3483,9 @@ async fn main() {
             let client_clone = Arc::clone(&client);
             show_scale_window(ctx, &mut scale_window, client_clone);
         }
+
+        // Confirmation dialog
+        show_delete_confirmation(ctx, &mut confirmation_dialog);
 
         ctx.request_repaint();
     })
