@@ -22,8 +22,9 @@ pub fn show_statefulset_details_window(
         details: Arc<Mutex<crate::StatefulSetDetails>>,
         statefulsets: Arc<Mutex<Vec<crate::StatefulSetItem>>>,
         yaml_editor_window: Arc<Mutex<YamlEditorWindow>>,
-        client: Arc<crate::Client>)
-{
+        client: Arc<crate::Client>,
+        delete_confirm: &mut super::DeleteConfirmation,
+) {
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_statefulsets = statefulsets.lock().unwrap(); // StatefulSets with base details already we have
     if guard_details.name.is_none() {
@@ -52,8 +53,20 @@ pub fn show_statefulset_details_window(
             }
 
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
-                // TODO
-                println!("TODO");
+                let name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+
+                delete_confirm.request(name.clone(), ns.clone(), move || {
+                    tokio::spawn(async move {
+                        if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::apps::v1::StatefulSet>(
+                            name,
+                            ns.as_deref(),
+                            Arc::clone(&client),
+                        ).await {
+                            eprintln!("Failed to delete statefulSet: {}", err);
+                        }
+                    });
+                });
             }
         });
         ui.separator();
@@ -120,4 +133,5 @@ pub fn show_statefulset_details_window(
             }
         });
     });
+    crate::show_delete_confirmation(ctx, delete_confirm);
 }

@@ -367,4 +367,5 @@ pub fn show_pod_details_window(
         });
         ui.separator();
     });
+    crate::show_delete_confirmation(ctx, delete_confirm);
 }

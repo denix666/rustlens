@@ -70,12 +70,6 @@ pub fn show_cluster_role_details_window(
                         ui.label(egui::RichText::new(timestamp_text).color(DETAIL_COLOR));
                         ui.end_row();
                     }
-
-                    if let Some(namespace) = &item.namespace {
-                        ui.label(egui::RichText::new("Namespace:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(namespace).color(DETAIL_COLOR));
-                        ui.end_row();
-                    }
                 }
 
                 if let Some(labels) = guard_details.labels.clone() {

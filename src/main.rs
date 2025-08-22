@@ -739,10 +739,16 @@ async fn main() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::ServiceAccount>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
-                                                            eprintln!("Failed to delete service account: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::ServiceAccount>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete ServiceAccount: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -844,10 +850,16 @@ async fn main() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::rbac::v1::Role>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
-                                                            eprintln!("Failed to delete role: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::rbac::v1::Role>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete Role: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -1125,6 +1137,23 @@ async fn main() {
                                                         Arc::clone(&client)
                                                     );
                                                 }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::networking::v1::NetworkPolicy>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete NetworkPolicy: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
                                             });
                                             ui.end_row();
                                         }
@@ -1206,6 +1235,23 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::policy::v1::PodDisruptionBudget>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete pdb: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -1299,6 +1345,23 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::apps::v1::DaemonSet>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete daemonSet: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -1464,6 +1527,23 @@ async fn main() {
                                                         Arc::clone(&client)
                                                     );
                                                 }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::apps::v1::ReplicaSet>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete replicaSet: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
                                             });
                                             ui.end_row();
                                         }
@@ -1558,6 +1638,23 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::networking::v1::Ingress>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete ingress: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -1755,6 +1852,10 @@ async fn main() {
                                                         }
                                                     });
                                                 }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    // TODO
+                                                    ui.close_kind(egui::UiKind::Menu)
+                                                }
                                             });
                                             ui.end_row();
                                         }
@@ -1836,15 +1937,22 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::PersistentVolumeClaim>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
-                                                            eprintln!("Failed to delete PVC: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::PersistentVolumeClaim>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete pvc: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -1938,6 +2046,24 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::Endpoints>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete endpoints: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -2029,6 +2155,24 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::batch::v1::Job>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete job: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -2128,6 +2272,24 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::Service>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete service: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -2223,6 +2385,24 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::batch::v1::CronJob>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete cronJob: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -2323,6 +2503,24 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::apps::v1::StatefulSet>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete statefulSet: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
                                             ui.end_row();
@@ -2630,6 +2828,7 @@ async fn main() {
                                                 }
 
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    // TODO (confirm dialog)
                                                     let cur_item = item.name.clone();
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
@@ -3005,12 +3204,18 @@ async fn main() {
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
-                                                    let cur_ns = selected_ns.clone();
+                                                    let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::apps::v1::Deployment>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
-                                                            eprintln!("Failed to delete deployment: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::apps::v1::Deployment>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete deployment: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -3235,10 +3440,16 @@ async fn main() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = item.namespace.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespaced_component_for::<k8s_openapi::api::core::v1::ConfigMap>(cur_item.clone(), cur_ns.as_deref(), client_clone).await {
-                                                            eprintln!("Failed to delete configmap: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::core::v1::ConfigMap>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete configmap: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -3358,7 +3569,7 @@ async fn main() {
             let deployments_clone = Arc::clone(&deployments);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone);
+            show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Service details window
@@ -3367,7 +3578,7 @@ async fn main() {
             let services_clone = Arc::clone(&services);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_service_details_window(ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone);
+            show_service_details_window(ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Endpoint details window
@@ -3376,7 +3587,7 @@ async fn main() {
             let endpoints_clone = Arc::clone(&endpoints);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_endpoint_details_window(ctx, &mut endpoint_details_window, endpoint_details_clone, endpoints_clone, yaml_editor_window_clone, client_clone);
+            show_endpoint_details_window(ctx, &mut endpoint_details_window, endpoint_details_clone, endpoints_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Ingress details window
@@ -3385,7 +3596,7 @@ async fn main() {
             let ingresses_clone = Arc::clone(&ingresses);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_ingress_details_window(ctx, &mut ingress_details_window, ingress_details_clone, ingresses_clone, yaml_editor_window_clone, client_clone);
+            show_ingress_details_window(ctx, &mut ingress_details_window, ingress_details_clone, ingresses_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Service account details window
@@ -3394,7 +3605,7 @@ async fn main() {
             let service_accounts_clone = Arc::clone(&service_accounts);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_service_account_details_window(ctx, &mut service_account_details_window, service_account_details_clone, service_accounts_clone, yaml_editor_window_clone, client_clone);
+            show_service_account_details_window(ctx, &mut service_account_details_window, service_account_details_clone, service_accounts_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Role details window
@@ -3403,7 +3614,7 @@ async fn main() {
             let roles_clone = Arc::clone(&roles);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_role_details_window(ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone);
+            show_role_details_window(ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Cluser role details window
@@ -3430,7 +3641,7 @@ async fn main() {
             let daemonsets_clone = Arc::clone(&daemonsets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_daemonset_details_window(ctx, &mut daemonset_details_window, daemonset_details_clone, daemonsets_clone, yaml_editor_window_clone, client_clone);
+            show_daemonset_details_window(ctx, &mut daemonset_details_window, daemonset_details_clone, daemonsets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // ReplicaSet details window
@@ -3439,7 +3650,7 @@ async fn main() {
             let replicasets_clone = Arc::clone(&replicasets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_replicaset_details_window(ctx, &mut replicaset_details_window, replicaset_details_clone, replicasets_clone, yaml_editor_window_clone, client_clone);
+            show_replicaset_details_window(ctx, &mut replicaset_details_window, replicaset_details_clone, replicasets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Job details window
@@ -3448,7 +3659,7 @@ async fn main() {
             let jobs_clone = Arc::clone(&jobs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_job_details_window(ctx, &mut job_details_window, job_details_clone, jobs_clone, yaml_editor_window_clone, client_clone);
+            show_job_details_window(ctx, &mut job_details_window, job_details_clone, jobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // CronJob details window
@@ -3457,7 +3668,7 @@ async fn main() {
             let cronjobs_clone = Arc::clone(&cronjobs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_cronjob_details_window(ctx, &mut cronjob_details_window, cronjob_details_clone, cronjobs_clone, yaml_editor_window_clone, client_clone);
+            show_cronjob_details_window(ctx, &mut cronjob_details_window, cronjob_details_clone, cronjobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // StatefulSet details window
@@ -3466,7 +3677,7 @@ async fn main() {
             let statefulsets_clone = Arc::clone(&statefulsets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_statefulset_details_window(ctx, &mut statefulset_details_window, statefulset_details_clone, statefulsets_clone, yaml_editor_window_clone, client_clone);
+            show_statefulset_details_window(ctx, &mut statefulset_details_window, statefulset_details_clone, statefulsets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // ConfigMap details window
@@ -3475,7 +3686,7 @@ async fn main() {
             let configmaps_clone = Arc::clone(&configmaps);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_configmap_details_window(ctx, &mut configmap_details_window, configmap_details_clone, configmaps_clone, yaml_editor_window_clone, client_clone);
+            show_configmap_details_window(ctx, &mut configmap_details_window, configmap_details_clone, configmaps_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Scale window
