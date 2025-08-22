@@ -21,6 +21,7 @@ pub mod service_account_details;
 pub mod role_details;
 pub mod cluster_role_details;
 pub mod overview;
+pub mod about;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -45,3 +46,4 @@ pub use service_account_details::*;
 pub use role_details::*;
 pub use cluster_role_details::*;
 pub use overview::*;
+pub use about::*;

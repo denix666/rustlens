@@ -33,7 +33,15 @@ pub fn compute_overview_stats(
     // Pods
     for pod in pods {
         if pod.ready_containers < pod.total_containers {
-            stats.pods_pending += 1;
+            if pod.phase.as_ref().unwrap() != "Succeeded" {
+                stats.pods_pending += 1;
+                if let Some(ns) = &pod.namespace {
+                    let count = stats.namespaces_with_pending_items.entry(ns.clone()).or_insert(0);
+                    *count += 1;
+                }
+            } else {
+                stats.pods_running += 1;
+            }
         } else {
             stats.pods_running += 1;
         }

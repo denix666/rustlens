@@ -58,6 +58,7 @@ enum Category {
     NetworkPolicies,
     CustomResourcesDefinitions,
     HelmReleases,
+    About,
     Roles,
     SeriviceAccounts,
     ClusterRoles,
@@ -633,11 +634,20 @@ async fn main() {
                         });
                     }
                 });
+
+                egui::CollapsingHeader::new("🏷 About").default_open(false).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::About, "🐧 About author").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::About;
+                    }
+                });
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::About => {
+                    show_about_info(ui);
+                },
                 Category::SeriviceAccounts => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
@@ -1298,6 +1308,8 @@ async fn main() {
                     }
                 },
                 Category::ClusterOverview => {
+                    //let mut pending_nav: Option<(String, Category)> = None;
+
                     ui.heading("Cluster Overview");
                     ui.separator();
                     let cluster = cluster_info_ui.lock().unwrap().clone();
@@ -1318,6 +1330,34 @@ async fn main() {
                     );
                     egui::Frame::group(ui.style()).show(ui, |ui| {
                         show_overview(ui, &stats);
+
+                        if stats.namespaces_with_pending_items.len() > 0 {
+                            ui.add_space(50.0);
+                            ui.heading("List of namespaces with pending items:");
+                            egui::ScrollArea::vertical().id_salt("ns_with_pending_items_scroll").show(ui, |ui| {
+                                ui.separator();
+                                egui::Grid::new("ns_with_pending_items_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                    ui.label("");
+                                    ui.label("Namespace");
+                                    ui.label("Pending items");
+                                    ui.end_row();
+                                    for i in &stats.namespaces_with_pending_items {
+                                        if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap() == i.0 {
+                                            ui.colored_label(Color32::LIGHT_BLUE,"⏵");
+                                        } else {
+                                            ui.label("");
+                                        };
+                                        if ui.colored_label(Color32::WHITE,i.0).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            *selected_namespace_clone.lock().unwrap() = Some(i.0.clone());
+                                            // TODO (stack when enabled)
+                                            //*selected_category_clone.lock().unwrap() = Category::Pods;
+                                        }
+                                        ui.label(i.1.to_string());
+                                        ui.end_row();
+                                    }
+                                });
+                            });
+                        }
                     });
                 },
                 Category::ReplicaSets => {
@@ -2749,15 +2789,19 @@ async fn main() {
                                                     ready_color =  item_color("Unknown");
                                                 },
                                             };
-
                                             ui.label(egui::RichText::new(status).color(ready_color));
+
                                             let ready = item.ready_containers;
                                             let total = item.total_containers;
 
                                             ready_color = if ready == total {
                                                 Color32::from_rgb(100, 255, 100) // green
                                             } else if ready == 0 {
-                                                Color32::from_rgb(255, 100, 100) // red
+                                                if cur_phase != "Succeeded" {
+                                                    Color32::from_rgb(255, 100, 100) // red
+                                                } else {
+                                                    Color32::GRAY
+                                                }
                                             } else {
                                                 Color32::from_rgb(255, 165, 0) // orange
                                             };

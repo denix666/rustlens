@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use egui::{Color32, Pos2, Ui};
 use crate::functions::item_color;
 
@@ -13,6 +14,7 @@ pub struct OverviewStats {
     pub statefulsets_pending: usize,
     pub replicasets_running: usize,
     pub replicasets_pending: usize,
+    pub namespaces_with_pending_items: IndexMap<String, i32>,
 }
 
 fn paint_filled_arc(ui: &Ui, center: Pos2, inner_radius: f32, outer_radius: f32, start_angle: f32, end_angle: f32, color: Color32) {
@@ -45,6 +47,7 @@ pub fn show_overview(ui: &mut egui::Ui, stats: &OverviewStats) {
         ui.separator();
         show_stat_circle(ui, "Replicasets", stats.replicasets_running, stats.replicasets_pending);
     });
+    ui.separator();
 }
 
 fn show_stat_circle(ui: &mut egui::Ui, title: &str, ok_count: usize, pending_count: usize) {
@@ -93,7 +96,7 @@ fn show_stat_circle(ui: &mut egui::Ui, title: &str, ok_count: usize, pending_cou
     }
 
     // Circle background
-    painter.circle_filled(rect.center(), rect.width() / 3.0, ui.visuals().widgets.inactive.bg_fill);
+    painter.circle_filled(rect.center(), rect.width() / 3.0, ui.visuals().widgets.active.bg_fill);
 
     ui.vertical(|ui| {
         ui.label(egui::RichText::new(format!("{} ({})", title, total)).family(egui::FontFamily::Monospace));

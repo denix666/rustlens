@@ -8,7 +8,6 @@ use kube::{Api, runtime::watcher, runtime::watcher::Event};
 #[derive(Debug, Clone)]
 pub struct JobItem {
     pub name: String,
-    //pub labels: BTreeMap<String, String>,
     pub completions: i32,
     pub condition: String,
     pub creation_timestamp: Option<Time>,
