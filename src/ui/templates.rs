@@ -4,6 +4,15 @@ metadata:
   name: namespace-name
 "#;
 
+pub const CONFIGMAP_TEMPLATE: &'static str = r#"apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-name
+  namespace: default
+data:
+  key: "value"
+"#;
+
 pub const PVC_TEMPLATE: &'static str = r#"apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -27,6 +36,24 @@ spec:
   containers:
     - name: pod-container
       image: pod-image
+"#;
+
+pub const POD_WITH_PVC_TEMPLATE: &'static str = r#"apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-name
+  namespace: default
+spec:
+  containers:
+    - name: pod-container
+      image: pod-image
+      volumeMounts:
+        - name: volume-name
+          mountPath: /testdata
+  volumes:
+    - name: volume-name
+      persistentVolumeClaim:
+        claimName: pvc-name
 "#;
 
 pub const SECRET_TEMPLATE: &'static str = r#"apiVersion: v1

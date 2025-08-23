@@ -6,7 +6,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, ServiceAccount};
+use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, ServiceAccount};
 use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -337,6 +337,12 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
             let api: Api<Role> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
+        crate::ResourceType::ConfigMap => {
+            let obj: ConfigMap = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
         crate::ResourceType::ExternalSecret => {
             use kube::{api::{Api, DynamicObject, GroupVersionKind}};
             let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
@@ -361,7 +367,7 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
             let api: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
-        crate::ResourceType::Pod => {
+        crate::ResourceType::Pod | crate::ResourceType::PodWithPvc => {
             let obj: Pod = serde_yaml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), &ns);

@@ -77,11 +77,13 @@ enum ResourceType {
     NameSpace,
     PersistenceVolumeClaim,
     Pod,
+    PodWithPvc,
     Secret,
     ExternalSecret,
     ServiceAccount,
     Role,
     ClusterRole,
+    ConfigMap,
 }
 
 #[tokio::main]
@@ -1892,6 +1894,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::PersistenceVolumeClaim;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_pvcs).hint_text("Filter pvcs...").desired_width(200.0));
                         filter_pvcs = filter_pvcs.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
@@ -3377,6 +3386,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::ConfigMap;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_configmaps).hint_text("Filter configmaps...").desired_width(200.0));
                         filter_configmaps = filter_configmaps.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {

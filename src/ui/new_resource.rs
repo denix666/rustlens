@@ -24,6 +24,8 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
             new_resource_window.content = match new_resource_window.resource_type {
                 crate::ResourceType::NameSpace => crate::NAMESPACE_TEMPLATE.to_string(),
                 crate::ResourceType::Pod => crate::POD_TEMPLATE.to_string(),
+                crate::ResourceType::PodWithPvc => crate::POD_WITH_PVC_TEMPLATE.to_string(),
+                crate::ResourceType::ConfigMap => crate::CONFIGMAP_TEMPLATE.to_string(),
                 crate::ResourceType::Secret => crate::SECRET_TEMPLATE.to_string(),
                 crate::ResourceType::ExternalSecret => crate::EXTERNAL_SECRET_TEMPLATE.to_string(),
                 crate::ResourceType::Role => crate::ROLE_TEMPLATE.to_string(),
@@ -41,9 +43,11 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     crate::ResourceType::NameSpace => "NameSpace",
                     crate::ResourceType::Secret => "Secret",
                     crate::ResourceType::Role => "Role",
+                    crate::ResourceType::ConfigMap => "Configmap",
                     crate::ResourceType::ClusterRole => "Cluster role",
                     crate::ResourceType::ExternalSecret => "External secret",
                     crate::ResourceType::Pod => "Pod",
+                    crate::ResourceType::PodWithPvc => "Pod with PVC",
                     crate::ResourceType::ServiceAccount => "Service account",
                     crate::ResourceType::PersistenceVolumeClaim => "PersistenceVolumeClaim",
                     crate::ResourceType::Blank => "Blank",
@@ -56,6 +60,12 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Pod, "Pod",).clicked() {
                         new_resource_window.content = crate::POD_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::PodWithPvc, "Pod with PVC",).clicked() {
+                        new_resource_window.content = crate::POD_WITH_PVC_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ConfigMap, "Configmap",).clicked() {
+                        new_resource_window.content = crate::CONFIGMAP_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ServiceAccount, "Service account",).clicked() {
                         new_resource_window.content = crate::SERVICE_ACCOUNT_TEMPLATE.to_string();
