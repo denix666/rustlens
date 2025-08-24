@@ -126,6 +126,7 @@ async fn main() {
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
+    let mut decoder_window = ui::decoder::DecoderWindow::new();
 
     //####################################################//
     let mut sort_by = SortBy::Age;
@@ -3583,7 +3584,7 @@ async fn main() {
         if let Ok(mut editor) = yaml_editor_window.lock() {
             if editor.show {
                 let client_clone = Arc::clone(&client);
-                show_yaml_editor(ctx, &mut editor, client_clone);
+                show_yaml_editor(ctx, &mut editor, &mut decoder_window, client_clone);
             }
         }
 
@@ -3591,6 +3592,11 @@ async fn main() {
         if new_resource_window.show {
             let client_clone = Arc::clone(&client);
             show_new_resource_window(ctx, &mut new_resource_window, client_clone);
+        }
+
+        // Decoder window
+        if decoder_window.show {
+            show_decoder_window(ctx, &mut decoder_window);
         }
 
         // Logs window

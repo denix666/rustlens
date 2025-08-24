@@ -3,6 +3,8 @@ use kube::Client;
 use std::{sync::{Arc, Mutex}, time::{Duration, Instant}};
 use regex::RegexBuilder;
 
+use crate::ui::DecoderWindow;
+
 pub struct YamlEditorWindow {
     pub content: String,
     pub show: bool,
@@ -66,7 +68,7 @@ fn show_status_banner(ctx: &egui::Context, editor: &mut YamlEditorWindow) {
 }
 
 
-pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, client: Arc<Client>) {
+pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &mut DecoderWindow, client: Arc<Client>) {
     egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).default_width(800.0).default_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("🔍");
@@ -76,6 +78,10 @@ pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, client: Ar
             );
             if ui.button("×").clicked() {
                 editor.search_query.clear();
+            }
+            ui.separator();
+            if ui.button(egui::RichText::new("🖹 Decoder").size(16.0).color(egui::Color32::LIGHT_BLUE)).clicked() {
+                decoder.show = true;
             }
         });
         ui.separator();
