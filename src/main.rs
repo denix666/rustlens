@@ -84,6 +84,11 @@ enum ResourceType {
     Role,
     ClusterRole,
     ConfigMap,
+    DaemonSet,
+    ReplicaSet,
+    Ingress,
+    Service,
+    Deployment,
 }
 
 #[tokio::main]
@@ -1291,6 +1296,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::DaemonSet;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_daemonsets).hint_text("Filter daemonsets...").desired_width(200.0));
                         filter_daemonsets = filter_daemonsets.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
@@ -1454,6 +1466,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::ReplicaSet;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_replicasets).hint_text("Filter replicasets...").desired_width(200.0));
                         filter_replicasets = filter_replicasets.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
@@ -1582,6 +1601,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::Ingress;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_ingresses).hint_text("Filter ingresses...").desired_width(200.0));
                         filter_ingresses = filter_ingresses.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
@@ -2219,6 +2245,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::Service;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_services).hint_text("Filter services...").desired_width(200.0));
                         filter_services = filter_services.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
@@ -3152,6 +3185,13 @@ async fn main() {
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::Deployment;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_deployments).hint_text("Filter deployments...").desired_width(200.0));
                         filter_deployments = filter_deployments.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {

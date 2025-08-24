@@ -14,7 +14,7 @@ pub const SEARCH_MATCH_COLOR: Color32 = Color32::from_rgb(160, 220, 67); // yell
 
 pub const ITEM_NAME_COLOR: Color32 = Color32::WHITE;
 
-pub const POD_NAME_COLUMN_COLOR: Color32 = Color32::MAGENTA;
+pub const POD_NAME_COLUMN_COLOR: Color32 = Color32::from_rgb(197, 120, 255);
 pub const PODS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;
 pub const NAMESPACE_COLUMN_COLOR: Color32 = Color32::LIGHT_BLUE;
 

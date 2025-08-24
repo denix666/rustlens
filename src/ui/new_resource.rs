@@ -19,11 +19,16 @@ impl NewResourceWindow {
 }
 
 pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewResourceWindow, client: Arc<Client>) {
-    egui::Window::new("Create New Resource").collapsible(false).resizable(true).show(ctx, |ui| {
+    egui::Window::new("Create New Resource").collapsible(false).resizable(true).default_width(600.0).show(ctx, |ui| {
         if new_resource_window.content.is_empty() {
             new_resource_window.content = match new_resource_window.resource_type {
                 crate::ResourceType::NameSpace => crate::NAMESPACE_TEMPLATE.to_string(),
                 crate::ResourceType::Pod => crate::POD_TEMPLATE.to_string(),
+                crate::ResourceType::Deployment => crate::DEPLOYMENT_TEMPLATE.to_string(),
+                crate::ResourceType::Service => crate::SERVICE_TEMPLATE.to_string(),
+                crate::ResourceType::DaemonSet => crate::DAEMONSET_TEMPLATE.to_string(),
+                crate::ResourceType::Ingress => crate::INGRESS_TEMPLATE.to_string(),
+                crate::ResourceType::ReplicaSet => crate::REPLICASET_TEMPLATE.to_string(),
                 crate::ResourceType::PodWithPvc => crate::POD_WITH_PVC_TEMPLATE.to_string(),
                 crate::ResourceType::ConfigMap => crate::CONFIGMAP_TEMPLATE.to_string(),
                 crate::ResourceType::Secret => crate::SECRET_TEMPLATE.to_string(),
@@ -42,7 +47,12 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                 .selected_text(match new_resource_window.resource_type {
                     crate::ResourceType::NameSpace => "NameSpace",
                     crate::ResourceType::Secret => "Secret",
+                    crate::ResourceType::Deployment => "Deployment",
                     crate::ResourceType::Role => "Role",
+                    crate::ResourceType::Service => "Service",
+                    crate::ResourceType::Ingress => "Ingress",
+                    crate::ResourceType::DaemonSet => "DaemonSet",
+                    crate::ResourceType::ReplicaSet => "ReplicaSet",
                     crate::ResourceType::ConfigMap => "Configmap",
                     crate::ResourceType::ClusterRole => "Cluster role",
                     crate::ResourceType::ExternalSecret => "External secret",
@@ -57,6 +67,21 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Secret, "Secret",).clicked() {
                         new_resource_window.content = crate::SECRET_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Deployment, "v",).clicked() {
+                        new_resource_window.content = crate::DEPLOYMENT_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Service, "Service",).clicked() {
+                        new_resource_window.content = crate::SERVICE_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::DaemonSet, "DaemonSet",).clicked() {
+                        new_resource_window.content = crate::DAEMONSET_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Ingress, "Ingress",).clicked() {
+                        new_resource_window.content = crate::INGRESS_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ReplicaSet, "ReplicaSet",).clicked() {
+                        new_resource_window.content = crate::REPLICASET_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Pod, "Pod",).clicked() {
                         new_resource_window.content = crate::POD_TEMPLATE.to_string();

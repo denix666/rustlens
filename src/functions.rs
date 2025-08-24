@@ -1,13 +1,14 @@
 use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
+use k8s_openapi::api::networking::v1::Ingress;
 use k8s_openapi::api::rbac::v1::{ClusterRole, Role};
 use k8s_openapi::{ClusterResourceScope, Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, ServiceAccount};
-use k8s_openapi::api::apps::v1::{Deployment, StatefulSet, ReplicaSet};
+use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, Service, ServiceAccount};
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::pin::Pin;
@@ -337,6 +338,36 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
             let api: Api<Role> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
+        crate::ResourceType::DaemonSet => {
+            let obj: DaemonSet = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<DaemonSet> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::ReplicaSet => {
+            let obj: ReplicaSet = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::Ingress => {
+            let obj: Ingress = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<Ingress> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::Service => {
+            let obj: Service = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<Service> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::Deployment => {
+            let obj: Deployment = serde_yaml::from_value(value)?;
+            let ns = obj.namespace().unwrap();
+            let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), &ns);
+            api.create(&PostParams::default(), &obj).await?;
+        },
         crate::ResourceType::ConfigMap => {
             let obj: ConfigMap = serde_yaml::from_value(value)?;
             let ns = obj.namespace().unwrap();
@@ -387,7 +418,7 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
 pub fn get_current_context_info() -> Result<NamedContext, anyhow::Error> {
     let home_path = match home::home_dir() {
         Some(path) => path.to_string_lossy().to_string(),
-        None => panic!("Impossible to get your home dir!"),
+        _ => panic!("Impossible to get your home dir!"),
     };
     let config_path = format!("{}/.kube/config", home_path);
     let config = Kubeconfig::read_from(config_path)?;
