@@ -116,6 +116,8 @@ async fn main() {
     let mut statefulset_details_window = ui::statefulset_details::StatefulSetDetailsWindow::new();
     let mut configmap_details_window = ui::configmap_details::ConfigMapDetailsWindow::new();
     let mut job_details_window = ui::job_details::JobDetailsWindow::new();
+    let mut pvc_details_window = ui::pvc_details::PvcDetailsWindow::new();
+    let mut pv_details_window = ui::pv_details::PvDetailsWindow::new();
     let mut cronjob_details_window = ui::cronjob_details::CronJobDetailsWindow::new();
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
     let mut service_account_details_window = ui::service_account_details::ServiceAccountDetailsWindow::new();
@@ -329,6 +331,7 @@ async fn main() {
 
     // PVC
     let pvcs = Arc::new(Mutex::new(Vec::<PvcItem>::new()));
+    let pvc_details = Arc::new(Mutex::new(PvcDetails::default()));
     let pvcs_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -364,6 +367,7 @@ async fn main() {
 
     // PV
     let pvs = Arc::new(Mutex::new(Vec::<PvItem>::new()));
+    let pv_details = Arc::new(Mutex::new(PvDetails::default()));
     let pvs_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -1856,7 +1860,19 @@ async fn main() {
                                         let cur_item_object = &item.name;
                                         let cur_item_claim = &item.claim;
                                         if filter_pvs.is_empty() || cur_item_object.contains(&filter_pvs) || cur_item_claim.contains(&filter_pvs) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&pv_details);
+                                                pv_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_pv_details(client_clone, &name, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             ui.label(format!("{}", &item.storage_class));
                                             ui.label(format!("{}", &item.capacity));
                                             ui.label(format!("{}", &item.claim));
@@ -1955,7 +1971,20 @@ async fn main() {
                                     for item in visible_pvcs.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_pvcs.is_empty() || cur_item_object.contains(&filter_pvcs) {
-                                            ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&pvc_details);
+                                                let ns = item.namespace.clone();
+                                                pvc_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_pvc_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
@@ -3632,6 +3661,24 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+        }
+
+        // Pvc details window
+        if pvc_details_window.show {
+            let pvc_details_clone = Arc::clone(&pvc_details);
+            let pvcs_clone = Arc::clone(&pvcs);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_pvc_details_window(ctx, &mut pvc_details_window, pvc_details_clone, pvcs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+        }
+
+        // Pv details window
+        if pv_details_window.show {
+            let pv_details_clone = Arc::clone(&pv_details);
+            let pvs_clone = Arc::clone(&pvs);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_pv_details_window(ctx, &mut pv_details_window, pv_details_clone, pvs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Service details window

@@ -6,7 +6,6 @@ use futures_util::StreamExt;
 #[derive(Debug, Clone)]
 pub struct PvItem {
     pub name: String,
-    //pub labels: BTreeMap<String, String>,
     pub storage_class: String,
     pub capacity: String,
     pub claim: String,
@@ -17,7 +16,6 @@ pub struct PvItem {
 pub fn convert_pv(pv: PersistentVolume) -> Option<PvItem> {
     Some(PvItem {
         name: pv.metadata.name.clone()?,
-        //labels: pv.metadata.labels.clone().unwrap_or_default(),
         storage_class: pv
             .spec
             .as_ref()

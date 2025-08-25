@@ -7,7 +7,6 @@ use kube::{Api, runtime::watcher, runtime::watcher::Event};
 #[derive(Debug, Clone)]
 pub struct StorageClassItem {
     pub name: String,
-    //pub labels: BTreeMap<String, String>,
     pub provisioner: String,
     pub reclaim_policy: String,
     pub volume_binding_mode: String,
@@ -18,7 +17,6 @@ pub struct StorageClassItem {
 pub fn convert_storage_class(sc: StorageClass) -> Option<StorageClassItem> {
     Some(StorageClassItem {
         name: sc.metadata.name.clone()?,
-        //labels: sc.metadata.labels.clone().unwrap_or_default(),
         provisioner: sc.provisioner.clone(),
         reclaim_policy: sc
             .reclaim_policy

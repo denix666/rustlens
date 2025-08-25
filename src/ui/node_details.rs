@@ -48,7 +48,7 @@ pub fn show_node_details_window(
 
                     if let Some(creation_timestamp) = &item.creation_timestamp {
                         ui.label(egui::RichText::new("Creation time:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(creation_timestamp.0.to_string()).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(format!("{}, {} ago", creation_timestamp.0.to_string(), crate::format_age(&creation_timestamp))).color(DETAIL_COLOR));
                         ui.end_row();
                     }
 

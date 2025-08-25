@@ -68,7 +68,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Secret, "Secret",).clicked() {
                         new_resource_window.content = crate::SECRET_TEMPLATE.to_string();
                     };
-                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Deployment, "v",).clicked() {
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Deployment, "Deployment",).clicked() {
                         new_resource_window.content = crate::DEPLOYMENT_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Service, "Service",).clicked() {

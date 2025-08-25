@@ -7,7 +7,7 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolumeClaim, Pod, Secret, Service, ServiceAccount};
+use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod, Secret, Service, ServiceAccount};
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -35,11 +35,10 @@ pub fn compute_overview_stats(
     // Pods
     for pod in pods {
         if pod.ready_containers < pod.total_containers {
-            if pod.phase.as_ref().unwrap() != "Succeeded" {
+            if pod.phase.as_deref().unwrap_or("") != "Succeeded" {
                 stats.pods_pending += 1;
                 if let Some(ns) = &pod.namespace {
-                    let count = stats.namespaces_with_pending_items.entry(ns.clone()).or_insert(0);
-                    *count += 1;
+                    *stats.namespaces_with_pending_items.entry(ns.clone()).or_insert(0) += 1;
                 }
             } else {
                 stats.pods_running += 1;
@@ -53,12 +52,12 @@ pub fn compute_overview_stats(
     for deployment in deployments {
         stats.deployments_pending += deployment.unavailable_replicas as usize;
     }
-    stats.deployments_running = deployments.len() - stats.deployments_pending;
+    stats.deployments_running = deployments.len().saturating_sub(stats.deployments_pending);
 
     // Daemonsets
     for daemonset in daemonsets {
         if daemonset.ready < daemonset.desired {
-            stats.pods_pending += 1;
+            stats.daemonsets_pending += 1;
         } else {
             stats.daemonsets_running += 1;
         }
@@ -87,6 +86,18 @@ pub fn compute_overview_stats(
 
 pub async fn get_resource_events(client: Arc<Client>, kind: &str, namespace: &str, name: &str) -> Result<Vec<Event>, kube::Error> {
     let events: Api<Event> = Api::namespaced(client.as_ref().clone(), namespace);
+
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.kind={},involvedObject.name={}",
+        kind, name
+    ));
+
+    let event_list = events.list(&lp).await?;
+    Ok(event_list.items)
+}
+
+pub async fn get_cluster_resource_events(client: Arc<Client>, kind: &str, name: &str) -> Result<Vec<Event>, kube::Error> {
+    let events: Api<Event> = Api::all(client.as_ref().clone());
 
     let lp = ListParams::default().fields(&format!(
         "involvedObject.kind={},involvedObject.name={}",
@@ -181,7 +192,7 @@ pub fn item_color(item: &str) -> Color32 {
         "NotReady" => Color32::RED,
         "Running" => Color32::GREEN,
         "Waiting" => Color32::YELLOW,
-        "Terminated" => Color32::RED,
+        "Terminated" => Color32::from_rgb(168, 0, 113), // pinc
         "Complete" => Color32::GREEN,
         "Completed" => Color32::GREEN,
         "Succeeded" => Color32::GREEN,
@@ -194,7 +205,7 @@ pub fn item_color(item: &str) -> Color32 {
         "SchedulingDisabled" => Color32::ORANGE,
         "Lost" => Color32::LIGHT_RED,
         "Active" => Color32::GREEN,
-        "Terminating" => Color32::RED,
+        "Terminating" => Color32::from_rgb(168, 0, 113), // pinc
         "Warning" => Color32::ORANGE,
         "Normal" => Color32::GREEN,
         _ => Color32::LIGHT_GRAY,
@@ -508,6 +519,12 @@ pub async fn delete_pod(client: Arc<Client>, pod_name: String, namespace: Option
 pub async fn delete_cluster_role(client: Arc<Client>, cluster_role_name: &str) -> Result<(), kube::Error> {
     let roles: Api<ClusterRole> = Api::all(client.as_ref().clone());
     roles.delete(cluster_role_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_cluster_pv(client: Arc<Client>, pv_name: &str) -> Result<(), kube::Error> {
+    let pvs: Api<PersistentVolume> = Api::all(client.as_ref().clone());
+    pvs.delete(pv_name, &DeleteParams::default()).await?;
     Ok(())
 }
 
