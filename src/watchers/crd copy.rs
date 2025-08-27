@@ -20,6 +20,7 @@ pub struct CRDItem {
 
 fn convert_crd(obj: &kube::api::DynamicObject) -> Option<CRDItem> {
     let name = obj.name_any();
+    //let name = obj.metadata.name.as_ref().unwrap().clone();
     let spec: &Value = obj.data.get("spec")?;
     let namespace = obj.namespace();
     let group = spec.get("group")?.as_str()?.to_string();

@@ -16,6 +16,7 @@ use get_details::*;
 use eframe::egui::{CursorIcon};
 use eframe::*;
 use egui::{Color32, Context, FontId, TextStyle};
+use std::collections::BTreeMap;
 use std::f32;
 use std::sync::{Arc, Mutex};
 use kube::{Client};
@@ -122,6 +123,7 @@ async fn main() {
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
     let mut service_account_details_window = ui::service_account_details::ServiceAccountDetailsWindow::new();
     let mut role_details_window = ui::role_details::RoleDetailsWindow::new();
+    //let mut crd_details_window = ui::crd_details::CrdDetailsWindow::new();
     let mut cluster_role_details_window = ui::cluster_role_details::ClusterRoleDetailsWindow::new();
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
@@ -129,6 +131,10 @@ async fn main() {
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
     let mut decoder_window = ui::decoder::DecoderWindow::new();
+    // let cr_groups_list: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+    // let cr_items_list: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+
+    let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<String>>::new()));
 
     //####################################################//
     let mut sort_by = SortBy::Age;
@@ -309,6 +315,7 @@ async fn main() {
 
     // CRDS
     let crds = Arc::new(Mutex::new(Vec::<CRDItem>::new()));
+    //let crd_details = Arc::new(Mutex::new(CrdDetails::default()));
     let crds_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -626,9 +633,24 @@ async fn main() {
                     }
                 });
 
-                egui::CollapsingHeader::new("🖥 Administration").default_open(false).show(ui, |ui| {
-                    if ui.selectable_label(current == Category::CustomResourcesDefinitions, "📢 Custom Resources Definitions").clicked() {
+                egui::CollapsingHeader::new("🖥 Custom Resources").default_open(false).show(ui, |ui| {
+                    if ui.selectable_label(current == Category::CustomResourcesDefinitions, "📢 Definitions").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::CustomResourcesDefinitions;
+
+                        let crds_clone = Arc::clone(&crds);
+                        let result = get_crs_list(crds_clone);
+                        *cr_grouped_list.lock().unwrap() = result;
+
+                    }
+
+                    for (group, items) in cr_grouped_list.lock().unwrap().iter() {
+                        egui::CollapsingHeader::new(group).default_open(false).show(ui, |ui| {
+                            for item_name in items {
+                                if ui.label(egui::RichText::new(item_name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    println!("{}", item_name);
+                                }
+                            }
+                        });
                     }
                 });
 
@@ -1058,20 +1080,46 @@ async fn main() {
                         egui::ScrollArea::vertical().id_salt("crds_scroll").show(ui, |ui| {
                             egui::Grid::new("crds_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                 ui.label("Name");
+                                ui.label("Plural");
                                 ui.label("Group");
                                 ui.label("Version");
                                 ui.label("Scope");
                                 ui.label("Kind");
+                                ui.label("Namespace");
                                 ui.label("Age");
                                 ui.end_row();
                                 for item in crds_list.iter().rev().take(200) {
                                     let cur_item_object = &item.name;
                                     if filter_crds.is_empty() || cur_item_object.contains(&filter_crds) {
-                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            // let name = cur_item_object.clone();
+                                            // let version = item.version.clone();
+                                            // let group = item.group.clone();
+                                            // let plural = item.plural.clone();
+                                            // let kind = item.kind.clone();
+                                            // let ns = item.namespace.clone();
+                                            // let scope = item.scope.clone();
+                                            // let client_clone = Arc::clone(&client);
+                                            // let details = Arc::clone(&crd_details);
+                                            // crd_details_window.show = true;
+                                            // tokio::spawn({
+                                            //     async move {
+                                            //         if let Err(e) = get_cr_details(client_clone, &name, &plural, &kind, &version, &group, &scope, ns, details).await {
+                                            //             eprintln!("Details fetch failed: {:?}", e);
+                                            //         }
+                                            //     }
+                                            // });
+                                        }
+                                        ui.label(format!("{}", &item.plural));
                                         ui.label(format!("{}", &item.group));
                                         ui.label(format!("{}", &item.version));
                                         ui.label(format!("{}", &item.scope));
                                         ui.label(format!("{}", &item.kind));
+                                        if let Some(crd_namespace) = &item.namespace {
+                                            ui.label(format!("{}", crd_namespace));
+                                        } else {
+                                            ui.label("-");
+                                        }
                                         ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                         ui.end_row();
                                     }
@@ -3743,6 +3791,15 @@ async fn main() {
             let client_clone = Arc::clone(&client);
             show_secret_details_window(ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
+
+        // // CRD details window
+        // if crd_details_window.show {
+        //     let crd_details_clone = Arc::clone(&crd_details);
+        //     let crds_clone = Arc::clone(&crds);
+        //     //let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+        //     //let client_clone = Arc::clone(&client);
+        //     show_crd_details_window(ctx, &mut crd_details_window, crd_details_clone, crds_clone,  &mut confirmation_dialog);
+        // }
 
         // DaemonSet details window
         if daemonset_details_window.show {

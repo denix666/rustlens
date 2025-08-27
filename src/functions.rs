@@ -11,6 +11,7 @@ use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVo
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -22,6 +23,20 @@ use chrono::{Utc, DateTime};
 use serde_yaml;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
+
+pub fn get_crs_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<String, Vec<String>> {
+    let mut grouped_items: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let crds_list = crds.lock().unwrap();
+
+    for item in crds_list.iter() {
+        grouped_items
+            .entry(item.group.clone())
+            .or_default()
+            .push(item.kind.clone());
+    }
+
+    grouped_items
+}
 
 pub fn compute_overview_stats(
     pods: &Vec<crate::watchers::PodItem>,
@@ -461,9 +476,9 @@ pub enum ScaleTarget {
 
 pub async fn scale_workload(client: Arc<Client>, name: &str, namespace: &str, replicas: i32, kind: ScaleTarget) -> Result<(), kube::Error> {
     let patch = serde_json::json!({
-            "spec": {
-                "replicas": replicas
-            }
+        "spec": {
+            "replicas": replicas
+        }
     });
 
     match kind {
