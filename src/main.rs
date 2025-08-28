@@ -134,7 +134,7 @@ async fn main() {
     // let cr_groups_list: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
     // let cr_items_list: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
 
-    let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<String>>::new()));
+    let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
 
     //####################################################//
     let mut sort_by = SortBy::Age;
@@ -636,18 +636,38 @@ async fn main() {
                 egui::CollapsingHeader::new("🖥 Custom Resources").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::CustomResourcesDefinitions, "📢 Definitions").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::CustomResourcesDefinitions;
-
-                        let crds_clone = Arc::clone(&crds);
-                        let result = get_crs_list(crds_clone);
-                        *cr_grouped_list.lock().unwrap() = result;
-
                     }
 
                     for (group, items) in cr_grouped_list.lock().unwrap().iter() {
                         egui::CollapsingHeader::new(group).default_open(false).show(ui, |ui| {
-                            for item_name in items {
-                                if ui.label(egui::RichText::new(item_name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                    println!("{}", item_name);
+                            for item in items {
+                                if ui.label(egui::RichText::new(&item.kind).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    //println!("{}", item.name);
+                                    let version = item.version.clone();
+                                    let name = item.name.clone();
+                                    let group = item.group.clone();
+                                    let plural = item.plural.clone();
+                                    let kind = item.kind.clone();
+                                    let ns = item.namespace.clone();
+                                    let scope = item.scope.clone();
+                                    let client_clone = Arc::clone(&client);
+                                    //crd_details_window.show = true;
+                                    tokio::spawn({
+                                        async move {
+                                            if let Err(e) = get_cr_details(
+                                                client_clone,
+                                                name,
+                                                group,
+                                                version,
+                                                kind,
+                                                plural,
+                                                scope,
+                                                ns
+                                            ).await {
+                                                eprintln!("Details fetch failed: {:?}", e);
+                                            }
+                                        }
+                                    });
                                 }
                             }
                         });
@@ -677,6 +697,14 @@ async fn main() {
                     }
                 });
             });
+        });
+
+        // CR definitions
+        let crds_clone = Arc::clone(&crds);
+        let cr_grouped_list_clone = Arc::clone(&cr_grouped_list);
+        tokio::spawn(async move {
+            let result = get_crs_list(crds_clone).await;
+            *cr_grouped_list_clone.lock().unwrap() = result;
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

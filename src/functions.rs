@@ -24,15 +24,23 @@ use serde_yaml;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
 
-pub fn get_crs_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<String, Vec<String>> {
-    let mut grouped_items: BTreeMap<String, Vec<String>> = BTreeMap::new();
+pub async fn get_crs_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<String, Vec<crate::CRDItem>> {
+    let mut grouped_items: BTreeMap<String, Vec<crate::CRDItem>> = BTreeMap::new();
     let crds_list = crds.lock().unwrap();
 
     for item in crds_list.iter() {
-        grouped_items
-            .entry(item.group.clone())
-            .or_default()
-            .push(item.kind.clone());
+        let kind_info = crate::CRDItem {
+            kind: item.kind.clone(),
+            version: item.version.clone(),
+            plural: item.plural.clone(),
+            name: item.name.clone(),
+            group: item.group.clone(),
+            namespace: item.namespace.clone(),
+            scope: item.scope.clone(),
+            creation_timestamp: item.creation_timestamp.clone(),
+        };
+
+        grouped_items.entry(item.group.clone()).or_default().push(kind_info);
     }
 
     grouped_items
