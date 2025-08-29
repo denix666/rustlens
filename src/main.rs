@@ -16,11 +16,12 @@ use get_details::*;
 use eframe::egui::{CursorIcon};
 use eframe::*;
 use egui::{Color32, Context, FontId, TextStyle};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::f32;
 use std::sync::{Arc, Mutex};
 use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
+use serde_json::{Map, Value};
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
@@ -58,6 +59,7 @@ enum Category {
     PodDisruptionBudgets,
     NetworkPolicies,
     CustomResourcesDefinitions,
+    CustomResources,
     HelmReleases,
     About,
     Roles,
@@ -131,14 +133,14 @@ async fn main() {
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
     let mut decoder_window = ui::decoder::DecoderWindow::new();
-    // let cr_groups_list: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
-    // let cr_items_list: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
-
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
+    let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
     //####################################################//
     let mut sort_by = SortBy::Age;
     let mut sort_asc = false;
+
+    let mut selected_cr = String::new();
 
     let ctx_info = get_current_context_info().unwrap();
     let cluster_name = ctx_info.context.unwrap().cluster;
@@ -641,32 +643,32 @@ async fn main() {
                     for (group, items) in cr_grouped_list.lock().unwrap().iter() {
                         egui::CollapsingHeader::new(group).default_open(false).show(ui, |ui| {
                             for item in items {
-                                if ui.label(egui::RichText::new(&item.kind).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                    //println!("{}", item.name);
+                                let seleted_item: bool;
+                                if item.kind == selected_cr && *selected_category_ui.lock().unwrap() == Category::CustomResources {
+                                    seleted_item = true;
+                                } else {
+                                    seleted_item = false;
+                                }
+                                if ui.selectable_label(seleted_item, &item.kind).clicked() {
+                                    *selected_category_ui.lock().unwrap() = Category::CustomResources;
+                                    selected_cr = item.kind.clone();
                                     let version = item.version.clone();
-                                    let name = item.name.clone();
                                     let group = item.group.clone();
                                     let plural = item.plural.clone();
                                     let kind = item.kind.clone();
-                                    let ns = item.namespace.clone();
                                     let scope = item.scope.clone();
                                     let client_clone = Arc::clone(&client);
-                                    //crd_details_window.show = true;
-                                    tokio::spawn({
-                                        async move {
-                                            if let Err(e) = get_cr_details(
+                                    let cr_instances_clone = Arc::clone(&cr_instances);
+                                    tokio::spawn(async move {
+                                        let result = get_cr_instances(
                                                 client_clone,
-                                                name,
                                                 group,
                                                 version,
                                                 kind,
                                                 plural,
                                                 scope,
-                                                ns
-                                            ).await {
-                                                eprintln!("Details fetch failed: {:?}", e);
-                                            }
-                                        }
+                                            ).await;
+                                        *cr_instances_clone.lock().unwrap() = result.unwrap();
                                     });
                                 }
                             }
@@ -703,7 +705,7 @@ async fn main() {
         let crds_clone = Arc::clone(&crds);
         let cr_grouped_list_clone = Arc::clone(&cr_grouped_list);
         tokio::spawn(async move {
-            let result = get_crs_list(crds_clone).await;
+            let result = get_crs_grouped_list(crds_clone).await;
             *cr_grouped_list_clone.lock().unwrap() = result;
         });
 
@@ -711,6 +713,135 @@ async fn main() {
             match *selected_category_ui.lock().unwrap() {
                 Category::About => {
                     show_about_info(ui);
+                },
+                Category::CustomResources => {
+                    let cr_instances_clone = Arc::clone(&cr_instances);
+                    let cr_items = cr_instances_clone.lock().unwrap();
+
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Custom Resources - {}", cr_items.len()));
+                    });
+                    ui.separator();
+                    egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                        fn value_to_string(v: &Value) -> Option<String> {
+                            match v {
+                                Value::String(s) => Some(s.clone()),
+                                Value::Number(n) => Some(n.to_string()),
+                                Value::Bool(b)   => Some(b.to_string()),
+                                Value::Object(obj) => {
+                                    if let Some(Value::String(s)) = obj.get("name") {
+                                        return Some(s.clone());
+                                    }
+                                    Some(serde_json::to_string(v).ok()?)
+                                }
+                                Value::Array(_) => Some(serde_json::to_string(v).ok()?),
+                                Value::Null => None,
+                            }
+                        }
+
+                        fn pick_condition<'a>(status: &'a Value) -> Option<&'a Map<String, Value>> {
+                            let arr = status.get("conditions")?.as_array()?;
+                            let mut first: Option<&Map<String, Value>> = None;
+
+                            for v in arr {
+                                if let Some(o) = v.as_object() {
+                                    if first.is_none() { first = Some(o); }
+                                    let t = o.get("type").and_then(|t| t.as_str());
+                                    if t == Some("Ready") {
+                                        return Some(o);
+                                    }
+                                }
+                            }
+                            first
+                        }
+
+                        fn extract_col_value(data: &Value, key: &str) -> Option<String> {
+                            let status = data.get("status")?;
+
+                            if let Some(v) = status.get(key) {
+                                if let Some(s) = value_to_string(v) {
+                                    return Some(s);
+                                }
+                            }
+
+                            if let Some(cond) = pick_condition(status) {
+                                if let Some(v) = cond.get(key) {
+                                    if let Some(s) = value_to_string(v) {
+                                        return Some(s);
+                                    }
+                                }
+                            }
+
+                            None
+                        }
+
+                        {
+                            let mut all_cols: BTreeSet<String> = BTreeSet::new();
+
+                            for cr in cr_items.iter() {
+                                if let Some(status) = cr.data.get("status") {
+                                    if let Some(obj) = status.as_object() {
+                                        for (k, _v) in obj {
+                                            if k != "conditions" {
+                                                all_cols.insert(k.clone()); // binding, ipv4, refreshTime, ...
+                                            }
+                                        }
+                                    }
+                                    if let Some(cond) = pick_condition(status) {
+                                        for k in cond.keys() {
+                                            all_cols.insert(k.clone()); // message, reason, status, type, lastTransitionTime, ...
+                                        }
+                                    }
+                                }
+                            }
+
+                            let preferred = [
+                                "binding", "ip", "podCIDRs",
+                                "message", "reason", "type", "status", "lastTransitionTime",
+                                "refreshTime", "syncedResourceVersion"
+                            ];
+                            let mut ordered_cols: Vec<String> = Vec::new();
+                            for p in preferred {
+                                if all_cols.contains(p) { ordered_cols.push(p.to_string()); }
+                            }
+                            for k in &all_cols {
+                                if !preferred.contains(&k.as_str()) {
+                                    ordered_cols.push(k.clone());
+                                }
+                            }
+
+                            egui::ScrollArea::vertical()
+                                .id_salt("cr_scroll")
+                                .show(ui, |ui| {
+                                    egui::Grid::new("cr_grid")
+                                        .striped(true)
+                                        .min_col_width(20.0)
+                                        .show(ui, |ui| {
+                                            // header
+                                            ui.label("Name");
+                                            for col in &ordered_cols {
+                                                ui.label(col);
+                                            }
+                                            ui.end_row();
+
+                                            // rows
+                                            for cr in cr_items.iter() {
+                                                ui.label(cr.name.clone());
+
+                                                for col in &ordered_cols {
+                                                    if let Some(val) = extract_col_value(&cr.data, col) {
+                                                        ui.label(val);
+                                                    } else {
+                                                        ui.label("-");
+                                                    }
+                                                }
+
+                                                ui.end_row();
+                                            }
+                                        });
+                                });
+                        }
+                    });
                 },
                 Category::SeriviceAccounts => {
                     let ns = namespaces.lock().unwrap();
@@ -1113,7 +1244,6 @@ async fn main() {
                                 ui.label("Version");
                                 ui.label("Scope");
                                 ui.label("Kind");
-                                ui.label("Namespace");
                                 ui.label("Age");
                                 ui.end_row();
                                 for item in crds_list.iter().rev().take(200) {
@@ -1143,11 +1273,6 @@ async fn main() {
                                         ui.label(format!("{}", &item.version));
                                         ui.label(format!("{}", &item.scope));
                                         ui.label(format!("{}", &item.kind));
-                                        if let Some(crd_namespace) = &item.namespace {
-                                            ui.label(format!("{}", crd_namespace));
-                                        } else {
-                                            ui.label("-");
-                                        }
                                         ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                         ui.end_row();
                                     }

@@ -11,7 +11,6 @@ pub struct CRDItem {
     pub name: String,
     pub group: String,
     pub version: String,
-    pub namespace: Option<String>,
     pub scope: String,
     pub kind: String,
     pub plural: String,
@@ -21,7 +20,6 @@ pub struct CRDItem {
 fn convert_crd(obj: &kube::api::DynamicObject) -> Option<CRDItem> {
     let name = obj.name_any();
     let spec: &Value = obj.data.get("spec")?;
-    let namespace = obj.namespace();
     let group = spec.get("group")?.as_str()?.to_string();
     let scope = spec.get("scope")?.as_str()?.to_string();
     let creation_timestamp = obj.metadata.creation_timestamp.clone();
@@ -51,7 +49,6 @@ fn convert_crd(obj: &kube::api::DynamicObject) -> Option<CRDItem> {
         group,
         plural,
         version,
-        namespace,
         scope,
         kind,
         creation_timestamp,

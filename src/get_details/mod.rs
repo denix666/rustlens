@@ -52,5 +52,5 @@ pub use get_service_details::*;
 pub mod get_endpoint_details;
 pub use get_endpoint_details::*;
 
-pub mod get_cr_details;
-pub use get_cr_details::*;
+pub mod get_cr_instances;
+pub use get_cr_instances::*;

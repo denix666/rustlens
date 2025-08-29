@@ -16,7 +16,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use futures_util::StreamExt;
-use serde_json::json;
+use serde_json::{json};
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use chrono::{Utc, DateTime};
@@ -24,7 +24,7 @@ use serde_yaml;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
 
-pub async fn get_crs_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<String, Vec<crate::CRDItem>> {
+pub async fn get_crs_grouped_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<String, Vec<crate::CRDItem>> {
     let mut grouped_items: BTreeMap<String, Vec<crate::CRDItem>> = BTreeMap::new();
     let crds_list = crds.lock().unwrap();
 
@@ -35,7 +35,6 @@ pub async fn get_crs_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<Str
             plural: item.plural.clone(),
             name: item.name.clone(),
             group: item.group.clone(),
-            namespace: item.namespace.clone(),
             scope: item.scope.clone(),
             creation_timestamp: item.creation_timestamp.clone(),
         };
@@ -45,6 +44,11 @@ pub async fn get_crs_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTreeMap<Str
 
     grouped_items
 }
+
+// DEBUG (for taints)
+// status: item.data.get("status").map(|value| {
+//     serde_json::to_string_pretty(value).unwrap_or_else(|_| "Invalid JSON".to_string())
+// }),
 
 pub fn compute_overview_stats(
     pods: &Vec<crate::watchers::PodItem>,
