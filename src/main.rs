@@ -1684,6 +1684,25 @@ async fn main() {
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
                             filter_replicasets.clear();
                         }
+                        ui.separator();
+                        let mut show_clear_button = false;
+                        for i in &visible_replicasets {
+                            if i.current == 0 && i.ready == 0 {
+                                show_clear_button = true;
+                                break;
+                            }
+                        }
+                        if ui.add_enabled(show_clear_button, egui::Button::new(egui::RichText::new("🗑 Clear empty replicasets").size(16.0).color(ORANGE_BUTTON))).clicked() {
+                            let client_clone = Arc::clone(&client);
+                            let cur_ns = selected_ns.clone();
+                            confirmation_dialog.request("Empty replicasets".to_string(), cur_ns.clone(), move || {
+                                tokio::spawn(async {
+                                    if let Err(e) = delete_zero_replicasets(client_clone, cur_ns).await {
+                                        eprintln!("Error removing empty replicasets: {:?}", e);
+                                    }
+                                });
+                            });
+                        }
                     });
                     ui.separator();
                     if replicasets_loading.load(Ordering::Relaxed) {

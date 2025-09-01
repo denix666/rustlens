@@ -50,6 +50,40 @@ pub async fn get_crs_grouped_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTre
 //     serde_json::to_string_pretty(value).unwrap_or_else(|_| "Invalid JSON".to_string())
 // }),
 
+pub async fn delete_zero_replicasets(client: Arc<Client>, ns: Option<String>) -> Result<(), kube::Error> {
+    use kube::ResourceExt;
+    let rs_api: Api<ReplicaSet>;
+
+    if let Some(namespace) = ns {
+        rs_api = Api::namespaced(client.as_ref().clone(), &namespace);
+    } else {
+        rs_api = Api::all(client.as_ref().clone());
+    }
+
+    let rs_list = rs_api.list(&ListParams::default()).await?;
+
+    for rs in rs_list {
+        let name = rs.name_any();
+        let ns = ResourceExt::namespace(&rs).unwrap_or_default();
+
+        if let Some(status) = rs.status {
+            let replicas = status.replicas;
+            let ready = status.ready_replicas.unwrap_or(0);
+            let available = status.available_replicas.unwrap_or(0);
+
+            if replicas + ready + available == 0 {
+                crate::delete_namespaced_component_for::<k8s_openapi::api::apps::v1::ReplicaSet>(
+                    name,
+                    Some(&ns),
+                    client.clone(),
+                ).await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn compute_overview_stats(
     pods: &Vec<crate::watchers::PodItem>,
     deployments: &Vec<crate::watchers::DeploymentItem>,
