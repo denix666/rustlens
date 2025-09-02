@@ -28,6 +28,10 @@ const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const ACTIONS_MENU_LABEL: &str = "🔻";
 const MAX_LOG_LINES: usize = 600;
 
+// TODO
+// Add function to get actual version online
+const ACTUAL_K8S_MAJOR_VERSION: u32 = 33;
+
 #[derive(PartialEq)]
 enum SortBy {
     Name,
@@ -722,126 +726,158 @@ async fn main() {
                         ui.heading(format!("Custom Resources - {}", cr_items.len()));
                     });
                     ui.separator();
-                    egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
-                        fn value_to_string(v: &Value) -> Option<String> {
-                            match v {
-                                Value::String(s) => Some(s.clone()),
-                                Value::Number(n) => Some(n.to_string()),
-                                Value::Bool(b)   => Some(b.to_string()),
-                                Value::Object(obj) => {
-                                    if let Some(Value::String(s)) = obj.get("name") {
-                                        return Some(s.clone());
-                                    }
-                                    Some(serde_json::to_string(v).ok()?)
-                                }
-                                Value::Array(_) => Some(serde_json::to_string(v).ok()?),
-                                Value::Null => None,
-                            }
-                        }
 
-                        fn pick_condition<'a>(status: &'a Value) -> Option<&'a Map<String, Value>> {
-                            let arr = status.get("conditions")?.as_array()?;
-                            let mut first: Option<&Map<String, Value>> = None;
-
-                            for v in arr {
-                                if let Some(o) = v.as_object() {
-                                    if first.is_none() { first = Some(o); }
-                                    let t = o.get("type").and_then(|t| t.as_str());
-                                    if t == Some("Ready") {
-                                        return Some(o);
-                                    }
-                                }
-                            }
-                            first
-                        }
-
-                        fn extract_col_value(data: &Value, key: &str) -> Option<String> {
-                            let status = data.get("status")?;
-
-                            if let Some(v) = status.get(key) {
-                                if let Some(s) = value_to_string(v) {
-                                    return Some(s);
-                                }
-                            }
-
-                            if let Some(cond) = pick_condition(status) {
-                                if let Some(v) = cond.get(key) {
-                                    if let Some(s) = value_to_string(v) {
-                                        return Some(s);
-                                    }
-                                }
-                            }
-
-                            None
-                        }
-
-                        {
-                            let mut all_cols: BTreeSet<String> = BTreeSet::new();
-
-                            for cr in cr_items.iter() {
-                                if let Some(status) = cr.data.get("status") {
-                                    if let Some(obj) = status.as_object() {
-                                        for (k, _v) in obj {
-                                            if k != "conditions" {
-                                                all_cols.insert(k.clone()); // binding, ipv4, refreshTime, ...
+                    if let Some(first_item) = cr_items.first() {
+                        match first_item.kind.as_str() {
+                            "ClusterSecretStore" => {
+                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                    egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
+                                        show_cluster_secret_store_header(ui);
+                                        for j in cr_items.clone().iter() {
+                                            show_cluster_secret_store_details(&j.name, &j.data, ui);
+                                        }
+                                    });
+                                });
+                            },
+                            "ExternalSecret" => {
+                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                    egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
+                                        show_external_secret_header(ui);
+                                        for j in cr_items.clone().iter() {
+                                            show_external_secret_details(&j.name, &j.data, ui);
+                                        }
+                                    });
+                                });
+                            },
+                            "VirtualService" => {
+                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                    egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
+                                        show_virtual_service_header(ui);
+                                        for j in cr_items.clone().iter() {
+                                            show_virtual_service_details(&j.name, &j.data, ui);
+                                        }
+                                    });
+                                });
+                            },
+                            _ => {
+                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                    fn value_to_string(v: &Value) -> Option<String> {
+                                        match v {
+                                            Value::String(s) => Some(s.clone()),
+                                            Value::Number(n) => Some(n.to_string()),
+                                            Value::Bool(b)   => Some(b.to_string()),
+                                            Value::Object(obj) => {
+                                                if let Some(Value::String(s)) = obj.get("name") {
+                                                    return Some(s.clone());
+                                                }
+                                                Some(serde_json::to_string(v).ok()?)
                                             }
+                                            Value::Array(_) => Some(serde_json::to_string(v).ok()?),
+                                            Value::Null => None,
                                         }
                                     }
-                                    if let Some(cond) = pick_condition(status) {
-                                        for k in cond.keys() {
-                                            all_cols.insert(k.clone()); // message, reason, status, type, lastTransitionTime, ...
-                                        }
-                                    }
-                                }
-                            }
 
-                            let preferred = [
-                                "binding", "ip", "podCIDRs",
-                                "message", "reason", "type", "status", "lastTransitionTime",
-                                "refreshTime", "syncedResourceVersion"
-                            ];
-                            let mut ordered_cols: Vec<String> = Vec::new();
-                            for p in preferred {
-                                if all_cols.contains(p) { ordered_cols.push(p.to_string()); }
-                            }
-                            for k in &all_cols {
-                                if !preferred.contains(&k.as_str()) {
-                                    ordered_cols.push(k.clone());
-                                }
-                            }
+                                    fn pick_condition<'a>(status: &'a Value) -> Option<&'a Map<String, Value>> {
+                                        let arr = status.get("conditions")?.as_array()?;
+                                        let mut first: Option<&Map<String, Value>> = None;
 
-                            egui::ScrollArea::vertical()
-                                .id_salt("cr_scroll")
-                                .show(ui, |ui| {
-                                    egui::Grid::new("cr_grid")
-                                        .striped(true)
-                                        .min_col_width(20.0)
-                                        .show(ui, |ui| {
-                                            // header
-                                            ui.label("Name");
-                                            for col in &ordered_cols {
-                                                ui.label(col);
+                                        for v in arr {
+                                            if let Some(o) = v.as_object() {
+                                                if first.is_none() { first = Some(o); }
+                                                let t = o.get("type").and_then(|t| t.as_str());
+                                                if t == Some("Ready") {
+                                                    return Some(o);
+                                                }
                                             }
-                                            ui.end_row();
+                                        }
+                                        first
+                                    }
 
-                                            // rows
-                                            for cr in cr_items.iter() {
-                                                ui.label(cr.name.clone());
+                                    fn extract_col_value(data: &Value, key: &str) -> Option<String> {
+                                        let status = data.get("status")?;
 
-                                                for col in &ordered_cols {
-                                                    if let Some(val) = extract_col_value(&cr.data, col) {
-                                                        ui.label(val);
-                                                    } else {
-                                                        ui.label("-");
+                                        if let Some(v) = status.get(key) {
+                                            if let Some(s) = value_to_string(v) {
+                                                return Some(s);
+                                            }
+                                        }
+
+                                        if let Some(cond) = pick_condition(status) {
+                                            if let Some(v) = cond.get(key) {
+                                                if let Some(s) = value_to_string(v) {
+                                                    return Some(s);
+                                                }
+                                            }
+                                        }
+
+                                        None
+                                    }
+
+                                    {
+                                        let mut all_cols: BTreeSet<String> = BTreeSet::new();
+
+                                        for cr in cr_items.iter() {
+                                            if let Some(status) = cr.data.get("status") {
+                                                if let Some(obj) = status.as_object() {
+                                                    for (k, _v) in obj {
+                                                        if k != "conditions" {
+                                                            all_cols.insert(k.clone()); // binding, ipv4, refreshTime, ...
+                                                        }
                                                     }
                                                 }
-
-                                                ui.end_row();
+                                                if let Some(cond) = pick_condition(status) {
+                                                    for k in cond.keys() {
+                                                        all_cols.insert(k.clone()); // message, reason, status, type, lastTransitionTime, ...
+                                                    }
+                                                }
                                             }
+                                        }
+
+                                        let preferred = [
+                                            "binding", "ip", "podCIDRs",
+                                            "message", "reason", "type", "status", "lastTransitionTime",
+                                            "refreshTime", "syncedResourceVersion"
+                                        ];
+                                        let mut ordered_cols: Vec<String> = Vec::new();
+                                        for p in preferred {
+                                            if all_cols.contains(p) { ordered_cols.push(p.to_string()); }
+                                        }
+                                        for k in &all_cols {
+                                            if !preferred.contains(&k.as_str()) {
+                                                ordered_cols.push(k.clone());
+                                            }
+                                        }
+
+                                        egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                            egui::Grid::new("cr_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                                // header
+                                                ui.label("Name");
+                                                for col in &ordered_cols {
+                                                    ui.label(col);
+                                                }
+                                                ui.end_row();
+
+                                                // rows
+                                                for cr in cr_items.iter() {
+                                                    ui.label(cr.name.clone());
+
+                                                    for col in &ordered_cols {
+                                                        if let Some(val) = extract_col_value(&cr.data, col) {
+                                                            ui.label(val);
+                                                        } else {
+                                                            ui.label("-");
+                                                        }
+                                                    }
+
+                                                    ui.end_row();
+                                                }
+                                            });
                                         });
+                                    }
                                 });
-                        }
-                    });
+                            },
+                        };
+                    }
                 },
                 Category::SeriviceAccounts => {
                     let ns = namespaces.lock().unwrap();
@@ -2118,7 +2154,15 @@ async fn main() {
                                                     });
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
-                                                    // TODO
+                                                    let cur_item = item.name.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), None, move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_cluster_pv(Arc::clone(&client_clone), &cur_item).await {
+                                                                eprintln!("Failed to delete pv: {}", err);
+                                                            }
+                                                        });
+                                                    });
                                                     ui.close_kind(egui::UiKind::Menu)
                                                 }
                                             });
@@ -2923,7 +2967,7 @@ async fn main() {
                                                 ui.label("0");
                                             }
                                             if let Some(version) = &item.version {
-                                                ui.label(egui::RichText::new(version).color(egui::Color32::LIGHT_YELLOW));
+                                                ui.label(egui::RichText::new(version).color(item_color(version)));
                                             } else {
                                                 ui.label("unknown");
                                             }
@@ -3120,13 +3164,15 @@ async fn main() {
                                                 }
 
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
-                                                    // TODO (confirm dialog)
                                                     let cur_item = item.name.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_namespace(client_clone, &cur_item.clone()).await {
-                                                            eprintln!("Failed to delete namespace: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), None, move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = delete_namespace(client_clone, &cur_item.clone()).await {
+                                                                eprintln!("Failed to delete namespace: {}", err);
+                                                            }
+                                                        });
+
                                                     });
                                                     *selected_namespace_clone.lock().unwrap() = None;
                                                     ui.close_kind(egui::UiKind::Menu);
@@ -3227,11 +3273,13 @@ async fn main() {
                                     });
                                     for item in sorted_pods.iter() {
                                         let cur_item_name = &item.name;
-                                        // TODO:
-                                        // check what bad with nodes filter
-                                        // let running_on_node = item.node_name.as_ref().unwrap();
-                                        // if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
-                                        if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) {
+                                        let running_on_node: &str;
+                                        if item.node_name.as_ref().is_some() {
+                                            running_on_node = item.node_name.as_ref().unwrap();
+                                        } else {
+                                            running_on_node = "";
+                                        }
+                                        if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
                                             if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 let name = cur_item_name.clone();
                                                 let client_clone = Arc::clone(&client);

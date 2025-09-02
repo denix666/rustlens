@@ -47,7 +47,6 @@ pub fn show_overview(ui: &mut egui::Ui, stats: &OverviewStats) {
         ui.separator();
         show_stat_circle(ui, "Replicasets", stats.replicasets_running, stats.replicasets_pending);
     });
-    ui.separator();
 }
 
 fn show_stat_circle(ui: &mut egui::Ui, title: &str, ok_count: usize, pending_count: usize) {

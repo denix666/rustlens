@@ -242,7 +242,6 @@ pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<Str
 
 pub fn item_color(item: &str) -> Color32 {
     let ret_color = match item {
-        "Ready" => Color32::GREEN,
         "Burstable" => Color32::from_rgb(137, 90, 9), // close to orange
         "Guaranteed" => Color32::from_rgb(6, 140, 0), // green
         "BestEffort" => Color32::from_rgb(112, 135, 9), // close to red
@@ -251,25 +250,35 @@ pub fn item_color(item: &str) -> Color32 {
         "RO" => Color32::from_rgb(6, 140, 0), // green
         "CrashLoop" => Color32::RED,
         "NotReady" => Color32::RED,
-        "Running" => Color32::GREEN,
         "Waiting" => Color32::YELLOW,
         "Terminated" => Color32::from_rgb(168, 0, 113), // pinc
-        "Complete" => Color32::GREEN,
-        "Completed" => Color32::GREEN,
-        "Succeeded" => Color32::GREEN,
+        "Bound" | "Active" | "Running" | "Ready" | "Complete" | "Completed" | "Succeeded" | "Normal" => Color32::GREEN,
         "Failed" => Color32::RED,
-        "Bound" => Color32::GREEN,
         "Progressing" => Color32::LIGHT_BLUE,
         "Available" => Color32::LIGHT_GREEN,
         "Released" => Color32::GRAY,
         "Pending" => Color32::ORANGE,
         "SchedulingDisabled" => Color32::ORANGE,
         "Lost" => Color32::LIGHT_RED,
-        "Active" => Color32::GREEN,
         "Terminating" => Color32::from_rgb(168, 0, 113), // pinc
         "Warning" => Color32::ORANGE,
-        "Normal" => Color32::GREEN,
-        _ => Color32::LIGHT_GRAY,
+        _ => {
+            if let Some(pos) = item.find('.') {
+                let after_dot = &item[pos + 1..];
+                if let Some(end) = after_dot.find('.') {
+                    if let Ok(num) = after_dot[..end].parse::<u32>() {
+                        return match num {
+                            n if n == crate::ACTUAL_K8S_MAJOR_VERSION => Color32::GREEN,
+                            n if n + 1 == crate::ACTUAL_K8S_MAJOR_VERSION => Color32::from_rgb(161, 191, 110), // Green, but no so green :)
+                            n if n + 2 == crate::ACTUAL_K8S_MAJOR_VERSION => Color32::from_rgb(209, 182, 110), // Yellow
+                            n if n < crate::ACTUAL_K8S_MAJOR_VERSION - 2 => Color32::RED,
+                            _ => Color32::LIGHT_GRAY,
+                        };
+                    }
+                }
+            }
+            Color32::LIGHT_GRAY
+        }
     };
 
     return ret_color

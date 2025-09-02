@@ -6,6 +6,7 @@ use serde_json::Value;
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CrdInstance {
     pub name: String,
+    pub kind: String,
     pub namespace: Option<String>,
     pub data: Value,
 }
@@ -42,6 +43,7 @@ pub async fn get_cr_instances(
 
             CrdInstance {
                 name: item.name_any(),
+                kind: kind.clone(),
                 namespace: item.namespace(),
                 data: obj,
             }
