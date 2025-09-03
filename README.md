@@ -3,6 +3,9 @@ Project in a progress!
 
 It's a free and open-source user interface designed for managing Kubernetes clusters
 
+## Overview
+![screenshot](screenshots/overview.png)
+
 ## Nodes
 ![screenshot](screenshots/nodes.png)
 

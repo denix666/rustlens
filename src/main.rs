@@ -2950,21 +2950,21 @@ async fn main() {
                                             }
                                             if let Some(p) = &item.cpu_percent {
                                                 let hover_text = format!("Used: {} / Total: {}", item.cpu_used.unwrap_or(0.0), item.cpu_total.unwrap_or(0.0));
-                                                ui.add(egui::ProgressBar::new(p / 100.0).show_percentage()).on_hover_text(hover_text);
+                                                ui.add(egui::ProgressBar::new(p / 100.0).fill(progress_color(*p)).show_percentage()).on_hover_text(hover_text);
                                             } else {
-                                                ui.add(egui::ProgressBar::new(0.0).show_percentage()).on_hover_text("Loading...");
+                                                ui.add(egui::ProgressBar::new(0.0).fill(progress_color(0.0)).show_percentage()).on_hover_text("Loading...");
                                             }
                                             if let Some(p) = &item.mem_percent {
                                                 let hover_text = format!("Used: {} Gb / Total: {} Gb", item.mem_used.unwrap_or(0.0), item.mem_total.unwrap_or(0.0));
-                                                ui.add(egui::ProgressBar::new(p / 100.0).show_percentage()).on_hover_text(hover_text);
+                                                ui.add(egui::ProgressBar::new(p / 100.0).fill(progress_color(*p)).show_percentage()).on_hover_text(hover_text);
                                             } else {
-                                                ui.add(egui::ProgressBar::new(0.0).show_percentage()).on_hover_text("Loading...");
+                                                ui.add(egui::ProgressBar::new(0.0).fill(progress_color(0.0)).show_percentage()).on_hover_text("Loading...");
                                             }
                                             if let Some(p) = &item.storage_percent {
                                                 let hover_text = format!("Used: {} Gb / Total: {} Gb", item.storage_used.unwrap_or(0.0), item.storage_total.unwrap_or(0.0));
-                                                ui.add(egui::ProgressBar::new(p / 100.0).show_percentage()).on_hover_text(hover_text);
+                                                ui.add(egui::ProgressBar::new(p / 100.0).fill(progress_color(*p)).show_percentage()).on_hover_text(hover_text);
                                             } else {
-                                                ui.add(egui::ProgressBar::new(0.0).show_percentage()).on_hover_text("Loading...");
+                                                ui.add(egui::ProgressBar::new(0.0).fill(progress_color(0.0)).show_percentage()).on_hover_text("Loading...");
                                             }
                                             if let Some(taints) = &item.taints {
                                                 let taints_list: String = taints

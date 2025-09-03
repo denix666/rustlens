@@ -12,6 +12,7 @@ pub struct LogWindow {
     pub buffer: Arc<Mutex<String>>,
     pub last_container: Option<String>,
     pub export_message: Option<(String, Instant)>,
+    pub show_previous_logs: bool,
 }
 
 impl LogWindow {
@@ -25,6 +26,7 @@ impl LogWindow {
             buffer: Arc::new(Mutex::new(String::new())),
             last_container: None,
             export_message: None,
+            show_previous_logs: false,
         }
     }
 }
@@ -42,6 +44,25 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Cl
                     );
                 }
             });
+            ui.separator();
+            if ui.checkbox(&mut log_window.show_previous_logs, "Logs from previous stopped container").changed() {
+                log_window.last_container = Some(log_window.selected_container.clone());
+                log_window.buffer = Arc::new(Mutex::new(String::new()));
+
+                let buf_clone = Arc::clone(&log_window.buffer);
+                let cur_ns = log_window.namespace.clone();
+                let cur_pod = log_window.pod_name.clone();
+                let cur_container = log_window.selected_container.clone();
+                let prev_logs = log_window.show_previous_logs.clone();
+                let client_clone = Arc::clone(&client);
+
+                tokio::spawn(async move {
+                    crate::fetch_logs(client_clone,
+                    &cur_ns,
+                        &cur_pod,
+                    &cur_container, buf_clone, prev_logs).await;
+                });
+            }
             ui.separator();
             if ui.button("💾 Export to file").clicked() {
                 if let Ok(logs) = log_window.buffer.lock() {
@@ -91,12 +112,13 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Cl
             let cur_ns = log_window.namespace.clone();
             let cur_pod = log_window.pod_name.clone();
             let cur_container = log_window.selected_container.clone();
+            let prev_logs = log_window.show_previous_logs.clone();
             let client_clone = Arc::clone(&client);
             tokio::spawn(async move {
                 crate::fetch_logs(client_clone,
                 &cur_ns,
                     &cur_pod,
-                &cur_container, buf_clone).await;
+                &cur_container, buf_clone, prev_logs).await;
             });
         }
 

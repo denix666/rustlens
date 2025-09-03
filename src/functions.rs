@@ -79,6 +79,16 @@ pub async fn delete_zero_replicasets(client: Arc<Client>, ns: Option<String>) ->
     Ok(())
 }
 
+pub fn progress_color(p: f32) -> Color32 {
+    match p {
+        100.0.. => Color32::from_rgb(74, 14, 0), // red
+        90.0..=100.0 => Color32::from_rgb(74, 14, 0), // red
+        60.0..=90.0 => Color32::from_rgb(95, 44, 15), // orange
+        40.0..=60.0 => Color32::from_rgb(77, 66, 17), // yellow
+        _ => Color32::from_rgb(0, 62, 12), // green
+    }
+}
+
 pub fn compute_overview_stats(
     pods: &Vec<crate::watchers::PodItem>,
     deployments: &Vec<crate::watchers::DeploymentItem>,
@@ -345,6 +355,7 @@ pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<cr
 
     let selected_container = containers.get(0).map(|c| c.name.clone()).unwrap_or_default();
     let buffer = Arc::new(Mutex::new(String::new()));
+    let prev_logs = logs.show_previous_logs;
 
     tokio::spawn(async move {
         crate::fetch_logs(
@@ -353,6 +364,7 @@ pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<cr
             pod_name.as_str(),
             selected_container.as_str(),
             buffer,
+            prev_logs,
         )
         .await;
     });
@@ -721,10 +733,10 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
     Ok(())
 }
 
-pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>) {
+pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, container_name: &str, buffer: Arc<Mutex<String>>, previous_logs: bool) {
     let pods: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);
 
-    let lp = &LogParams { tail_lines: Some(super::MAX_LOG_LINES as i64), container: Some(container_name.to_string()),..Default::default() };
+    let lp = &LogParams { previous: previous_logs, tail_lines: Some(super::MAX_LOG_LINES as i64), container: Some(container_name.to_string()),..Default::default() };
     match pods.logs(pod_name, lp).await {
         Ok(initial) => {
             buffer.lock().unwrap().clear();
@@ -735,7 +747,7 @@ pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, co
         Err(e) => eprintln!("failed to get initial logs: {:?}", e),
     }
 
-    let lp = &LogParams { follow: true, container: Some(container_name.to_string()), since_seconds: Some(1), ..Default::default() };
+    let lp = &LogParams { follow: true, previous: previous_logs, container: Some(container_name.to_string()), since_seconds: Some(1), ..Default::default() };
     let mut log_lines = pods.log_stream(pod_name, lp)
         .await
         .unwrap()
