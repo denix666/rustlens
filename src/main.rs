@@ -2815,10 +2815,17 @@ async fn main() {
                                                     }
                                                 });
                                             }
+
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+
+                                            let stat_color = match &item.ready_replicas < &item.replicas {
+                                                true => Color32::ORANGE,
+                                                _ => Color32::GREEN,
+                                            };
+
+                                            ui.label(egui::RichText::new(format!("{}/{}", &item.ready_replicas, &item.replicas)).color(stat_color));
                                             ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
@@ -2960,9 +2967,23 @@ async fn main() {
                                                 ui.add(egui::ProgressBar::new(0.0).show_percentage()).on_hover_text("Loading...");
                                             }
                                             if let Some(taints) = &item.taints {
+                                                let taints_list: String = taints
+                                                    .iter()
+                                                    .map(|i| {
+                                                        let value = i.value.as_deref().unwrap_or("");
+                                                        let key = &i.key;
+                                                        let effect = &i.effect;
+
+                                                        if value.is_empty() {
+                                                            format!("{}:{}", key, effect)
+                                                        } else {
+                                                            format!("{}={}:{}", value, key, effect)
+                                                        }
+                                                    }).collect::<Vec<String>>().join("\n");
+
                                                 ui.label(taints.len().to_string())
                                                     .on_hover_cursor(CursorIcon::PointingHand)
-                                                    .on_hover_text(format!("{:?}", taints));
+                                                    .on_hover_text(&taints_list);
                                             } else {
                                                 ui.label("0");
                                             }
@@ -3346,7 +3367,7 @@ async fn main() {
                                             let ready = item.ready_containers;
                                             let total = item.total_containers;
 
-                                            ready_color = if ready == total {
+                                            ready_color = if ready == total && ready+total != 0 {
                                                 Color32::from_rgb(100, 255, 100) // green
                                             } else if ready == 0 {
                                                 if cur_phase != "Succeeded" {
@@ -3531,10 +3552,16 @@ async fn main() {
                                                     }
                                                 });
                                             }
+
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}/{}", &item.ready_replicas, &item.replicas));
+
+                                            let stat_color = match &item.ready_replicas < &item.replicas {
+                                                true => Color32::ORANGE,
+                                                _ => Color32::GREEN,
+                                            };
+                                            ui.label(egui::RichText::new(format!("{}/{}", &item.ready_replicas, &item.replicas)).color(stat_color));
                                             ui.label(format!("{}", &item.replicas));
                                             ui.label(format!("{}", &item.updated_replicas));
                                             ui.label(format!("{}", &item.available_replicas));

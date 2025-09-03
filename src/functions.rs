@@ -45,11 +45,6 @@ pub async fn get_crs_grouped_list(crds: Arc<Mutex<Vec<crate::CRDItem>>>) -> BTre
     grouped_items
 }
 
-// DEBUG (for taints)
-// status: item.data.get("status").map(|value| {
-//     serde_json::to_string_pretty(value).unwrap_or_else(|_| "Invalid JSON".to_string())
-// }),
-
 pub async fn delete_zero_replicasets(client: Arc<Client>, ns: Option<String>) -> Result<(), kube::Error> {
     use kube::ResourceExt;
     let rs_api: Api<ReplicaSet>;
@@ -105,7 +100,15 @@ pub fn compute_overview_stats(
                 stats.pods_running += 1;
             }
         } else {
-            stats.pods_running += 1;
+            if pod.ready_containers+pod.total_containers != 0 {
+                stats.pods_running += 1;
+            } else {
+                stats.pods_pending += 1;
+                if let Some(ns) = &pod.namespace {
+                    *stats.namespaces_with_pending_items.entry(ns.clone()).or_insert(0) += 1;
+                }
+            }
+
         }
     }
 
