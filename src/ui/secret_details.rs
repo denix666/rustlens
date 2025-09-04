@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use egui::Context;
+use egui::{Context, Key};
 use crate::functions::item_color;
 use crate::{ui::YamlEditorWindow};
 use crate::theme::*;
@@ -37,7 +37,7 @@ pub fn show_secret_details_window(
     }
     let cur_ns = &secret_item.unwrap().namespace;
 
-    egui::Window::new("Secret details").min_width(800.0).collapsible(false).resizable(true).open(&mut secret_details_window.show).show(ctx, |ui| {
+    let response = egui::Window::new("Secret details").min_width(800.0).collapsible(false).resizable(true).open(&mut secret_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO
@@ -139,4 +139,10 @@ pub fn show_secret_details_window(
     });
 
     crate::show_delete_confirmation(ctx, delete_confirm);
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            secret_details_window.show = false;
+        }
+    }
 }

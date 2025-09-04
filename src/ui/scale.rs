@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use egui::Context;
+use egui::{Context, Key};
 use kube::Client;
 
 pub struct ScaleWindow {
@@ -26,7 +26,7 @@ impl ScaleWindow {
 
 pub fn show_scale_window(ctx: &Context, scale_window: &mut ScaleWindow, client: Arc<Client>) {
     let title = format!("Scale {}", scale_window.name.as_ref().unwrap());
-    egui::Window::new(title).show(ctx, |ui| {
+    let response = egui::Window::new(title).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label(format!("Current replicas scale: {}", scale_window.cur_replicas));
         });
@@ -58,4 +58,10 @@ pub fn show_scale_window(ctx: &Context, scale_window: &mut ScaleWindow, client: 
             }
         });
     });
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            scale_window.show = false;
+        }
+    }
 }

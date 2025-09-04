@@ -1,4 +1,4 @@
-use egui::{text::LayoutJob, Color32, Context, FontId, TextFormat, TextStyle, Ui};
+use egui::{text::LayoutJob, Color32, Context, FontId, Key, TextFormat, TextStyle, Ui};
 use kube::Client;
 use std::{sync::{Arc, Mutex}, time::{Duration, Instant}};
 use regex::RegexBuilder;
@@ -69,7 +69,7 @@ fn show_status_banner(ctx: &egui::Context, editor: &mut YamlEditorWindow) {
 
 
 pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &mut DecoderWindow, client: Arc<Client>) {
-    egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).default_width(800.0).default_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
+    let response = egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).default_width(800.0).default_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("🔍");
             ui.add(egui::TextEdit::singleline(&mut editor.search_query)
@@ -134,6 +134,12 @@ pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &
             }
         });
     });
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            editor.show = false;
+        }
+    }
 }
 
 pub fn make_yaml_layouter(

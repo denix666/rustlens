@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use egui::Context;
+use egui::{Context, Key};
 use crate::functions::item_color;
 use crate::theme::*;
 use crate::ui::YamlEditorWindow;
@@ -35,7 +35,7 @@ pub fn show_cluster_role_details_window(
         return;
     }
 
-    egui::Window::new("Service account details").min_width(800.0).collapsible(false).resizable(true).open(&mut cluster_role_details_window.show).show(ctx, |ui| {
+    let response = egui::Window::new("Service account details").min_width(800.0).collapsible(false).resizable(true).open(&mut cluster_role_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO
@@ -113,4 +113,10 @@ pub fn show_cluster_role_details_window(
             }
         });
     });
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            cluster_role_details_window.show = false;
+        }
+    }
 }

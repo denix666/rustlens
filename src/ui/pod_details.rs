@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use egui::Context;
+use egui::{Context, Key};
 use crate::{functions::item_color, ui::{LogWindow, YamlEditorWindow}, theme::*};
 
 pub struct PodDetailsWindow {
@@ -38,7 +38,7 @@ pub fn show_pod_details_window(
     let cur_ns = &pod_item.unwrap().namespace;
 
 
-    egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).open(&mut pod_details_window.show).show(ctx, |ui| {
+    let response = egui::Window::new("Pod details").min_width(800.0).collapsible(false).resizable(true).open(&mut pod_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 let name = guard_details.name.clone().unwrap();
@@ -368,4 +368,10 @@ pub fn show_pod_details_window(
         ui.separator();
     });
     crate::show_delete_confirmation(ctx, delete_confirm);
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            pod_details_window.show = false;
+        }
+    }
 }

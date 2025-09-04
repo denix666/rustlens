@@ -141,7 +141,7 @@ async fn main() {
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
     //####################################################//
-    let mut sort_by = SortBy::Age;
+    let mut sort_by = SortBy::Name;
     let mut sort_asc = false;
 
     let mut selected_cr = String::new();
@@ -3904,6 +3904,11 @@ async fn main() {
             }
         });
 
+        // Decoder window
+        if decoder_window.show {
+            show_decoder_window(ctx, &mut decoder_window);
+        }
+
         // YAML editor
         if let Ok(mut editor) = yaml_editor_window.lock() {
             if editor.show {
@@ -3916,11 +3921,6 @@ async fn main() {
         if new_resource_window.show {
             let client_clone = Arc::clone(&client);
             show_new_resource_window(ctx, &mut new_resource_window, client_clone);
-        }
-
-        // Decoder window
-        if decoder_window.show {
-            show_decoder_window(ctx, &mut decoder_window);
         }
 
         // Logs window

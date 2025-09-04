@@ -1,4 +1,4 @@
-use egui::Context;
+use egui::{Context, Key};
 use base64::{Engine as _, engine::general_purpose};
 
 pub struct DecoderWindow {
@@ -18,7 +18,7 @@ impl DecoderWindow {
 }
 
 pub fn show_decoder_window(ctx: &Context, decoder_window: &mut DecoderWindow,) {
-    egui::Window::new("Decoder").collapsible(false).resizable(true).open(&mut decoder_window.show).show(ctx, |ui| {
+    let response = egui::Window::new("Decoder").collapsible(false).resizable(true).open(&mut decoder_window.show).show(ctx, |ui| {
         ui.vertical(|ui| {
             ui.group(|ui| {
                 ui.set_height(270.0);
@@ -68,4 +68,10 @@ pub fn show_decoder_window(ctx: &Context, decoder_window: &mut DecoderWindow,) {
             });
         });
     });
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            decoder_window.show = false;
+        }
+    }
 }

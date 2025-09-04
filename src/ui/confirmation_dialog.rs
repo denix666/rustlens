@@ -1,4 +1,4 @@
-use egui::{Context, Align2};
+use egui::{Align2, Context, Key};
 
 pub struct DeleteConfirmation {
     pub show: bool,
@@ -31,7 +31,7 @@ impl DeleteConfirmation {
 pub fn show_delete_confirmation(ctx: &Context, delete_confirm: &mut DeleteConfirmation) {
     if delete_confirm.show {
         let resource_name = delete_confirm.resource_name.clone().unwrap_or_default();
-        egui::Window::new("Confirm deletion")
+        let response = egui::Window::new("Confirm deletion")
             .collapsible(false)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -51,5 +51,11 @@ pub fn show_delete_confirmation(ctx: &Context, delete_confirm: &mut DeleteConfir
                     }
                 });
             });
+
+        if let Some(inner_response) = response {
+            if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+                delete_confirm.show = false;
+            }
+        }
     }
 }

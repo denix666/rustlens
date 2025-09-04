@@ -1,4 +1,4 @@
-use egui::{Context, ScrollArea, TextStyle};
+use egui::{Context, Key, ScrollArea, TextStyle};
 use kube::Client;
 use std::{fs, sync::{Arc, Mutex}, time::{Duration, Instant}};
 use rfd::FileDialog;
@@ -32,7 +32,7 @@ impl LogWindow {
 }
 
 pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Client>) {
-    egui::Window::new("Logs").collapsible(false).resizable(true).open(&mut log_window.show).auto_sized().max_height(500.0).show(ctx, |ui| {
+    let response = egui::Window::new("Logs").collapsible(false).resizable(true).open(&mut log_window.show).auto_sized().max_height(500.0).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("Container:");
             egui::ComboBox::from_id_salt("containers_combo").selected_text(&log_window.selected_container).width(150.0).show_ui(ui, |ui| {
@@ -141,4 +141,10 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Cl
             }
         });
     });
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            log_window.show = false;
+        }
+    }
 }

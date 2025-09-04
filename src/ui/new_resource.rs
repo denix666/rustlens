@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use egui::Context;
+use egui::{Context, Key};
 use kube::Client;
 
 pub struct NewResourceWindow {
@@ -19,7 +19,7 @@ impl NewResourceWindow {
 }
 
 pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewResourceWindow, client: Arc<Client>) {
-    egui::Window::new("Create New Resource").collapsible(false).resizable(true).default_width(600.0).show(ctx, |ui| {
+    let response = egui::Window::new("Create New Resource").collapsible(false).resizable(true).default_width(600.0).show(ctx, |ui| {
         if new_resource_window.content.is_empty() {
             new_resource_window.content = match new_resource_window.resource_type {
                 crate::ResourceType::NameSpace => crate::NAMESPACE_TEMPLATE.to_string(),
@@ -142,4 +142,10 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
             }
         });
     });
+
+    if let Some(inner_response) = response {
+        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            new_resource_window.show = false;
+        }
+    }
 }

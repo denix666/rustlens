@@ -261,6 +261,7 @@ pub fn item_color(item: &str) -> Color32 {
         "Cancelled" => Color32::from_rgb(116, 116, 116), // gray
         "RW" => Color32::from_rgb(137, 90, 9), // close to orange
         "RO" => Color32::from_rgb(6, 140, 0), // green
+        "Unknown" => Color32::from_rgb(198, 98, 247), // violet
         "CrashLoop" => Color32::RED,
         "NotReady" => Color32::RED,
         "Waiting" => Color32::YELLOW,
