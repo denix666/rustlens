@@ -18,7 +18,7 @@ use eframe::*;
 use egui::{Color32, Context, FontId, TextStyle};
 use std::collections::{BTreeMap, BTreeSet};
 use std::f32;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json::{Map, Value};
@@ -27,10 +27,7 @@ const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const ACTIONS_MENU_LABEL: &str = "🔻";
 const MAX_LOG_LINES: usize = 600;
-
-// TODO
-// Add function to get actual version online
-const ACTUAL_K8S_MAJOR_VERSION: u32 = 33;
+pub static ACTUAL_K8S_MINOR_VERSION: OnceLock<u32> = OnceLock::new();
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -74,8 +71,8 @@ enum Category {
 }
 
 #[derive(Clone)]
-struct ClusterInfo {
-    name: String,
+struct EnvVars {
+    cluster_name: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -142,7 +139,7 @@ async fn main() {
 
     //####################################################//
     let mut sort_by = SortBy::Name;
-    let mut sort_asc = false;
+    let mut sort_asc = true;
 
     let mut selected_cr = String::new();
 
@@ -185,19 +182,23 @@ async fn main() {
     let mut filter_crds = String::new();
     let mut filter_helm_releases = String::new();
 
+    // Fetched latest released Kubernetes version
+    let k8s_released_version = KubernetesVersionFetcher::new();
 
     // Client connection
     let client = Arc::new(Client::try_default().await.unwrap());
 
     // CLUSTER INFO - (rework)
-    let cluster_info = Arc::new(Mutex::new(ClusterInfo {
-        name: "unknown".to_string(),
+    let cluster_info = Arc::new(Mutex::new(EnvVars {
+        cluster_name: "unknown".to_string(),
     }));
     let cluster_info_ui = Arc::clone(&cluster_info);
     let cluster_info_bg = Arc::clone(&cluster_info);
     tokio::spawn(async move {
-        if let Ok(name) = get_cluster_name().await {
-            *cluster_info_bg.lock().unwrap() = ClusterInfo { name };
+        if let Ok(cluster_name) = get_cluster_name().await {
+            *cluster_info_bg.lock().unwrap() = EnvVars {
+                cluster_name
+            };
         }
     });
 
@@ -1629,13 +1630,22 @@ async fn main() {
                     }
                 },
                 Category::ClusterOverview => {
-                    //let mut pending_nav: Option<(String, Category)> = None;
-
                     ui.heading("Cluster Overview");
                     ui.separator();
-                    let cluster = cluster_info_ui.lock().unwrap().clone();
+
+                    ui.horizontal(|ui| {
+                        ui.label("Latest released k8s version:");
+                        if let Some(ver) = k8s_released_version.get_version() {
+                            ui.label(egui::RichText::new(ver).size(15.0).color(Color32::WHITE));
+                        } else {
+                            ui.label(egui::RichText::new("Loading...").size(15.0).color(Color32::RED));
+                        }
+                    });
+                    ui.separator();
+
+                    let info = cluster_info_ui.lock().unwrap().clone();
                     ui.vertical(|ui| {
-                        ui.label(format!("Connected to: {}", cluster.name));
+                        ui.label(format!("Connected to: {}", info.cluster_name));
                         ui.label(format!("Cluster name: {}", cluster_name));
                         ui.label(format!("User name: {}", user_name));
                     });
@@ -1670,8 +1680,6 @@ async fn main() {
                                         };
                                         if ui.colored_label(Color32::WHITE,i.0).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                             *selected_namespace_clone.lock().unwrap() = Some(i.0.clone());
-                                            // TODO (stack when enabled)
-                                            //*selected_category_clone.lock().unwrap() = Category::Pods;
                                         }
                                         ui.label(i.1.to_string());
                                         ui.end_row();

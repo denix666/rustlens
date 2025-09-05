@@ -19,7 +19,7 @@ use futures_util::StreamExt;
 use serde_json::{json};
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use chrono::{Utc, DateTime};
+use chrono::{DateTime, Utc};
 use serde_yaml;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
@@ -281,13 +281,17 @@ pub fn item_color(item: &str) -> Color32 {
                 let after_dot = &item[pos + 1..];
                 if let Some(end) = after_dot.find('.') {
                     if let Ok(num) = after_dot[..end].parse::<u32>() {
-                        return match num {
-                            n if n == crate::ACTUAL_K8S_MAJOR_VERSION => Color32::GREEN,
-                            n if n + 1 == crate::ACTUAL_K8S_MAJOR_VERSION => Color32::from_rgb(161, 191, 110), // Green, but no so green :)
-                            n if n + 2 == crate::ACTUAL_K8S_MAJOR_VERSION => Color32::from_rgb(209, 182, 110), // Yellow
-                            n if n < crate::ACTUAL_K8S_MAJOR_VERSION - 2 => Color32::RED,
-                            _ => Color32::LIGHT_GRAY,
-                        };
+                        if let Some(actual_major) = crate::ACTUAL_K8S_MINOR_VERSION.get() {
+                            return match num {
+                                n if n == *actual_major => Color32::from_rgb(26, 186, 26), // Green
+                                n if n + 1 == *actual_major => Color32::from_rgb(26, 186, 26), // Green
+                                n if n + 2 == *actual_major => Color32::from_rgb(186, 166, 26), // Not so green
+                                n if n + 3 == *actual_major => Color32::from_rgb(186, 166, 26), // Close to yellow
+                                n if n + 4 == *actual_major => Color32::from_rgb(186, 50, 26), // Close to red
+                                n if n < actual_major.saturating_sub(2) => Color32::RED,
+                                _ => Color32::LIGHT_GRAY,
+                            };
+                        }
                     }
                 }
             }
