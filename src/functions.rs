@@ -7,7 +7,8 @@ use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
 use kube::config::{Kubeconfig, NamedContext};
 use kube::discovery;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod, Secret, Service, ServiceAccount};
+use k8s_openapi::api::core::v1::{ConfigMap, Event, Node, Namespace, PersistentVolume, PersistentVolumeClaim, Pod, Secret, Service, ServiceAccount};
+use kube::api::EvictParams;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -286,7 +287,7 @@ pub fn item_color(item: &str) -> Color32 {
                                 n if n == *actual_major => Color32::from_rgb(26, 186, 26), // Green
                                 n if n + 1 == *actual_major => Color32::from_rgb(26, 186, 26), // Green
                                 n if n + 2 == *actual_major => Color32::from_rgb(186, 166, 26), // Not so green
-                                n if n + 3 == *actual_major => Color32::from_rgb(186, 166, 26), // Close to yellow
+                                n if n + 3 == *actual_major => Color32::from_rgb(186, 132, 26), // Close to orange
                                 n if n + 4 == *actual_major => Color32::from_rgb(186, 50, 26), // Close to red
                                 n if n < actual_major.saturating_sub(2) => Color32::RED,
                                 _ => Color32::LIGHT_GRAY,
@@ -639,36 +640,61 @@ pub async fn delete_namespaced_component_for<K>(name: String, namespace: Option<
 }
 
 pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<()> {
-    // Cordon node
+    // 1. Cordon node
     let nodes: Api<Node> = Api::all(client.as_ref().clone());
     let patch = json!({ "spec": { "unschedulable": true } });
-    nodes.patch(node_name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
+    nodes.patch(node_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    println!("Node '{}' cordoned.", node_name);
 
-    // Evict pods
+    // 2. Get all pods on the node from all namespaces
     let pods: Api<Pod> = Api::all(client.as_ref().clone());
     let lp = ListParams::default().fields(&format!("spec.nodeName={}", node_name));
     let pod_list = pods.list(&lp).await?;
 
     for pod in pod_list.items {
+        // Skip system pods and DaemonSet pods
         let is_mirror = pod.metadata.annotations.as_ref()
             .and_then(|a| a.get("kubernetes.io/config.mirror"))
             .is_some();
 
-        let is_daemonset = pod.metadata.owner_references
-            .as_ref()
+        let is_daemonset = pod.metadata.owner_references.as_ref()
             .map(|owners| owners.iter().any(|o| o.kind == "DaemonSet"))
             .unwrap_or(false);
 
         if is_mirror || is_daemonset {
+            if let Some(name) = &pod.metadata.name {
+                println!("Skipping DaemonSet or mirror pod: {}", name);
+            }
             continue;
         }
 
-        if let Some(name) = pod.metadata.name {
+        // 3. Evict pods
+        if let (Some(name), Some(namespace)) = (pod.metadata.name.as_deref(), pod.metadata.namespace.as_deref()) {
+            println!("Attempting to evict pod '{}' in namespace '{}'", name, namespace);
+
+            let pods_ns: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);
+
+            // Create EvictParams with the correct, wrapped DeleteParams type
             let dp = DeleteParams {
                 grace_period_seconds: Some(30),
-                ..DeleteParams::default()
+                ..Default::default()
             };
-            let _ = pods.delete(&name, &dp).await;
+            let params = EvictParams {
+                delete_options: Some(dp),
+                post_options: PostParams::default(),
+            };
+
+            // Call evict with the complete params object
+            match pods_ns.evict(name, &params).await {
+                Ok(status) => {
+                    if status.is_success() {
+                        println!("Successfully evicted pod '{}'", name);
+                    } else {
+                        eprintln!("Eviction of pod '{}' failed with status: {:?}", name, status.message);
+                    }
+                },
+                Err(e) => eprintln!("Failed to evict pod '{}': {}", name, e),
+            }
         }
     }
 
