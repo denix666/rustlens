@@ -3066,10 +3066,12 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let node_name = item.name.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_node(client_clone, &node_name).await {
-                                                            eprintln!("Failed to delete node: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(node_name.clone(), None, move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = delete_node(client_clone, &node_name).await {
+                                                                eprintln!("Failed to delete node: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -3201,7 +3203,6 @@ async fn main() {
                                                                 eprintln!("Failed to delete namespace: {}", err);
                                                             }
                                                         });
-
                                                     });
                                                     *selected_namespace_clone.lock().unwrap() = None;
                                                     ui.close_kind(egui::UiKind::Menu);
