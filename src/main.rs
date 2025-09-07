@@ -181,6 +181,7 @@ async fn main() {
     let mut filter_network_policies = String::new();
     let mut filter_crds = String::new();
     let mut filter_helm_releases = String::new();
+    let mut hl_item = String::new();
 
     // Fetched latest released Kubernetes version
     let k8s_released_version = KubernetesVersionFetcher::new();
@@ -2902,6 +2903,7 @@ async fn main() {
                             let nodes = nodes.lock().unwrap();
                             egui::ScrollArea::vertical().id_salt("node_scroll").hscroll(true).show(ui, |ui| {
                                 egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                    ui.label(""); // For hightlight
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         if sort_by == SortBy::Name {
                                             sort_asc = !sort_asc;
@@ -2943,7 +2945,13 @@ async fn main() {
                                     for item in sorted_nodes.iter() {
                                         let cur_item_name = &item.name;
                                         if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
-                                            if ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if hl_item == *item.name {
+                                                ui.label(egui::RichText::new("⏵").color(SELECTED));
+                                            } else {
+                                                ui.label("");
+                                            }
+                                            let node_name_label = ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE)).on_hover_cursor(CursorIcon::PointingHand);
+                                            if node_name_label.clicked() {
                                                 let name = cur_item_name.clone();
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&node_details);
@@ -3012,7 +3020,7 @@ async fn main() {
                                             ui.label( node_status);
                                             ui.label( scheduling_status);
 
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                            let action_button = ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 let node_name = item.name.clone();
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -3031,6 +3039,9 @@ async fn main() {
                                                             }
                                                         }
                                                     });
+                                                }
+                                                if ui.button(egui::RichText::new("📋 Copy node name").size(16.0).color(COPY_BUTTON)).clicked() {
+                                                    ui.ctx().copy_text(item.name.clone());
                                                 }
                                                 if item.scheduling_disabled {
                                                     if ui.button("▶ Uncordon").clicked() {
@@ -3076,6 +3087,11 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
+
+                                            if action_button.response.hovered() || node_name_label.hovered() {
+                                                hl_item = String::from(&item.name);
+                                            }
+
                                             ui.end_row();
                                         }
                                     }

@@ -24,3 +24,8 @@ pub const ORANGE_BUTTON: Color32 = Color32::ORANGE; // orange
 pub const GRAY_BUTTON: Color32 = Color32::GRAY; // gray
 pub const BLUE_BUTTON: Color32 = Color32::LIGHT_BLUE; // blue
 pub const MENU_BUTTON: Color32 = Color32::from_rgb(147, 38, 245);
+pub const COPY_BUTTON: Color32 = Color32::from_rgb(48, 232, 151);
+
+//pub const HIGHLIGHT: Color32 = Color32::from_rgba_premultiplied(55, 55, 55, 55);
+
+pub const SELECTED: Color32 = Color32::from_rgb(200, 247, 4);
