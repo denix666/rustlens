@@ -3280,7 +3280,8 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
-                                egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
+                                    ui.label(""); // For hightlight
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         if sort_by == SortBy::Name {
                                             sort_asc = !sort_asc;
@@ -3289,6 +3290,7 @@ async fn main() {
                                             sort_asc = true;
                                         }
                                     }
+                                    ui.label("Namespace");
                                     ui.label("Status");
                                     ui.label("Containers");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -3326,7 +3328,16 @@ async fn main() {
                                             running_on_node = "";
                                         }
                                         if filter_pods.is_empty() || cur_item_name.contains(&filter_pods) || running_on_node.contains(&filter_pods) {
-                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if hl_item == (item.name.clone() + &item.namespace.clone().unwrap_or("".to_string())) {
+                                                ui.label(egui::RichText::new("⏵").color(SELECTED));
+                                            } else {
+                                                ui.label("");
+                                            }
+                                            let pod_name_label = ui.label(egui::RichText::new(&item.name)
+                                                .color(ITEM_NAME_COLOR))
+                                                .on_hover_cursor(CursorIcon::PointingHand)
+                                                .on_hover_text(&item.name);
+                                            if pod_name_label.clicked() {
                                                 let name = cur_item_name.clone();
                                                 let client_clone = Arc::clone(&client);
                                                 let details = Arc::clone(&pod_details);
@@ -3341,6 +3352,7 @@ async fn main() {
                                                     }
                                                 });
                                             }
+                                            ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR));
                                             let status;
                                             let mut ready_color: Color32;
                                             let cur_phase: &str;
@@ -3438,7 +3450,7 @@ async fn main() {
                                             }
                                             ui.label(egui::RichText::new(item.qos_class.clone().unwrap_or("-".into())).color(item_color(&item.qos_class.clone().unwrap_or("-".to_string()))));
                                             ui.label(item.node_name.clone().unwrap_or("-".into()));
-                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                            let action_button = ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
@@ -3461,6 +3473,9 @@ async fn main() {
                                                         Arc::clone(&client),
                                                     );
                                                     ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("📋 Copy pod name").size(16.0).color(COPY_BUTTON)).clicked() {
+                                                    ui.ctx().copy_text(item.name.clone());
                                                 }
                                                 if ui.button("📃 Logs").clicked() {
                                                     open_logs_for_pod(
@@ -3494,6 +3509,11 @@ async fn main() {
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });
+
+                                            if action_button.response.hovered() || pod_name_label.hovered() {
+                                                hl_item = String::from(item.name.clone() + &item.namespace.clone().unwrap_or("".to_string()));
+                                            }
+
                                             ui.end_row();
                                         }
                                     }
