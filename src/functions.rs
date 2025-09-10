@@ -286,8 +286,8 @@ pub fn item_color(item: &str) -> Color32 {
                             return match num {
                                 n if n == *actual_major => Color32::from_rgb(26, 186, 26), // Green
                                 n if n + 1 == *actual_major => Color32::from_rgb(26, 186, 26), // Green
-                                n if n + 2 == *actual_major => Color32::from_rgb(186, 166, 26), // Not so green
-                                n if n + 3 == *actual_major => Color32::from_rgb(186, 132, 26), // Close to orange
+                                n if n + 2 == *actual_major => Color32::from_rgb(154, 186, 16), // Not so green
+                                n if n + 3 == *actual_major => Color32::from_rgb(223, 131, 6), // Close to orange
                                 n if n + 4 == *actual_major => Color32::from_rgb(186, 50, 26), // Close to red
                                 n if n < actual_major.saturating_sub(2) => Color32::RED,
                                 _ => Color32::LIGHT_GRAY,

@@ -7,6 +7,9 @@ use watchers::*;
 mod theme;
 use theme::*;
 
+mod config;
+use config::*;
+
 mod functions;
 use functions::*;
 
@@ -28,6 +31,8 @@ const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const ACTIONS_MENU_LABEL: &str = "🔻";
 const MAX_LOG_LINES: usize = 600;
 pub static ACTUAL_K8S_MINOR_VERSION: OnceLock<u32> = OnceLock::new();
+const CONFIG_DIR: &str = ".local/share/rustlens";
+const MAIN_CONFIG_FILE_NAME: &str = "config.toml";
 
 #[derive(PartialEq)]
 enum SortBy {
@@ -98,10 +103,13 @@ enum ResourceType {
 #[tokio::main]
 async fn main() {
     let mut title = String::from("RustLens v");
+    let mut app_config = read_app_config_from_file();
+
     title.push_str(env!("CARGO_PKG_VERSION"));
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1600.0, 800.0])
+            .with_inner_size(egui::vec2(app_config.options.last_width, app_config.options.last_height))
+            .with_position(egui::Pos2::new(app_config.options.last_window_pos_x, app_config.options.last_window_pos_y))
             .with_maximized(true),
         ..Default::default()
     };
@@ -502,6 +510,41 @@ async fn main() {
     let helm_releases_loading = Arc::new(AtomicBool::new(true));
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
+        // Manage window position and size
+        ctx.input(|i| {
+            if let Some(rect) = i.viewport().outer_rect {
+                let pos_x = rect.min.x;
+                let pos_y = rect.min.y;
+                let size_x = rect.size().x;
+                let size_y = rect.size().y;
+
+                let mut changed = false;
+                if app_config.options.last_window_pos_x != pos_x {
+                    app_config.options.last_window_pos_x = pos_x;
+                    changed = true;
+                }
+
+                if app_config.options.last_window_pos_y != pos_y {
+                    app_config.options.last_window_pos_y = pos_y;
+                    changed = true;
+                }
+
+                if app_config.options.last_width != size_x {
+                    app_config.options.last_width = size_x;
+                    changed = true;
+                }
+
+                if app_config.options.last_height != size_y {
+                    app_config.options.last_height = size_y;
+                    changed = true;
+                }
+
+                if changed {
+                    let _ = write_config_to_file(pos_x, pos_y, size_x, size_y);
+                }
+            }
+        });
+
         // Setup style
         let mut style: egui::Style = (*ctx.style()).clone();
 
@@ -4157,6 +4200,35 @@ async fn main() {
         show_delete_confirmation(ctx, &mut confirmation_dialog);
 
         ctx.request_repaint();
+
+
+
+        // let screen_rect = ctx.screen_rect();
+        // let x = screen_rect.min.x;
+        // let y = screen_rect.min.y;
+        // let width = screen_rect.width();
+        // let height = screen_rect.height();
+
+        // let moved_x = app_config.options.last_window_pos_x.map_or(true, |old| old != x);
+
+
+        // if let Some(window) = ctx.layer_painter(egui::LayerId:: window("Моё окно", 0)) {
+        //     let rect = window .clip_rect(); // позиция и размер окна
+        //     let pos = rect.min;
+        //     let size = rect.size();
+
+        //     let moved = egui::pos2(app_config.options.last_window_pos_x, app_config.options.last_window_pos_y).map_or(true, |old| old != pos);
+        //     let resized = self.last_window_size.map_or(true, |old| old != size);
+
+        //     if moved || resized {
+        //         // обновляем состояние
+        //         self.last_window_pos = Some(pos);
+        //         self.last_window_size = Some(size);
+
+        //         // сохраняем конфиг
+        //         let _ = write_config_to_file(pos.x, pos.y, size.y, size.x);
+        //     }
+        // }
     })
     .unwrap();
 }

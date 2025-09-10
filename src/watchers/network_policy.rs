@@ -17,35 +17,33 @@ pub fn convert_network_policy(policy: NetworkPolicy) -> Option<NetworkPolicyItem
     let metadata = &policy.metadata;
     let name = metadata.name.clone()?;
 
-    let pod_selector = match &policy.spec {
-        Some(spec) => {
-            let labels = &spec.pod_selector.match_labels;
-            if let Some(lbls) = labels {
-                lbls.iter()
-                    .map(|(k, v)| format!("{}={}", k, v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            } else {
-                "None".to_string()
-            }
-        }
-        None => "None".to_string(),
-    };
+    let pod_selector = policy
+        .spec
+        .as_ref()
+        .and_then(|spec| spec.pod_selector.as_ref())
+        .and_then(|sel| sel.match_labels.as_ref())
+        .map(|labels| {
+            labels
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|| "None".to_string());
 
     let policy_types = policy
         .spec
         .as_ref()
-        .map(|spec| spec.policy_types.as_ref().unwrap().join(", "))
+        .and_then(|spec| spec.policy_types.as_ref())
+        .map(|types| types.join(", "))
         .unwrap_or_else(|| "None".to_string());
-
-    let creation_timestamp = metadata.creation_timestamp.clone();
 
     Some(NetworkPolicyItem {
         name,
         pod_selector,
         policy_types,
-        creation_timestamp,
-        namespace: policy.metadata.namespace.clone(),
+        creation_timestamp: metadata.creation_timestamp.clone(),
+        namespace: metadata.namespace.clone(),
     })
 }
 
