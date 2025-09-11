@@ -13,6 +13,9 @@ pub use get_daemonset_details::*;
 pub mod get_pvc_details;
 pub use get_pvc_details::*;
 
+pub mod get_crd_details;
+pub use get_crd_details::*;
+
 pub mod get_pv_details;
 pub use get_pv_details::*;
 

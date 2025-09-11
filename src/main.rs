@@ -142,7 +142,7 @@ async fn main() {
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
     let mut service_account_details_window = ui::service_account_details::ServiceAccountDetailsWindow::new();
     let mut role_details_window = ui::role_details::RoleDetailsWindow::new();
-    //let mut crd_details_window = ui::crd_details::CrdDetailsWindow::new();
+    let mut crd_details_window = ui::crd_details::CrdDetailsWindow::new();
     let mut cluster_role_details_window = ui::cluster_role_details::ClusterRoleDetailsWindow::new();
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
@@ -339,7 +339,7 @@ async fn main() {
 
     // CRDS
     let crds = Arc::new(Mutex::new(Vec::<CRDItem>::new()));
-    //let crd_details = Arc::new(Mutex::new(CrdDetails::default()));
+    let crd_details = Arc::new(Mutex::new(CrdDetails::default()));
     let crds_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -1313,23 +1313,17 @@ async fn main() {
                                     let cur_item_object = &item.name;
                                     if filter_crds.is_empty() || cur_item_object.contains(&filter_crds) {
                                         if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                            // let name = cur_item_object.clone();
-                                            // let version = item.version.clone();
-                                            // let group = item.group.clone();
-                                            // let plural = item.plural.clone();
-                                            // let kind = item.kind.clone();
-                                            // let ns = item.namespace.clone();
-                                            // let scope = item.scope.clone();
-                                            // let client_clone = Arc::clone(&client);
-                                            // let details = Arc::clone(&crd_details);
-                                            // crd_details_window.show = true;
-                                            // tokio::spawn({
-                                            //     async move {
-                                            //         if let Err(e) = get_cr_details(client_clone, &name, &plural, &kind, &version, &group, &scope, ns, details).await {
-                                            //             eprintln!("Details fetch failed: {:?}", e);
-                                            //         }
-                                            //     }
-                                            // });
+                                            let name = cur_item_object.clone();
+                                            let client_clone = Arc::clone(&client);
+                                            let details = Arc::clone(&crd_details);
+                                            crd_details_window.show = true;
+                                            tokio::spawn({
+                                                async move {
+                                                    if let Err(e) = get_crd_details(client_clone, &name, details).await {
+                                                        eprintln!("Details fetch failed: {:?}", e);
+                                                    }
+                                                }
+                                            });
                                         }
                                         ui.label(format!("{}", &item.plural));
                                         ui.label(format!("{}", &item.group));
@@ -4144,14 +4138,12 @@ async fn main() {
             show_secret_details_window(ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
-        // // CRD details window
-        // if crd_details_window.show {
-        //     let crd_details_clone = Arc::clone(&crd_details);
-        //     let crds_clone = Arc::clone(&crds);
-        //     //let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
-        //     //let client_clone = Arc::clone(&client);
-        //     show_crd_details_window(ctx, &mut crd_details_window, crd_details_clone, crds_clone,  &mut confirmation_dialog);
-        // }
+        // CRD details window
+        if crd_details_window.show {
+            let crd_details_clone = Arc::clone(&crd_details);
+            let crds_clone = Arc::clone(&crds);
+            show_crd_details_window(ctx, &mut crd_details_window, crd_details_clone, crds_clone, &mut confirmation_dialog);
+        }
 
         // DaemonSet details window
         if daemonset_details_window.show {

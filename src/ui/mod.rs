@@ -26,7 +26,7 @@ pub mod confirmation_dialog;
 pub mod decoder;
 pub mod pvc_details;
 pub mod pv_details;
-//pub mod crd_details;
+pub mod crd_details;
 pub mod cr_details_parser;
 
 pub use logs::*;
@@ -57,5 +57,5 @@ pub use confirmation_dialog::*;
 pub use decoder::*;
 pub use pvc_details::*;
 pub use pv_details::*;
-//pub use crd_details::*;
+pub use crd_details::*;
 pub use cr_details_parser::*;
