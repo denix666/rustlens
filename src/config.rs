@@ -1,3 +1,4 @@
+use egui::Context;
 use serde::{Deserialize, Serialize};
 use std::{fs::{self, OpenOptions}, path::PathBuf};
 use toml::to_string;
@@ -65,7 +66,7 @@ pub fn read_app_config_from_file() -> AppConfig {
         options: AppOptions {
             last_window_pos_x: 20.0,
             last_window_pos_y: 10.0,
-            last_width: 1500.0,
+            last_width: 1600.0,
             last_height: 800.0,
         }
     };
@@ -73,7 +74,7 @@ pub fn read_app_config_from_file() -> AppConfig {
     let toml_str = match std::fs::read_to_string(config_file_path) {
         Ok(res) => res,
         Err(_) => {
-            write_config_to_file(0.0, 0.0, 1600.0, 800.0).unwrap();
+            write_config_to_file(20.0, 10.0, 1600.0, 800.0).unwrap();
             to_string(&new_config).unwrap()
         }
     };
@@ -81,4 +82,40 @@ pub fn read_app_config_from_file() -> AppConfig {
     let app_config = toml::from_str(&toml_str).expect("Failed to load configuration file...");
 
     app_config
+}
+
+pub fn window_moved_or_resized(ctx: &Context, app_config: &mut AppConfig) -> bool {
+    let mut changed = false;
+
+    let size_x = ctx.screen_rect().width();
+    let size_y = ctx.screen_rect().height();
+
+    ctx.input(|i| {
+        if let Some(rect) = i.viewport().outer_rect {
+            let pos_x = rect.min.x;
+            let pos_y = rect.min.y;
+
+            if app_config.options.last_window_pos_x != pos_x {
+                app_config.options.last_window_pos_x = pos_x;
+                changed = true;
+            }
+
+            if app_config.options.last_window_pos_y != pos_y {
+                app_config.options.last_window_pos_y = pos_y;
+                changed = true;
+            }
+
+            if app_config.options.last_width != size_x {
+                app_config.options.last_width = size_x;
+                changed = true;
+            }
+
+            if app_config.options.last_height != size_y {
+                app_config.options.last_height = size_y;
+                changed = true;
+            }
+        }
+    });
+
+    return changed
 }

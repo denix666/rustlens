@@ -22,6 +22,7 @@ use egui::{Color32, Context, FontId, TextStyle};
 use std::collections::{BTreeMap, BTreeSet};
 use std::f32;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use kube::{Client};
 use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json::{Map, Value};
@@ -100,6 +101,12 @@ enum ResourceType {
     Deployment,
 }
 
+#[derive(Default, Clone, Debug)]
+struct AppState {
+    export_message: Option<(String, Instant)>,
+    nodes_list: Vec<String>,
+}
+
 #[tokio::main]
 async fn main() {
     let mut title = String::from("RustLens v");
@@ -118,6 +125,7 @@ async fn main() {
         options.viewport = options.viewport.with_icon(icon);
     }
 
+    let mut app_state = AppState::default();
     let mut new_resource_window = ui::new_resource::NewResourceWindow::new();
     let mut scale_window = ui::scale::ScaleWindow::new();
     let mut node_details_window = ui::node_details::NodeDetailsWindow::new();
@@ -511,39 +519,13 @@ async fn main() {
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         // Manage window position and size
-        ctx.input(|i| {
-            if let Some(rect) = i.viewport().outer_rect {
-                let pos_x = rect.min.x;
-                let pos_y = rect.min.y;
-                let size_x = rect.size().x;
-                let size_y = rect.size().y;
-
-                let mut changed = false;
-                if app_config.options.last_window_pos_x != pos_x {
-                    app_config.options.last_window_pos_x = pos_x;
-                    changed = true;
-                }
-
-                if app_config.options.last_window_pos_y != pos_y {
-                    app_config.options.last_window_pos_y = pos_y;
-                    changed = true;
-                }
-
-                if app_config.options.last_width != size_x {
-                    app_config.options.last_width = size_x;
-                    changed = true;
-                }
-
-                if app_config.options.last_height != size_y {
-                    app_config.options.last_height = size_y;
-                    changed = true;
-                }
-
-                if changed {
-                    let _ = write_config_to_file(pos_x, pos_y, size_x, size_y);
-                }
-            }
-        });
+        if window_moved_or_resized(ctx, &mut app_config) {
+            let _ = write_config_to_file(
+                app_config.options.last_window_pos_x,
+                app_config.options.last_window_pos_y,
+                app_config.options.last_width,
+                app_config.options.last_height);
+        }
 
         // Setup style
         let mut style: egui::Style = (*ctx.style()).clone();
@@ -2935,8 +2917,42 @@ async fn main() {
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
                             filter_nodes.clear();
                         }
+
+                        ui.separator();
+                        if ui.button("💾 Export list of nodes").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_file_name("nodes_list.txt").save_file()
+                            {
+                                let content = app_state.nodes_list.join("\n");
+                                match std::fs::write(&path, content) {
+                                    Ok(_) => {
+                                        app_state.export_message = Some((format!("✅ Exported to {:?}", path), Instant::now()));
+                                    }
+                                    Err(e) => {
+                                        app_state.export_message = Some((format!("❌ Failed to export: {}", e), Instant::now()));
+                                    }
+                                }
+                            }
+                        }
                     });
                     ui.separator();
+                    if let Some((msg, when)) = &app_state.export_message {
+                        ui.colored_label(
+                            if msg.starts_with('✅') {
+                                egui::Color32::GREEN
+                            } else {
+                                egui::Color32::RED
+                            },
+                            msg,
+                        );
+
+                        if when.elapsed() > Duration::from_secs(3) {
+                            app_state.export_message = None;
+                        }
+                        ui.separator();
+                    }
+
+                    app_state.nodes_list.clear();
                     if nodes_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
@@ -2988,6 +3004,7 @@ async fn main() {
                                     for item in sorted_nodes.iter() {
                                         let cur_item_name = &item.name;
                                         if filter_nodes.is_empty() || cur_item_name.contains(&filter_nodes) {
+                                            app_state.nodes_list.push(cur_item_name.clone());
                                             if hl_item == *item.name {
                                                 ui.label(egui::RichText::new("⏵").color(SELECTED));
                                             } else {
