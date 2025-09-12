@@ -20,6 +20,8 @@ pub fn show_crd_details_window(
         details: Arc<Mutex<crate::CrdDetails>>,
         crds: Arc<Mutex<Vec<crate::CRDItem>>>,
         delete_confirm: &mut super::DeleteConfirmation,
+        client: Arc<crate::Client>,
+        yaml_editor_window: Arc<Mutex<super::YamlEditorWindow>>,
 ) {
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_crds = crds.lock().unwrap(); // Crds with base details already we have
@@ -32,6 +34,27 @@ pub fn show_crd_details_window(
     }
 
     let response = egui::Window::new("Crd details").min_width(800.0).collapsible(false).resizable(true).open(&mut crd_details_window.show).show(ctx, |ui| {
+        if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
+            crate::edit_cluster_yaml_for::<k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition>(
+                guard_details.name.clone().unwrap(),
+                Arc::clone(&yaml_editor_window),
+                Arc::clone(&client),
+            );
+        }
+
+        ui.horizontal(|ui| {
+            if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
+                let name = guard_details.name.clone().unwrap();
+
+                delete_confirm.request(name.clone(), None, move || {
+                    tokio::spawn(async move {
+                        if let Err(err) = crate::delete_cluster_crd(Arc::clone(&client), &name).await {
+                            eprintln!("Failed to delete crd: {}", err);
+                        }
+                    });
+                });
+            }
+        });
         egui::ScrollArea::vertical().max_height(600.0).show(ui, |ui| {
             egui::Grid::new("crd_details_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
 

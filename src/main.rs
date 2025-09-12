@@ -1308,6 +1308,7 @@ async fn main() {
                                 ui.label("Scope");
                                 ui.label("Kind");
                                 ui.label("Age");
+                                ui.label("Actions");
                                 ui.end_row();
                                 for item in crds_list.iter().rev().take(200) {
                                     let cur_item_object = &item.name;
@@ -1331,6 +1332,38 @@ async fn main() {
                                         ui.label(format!("{}", &item.scope));
                                         ui.label(format!("{}", &item.kind));
                                         ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                            ui.set_width(200.0);
+                                            if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                let name = item.name.clone();
+                                                let client = client.clone();
+                                                let yaml_editor_window = Arc::clone(&yaml_editor_window);
+                                                tokio::spawn(async move {
+                                                    match get_yaml_global::<k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition>(client, &name).await {
+                                                        Ok(yaml) => {
+                                                            let mut editor = yaml_editor_window.lock().unwrap();
+                                                            editor.content = yaml;
+                                                            editor.show = true;
+                                                        }
+                                                        Err(e) => {
+                                                            eprintln!("Failed to get YAML: {}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                let cur_item = item.name.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                confirmation_dialog.request(cur_item.clone(), None, move || {
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = crate::delete_cluster_crd(Arc::clone(&client_clone), &cur_item).await {
+                                                            eprintln!("Failed to delete crd: {}", err);
+                                                        }
+                                                    });
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu)
+                                            }
+                                        });
                                         ui.end_row();
                                     }
                                 }
@@ -4142,7 +4175,9 @@ async fn main() {
         if crd_details_window.show {
             let crd_details_clone = Arc::clone(&crd_details);
             let crds_clone = Arc::clone(&crds);
-            show_crd_details_window(ctx, &mut crd_details_window, crd_details_clone, crds_clone, &mut confirmation_dialog);
+            let client_clone = Arc::clone(&client);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            show_crd_details_window(ctx, &mut crd_details_window, crd_details_clone, crds_clone, &mut confirmation_dialog, client_clone, yaml_editor_window_clone);
         }
 
         // DaemonSet details window

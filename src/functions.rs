@@ -582,10 +582,7 @@ pub async fn cordon_node(client: Arc<Client>, node_name: &str, cordoned: bool) -
 }
 
 pub async fn delete_node(client: Arc<Client>, node_name: &str) -> Result<(), kube::Error> {
-    // or maybe pass the list of nodes, and not to get them again?
     let nodes: Api<Node> = Api::all(client.as_ref().clone());
-
-    // delete the node
     nodes.delete(node_name, &Default::default()).await?;
     eprintln!("Node {} deletion requested", node_name);
     Ok(())
@@ -616,6 +613,13 @@ pub async fn delete_cluster_role(client: Arc<Client>, cluster_role_name: &str) -
 pub async fn delete_cluster_pv(client: Arc<Client>, pv_name: &str) -> Result<(), kube::Error> {
     let pvs: Api<PersistentVolume> = Api::all(client.as_ref().clone());
     pvs.delete(pv_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_cluster_crd(client: Arc<Client>, crd_name: &str) -> Result<(), kube::Error> {
+    let crds: Api<k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition> = Api::all(client.as_ref().clone());
+    crds.delete(crd_name, &DeleteParams::default()).await?;
+    println!("{}", crd_name);
     Ok(())
 }
 
