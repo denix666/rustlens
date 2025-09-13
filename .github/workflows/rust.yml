@@ -34,10 +34,10 @@ jobs:
       run: cargo build --release
 
     - name: Prepare artifact
-      shell: bash
+      shell: pwsh
       run: |
-        mv target/release/rustlens.exe rustlens.exe
-        zip rustlens_windows_x86_64.zip rustlens.exe
+        Move-Item target/release/rustlens.exe rustlens.exe
+        Compress-Archive -Path rustlens.exe -DestinationPath rustlens_windows_x86_64.zip
 
     - name: Release
       uses: softprops/action-gh-release@v1
