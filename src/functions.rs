@@ -1,7 +1,7 @@
 use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
 use k8s_openapi::api::networking::v1::Ingress;
-use k8s_openapi::api::rbac::v1::{ClusterRole, Role};
+use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, Role};
 use k8s_openapi::{ClusterResourceScope, Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
@@ -492,6 +492,11 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
         crate::ResourceType::ClusterRole => {
             let obj: ClusterRole = serde_yaml::from_value(value)?;
             let api: Api<ClusterRole> = Api::all(client.as_ref().clone());
+            api.create(&PostParams::default(), &obj).await?;
+        },
+        crate::ResourceType::ClusterRoleBinding => {
+            let obj: ClusterRoleBinding = serde_yaml::from_value(value)?;
+            let api: Api<ClusterRoleBinding> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::PersistenceVolumeClaim => {

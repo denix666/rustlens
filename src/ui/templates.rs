@@ -83,7 +83,13 @@ metadata:
 pub const CLUSTER_ROLE_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: role-name
+  name: cluster-role-name
+"#;
+
+pub const CLUSTER_ROLE_BINDING_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-role-binding-name
 "#;
 
 pub const INGRESS_TEMPLATE: &'static str = r#"apiVersion: networking.k8s.io/v1

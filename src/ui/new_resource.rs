@@ -35,6 +35,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                 crate::ResourceType::ExternalSecret => crate::EXTERNAL_SECRET_TEMPLATE.to_string(),
                 crate::ResourceType::Role => crate::ROLE_TEMPLATE.to_string(),
                 crate::ResourceType::ClusterRole => crate::CLUSTER_ROLE_TEMPLATE.to_string(),
+                crate::ResourceType::ClusterRoleBinding => crate::CLUSTER_ROLE_BINDING_TEMPLATE.to_string(),
                 crate::ResourceType::ServiceAccount => crate::SERVICE_ACCOUNT_TEMPLATE.to_string(),
                 crate::ResourceType::PersistenceVolumeClaim => crate::PVC_TEMPLATE.to_string(),
                 crate::ResourceType::Blank => "".to_string(),
@@ -55,6 +56,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     crate::ResourceType::ReplicaSet => "ReplicaSet",
                     crate::ResourceType::ConfigMap => "Configmap",
                     crate::ResourceType::ClusterRole => "Cluster role",
+                    crate::ResourceType::ClusterRoleBinding => "Cluster role binding",
                     crate::ResourceType::ExternalSecret => "External secret",
                     crate::ResourceType::Pod => "Pod",
                     crate::ResourceType::PodWithPvc => "Pod with PVC",
@@ -99,6 +101,9 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                         new_resource_window.content = crate::ROLE_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ClusterRole, "Cluster role",).clicked() {
+                        new_resource_window.content = crate::CLUSTER_ROLE_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ClusterRoleBinding, "Cluster role binding",).clicked() {
                         new_resource_window.content = crate::CLUSTER_ROLE_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::ExternalSecret, "External secret",).clicked() {

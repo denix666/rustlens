@@ -23,6 +23,7 @@ pub mod service;
 pub mod service_account;
 pub mod role;
 pub mod cluster_role;
+pub mod cluster_rb;
 
 pub use pvc::*;
 pub use pv::*;
@@ -49,3 +50,4 @@ pub use crd::*;
 pub use service_account::*;
 pub use role::*;
 pub use cluster_role::*;
+pub use cluster_rb::*;

@@ -24,3 +24,41 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: rustlens_linux_x86_64.tar.gz
+
+  windows_build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --release
+
+    - name: Prepare artifact
+      shell: bash
+      run: |
+        mv target/release/rustlens.exe rustlens.exe
+        zip rustlens_windows_x86_64.zip rustlens.exe
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: rustlens_windows_x86_64.zip
+
+  macos_build:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --release
+
+    - shell: bash
+      run: |
+        mv target/release/rustlens rustlens
+        chmod 777 rustlens
+        tar cpfz rustlens_macos_x86_64.tar.gz rustlens
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: rustlens_macos_x86_64.tar.gz

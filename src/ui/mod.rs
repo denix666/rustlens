@@ -28,6 +28,7 @@ pub mod pvc_details;
 pub mod pv_details;
 pub mod crd_details;
 pub mod cr_details_parser;
+pub mod cluster_rb_details;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -59,3 +60,4 @@ pub use pvc_details::*;
 pub use pv_details::*;
 pub use crd_details::*;
 pub use cr_details_parser::*;
+pub use cluster_rb_details::*;

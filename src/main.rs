@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod ui;
 use ui::*;
 
@@ -93,6 +95,7 @@ enum ResourceType {
     ServiceAccount,
     Role,
     ClusterRole,
+    ClusterRoleBinding,
     ConfigMap,
     DaemonSet,
     ReplicaSet,
@@ -144,6 +147,7 @@ async fn main() {
     let mut role_details_window = ui::role_details::RoleDetailsWindow::new();
     let mut crd_details_window = ui::crd_details::CrdDetailsWindow::new();
     let mut cluster_role_details_window = ui::cluster_role_details::ClusterRoleDetailsWindow::new();
+    let mut cluster_rb_details_window = ui::cluster_rb_details::ClusterRoleBindingDetailsWindow::new();
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
@@ -180,6 +184,7 @@ async fn main() {
     let mut filter_secrets = String::new();
     let mut filter_roles = String::new();
     let mut filter_cluster_roles = String::new();
+    let mut filter_cluster_rb = String::new();
     let mut filter_statefulsets = String::new();
     let mut filter_jobs = String::new();
     let mut filter_pvcs = String::new();
@@ -265,6 +270,18 @@ async fn main() {
         Arc::clone(&cluster_roles_loading),
         |c, s, l| {
         Box::pin(watch_cluster_roles(c, s, l))
+    });
+
+    // CLUSTER ROLE BINDINGS
+    let cluster_rbs = Arc::new(Mutex::new(Vec::<ClusterRoleBindingItem>::new()));
+    let cluster_rb_details = Arc::new(Mutex::new(ClusterRoleBindingDetails::default()));
+    let cluster_rb_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&cluster_rbs),
+        Arc::clone(&cluster_rb_loading),
+        |c, s, l| {
+        Box::pin(watch_cluster_rbs(c, s, l))
     });
 
     // POD DISRUPTION BUDGET
@@ -1204,10 +1221,82 @@ async fn main() {
                     }
                 },
                 Category::RoleBindings => {
-
+                    ui.label("This part is still not done. Comming soon...");
                 },
                 Category::ClusterRoleBindings => {
-
+                    let visible_cluster_rbs = cluster_rbs.lock().unwrap();
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Cluster role bindings - {}", visible_cluster_rbs.len()));
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::ClusterRoleBinding;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_cluster_rb).hint_text("Filter cluster rbs...").desired_width(200.0));
+                        filter_cluster_rb = filter_cluster_rb.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_cluster_rb.clear();
+                        }
+                    });
+                    ui.separator();
+                    if cluster_rb_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        if visible_cluster_rbs.len() == 0 {
+                            show_empty(ui);
+                        } else {
+                            egui::ScrollArea::vertical().id_salt("cluster_rb_scroll").show(ui, |ui| {
+                                egui::Grid::new("cluster_rb_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                    ui.label("Name");
+                                    ui.label("Age");
+                                    ui.label("Actions");
+                                    ui.end_row();
+                                    for item in visible_cluster_rbs.iter().rev().take(200) {
+                                        let cur_item_object = &item.name;
+                                        if filter_cluster_rb.is_empty() || cur_item_object.contains(&filter_cluster_rb) {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&cluster_rb_details);
+                                                cluster_rb_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_cluster_rb_details(client_clone, &name, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    crate::edit_cluster_yaml_for::<k8s_openapi::api::rbac::v1::ClusterRoleBinding>(
+                                                        item.name.clone(),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(err) = delete_cluster_role(client_clone, &cur_item.clone()).await {
+                                                            eprintln!("Failed to delete cluster role binding: {}", err);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
                 },
                 Category::HelmReleases => {
                     let ns = namespaces.lock().unwrap();
@@ -4162,6 +4251,15 @@ async fn main() {
             show_cluster_role_details_window(ctx, &mut cluster_role_details_window, cluster_role_details_clone, cluster_roles_clone, yaml_editor_window_clone, client_clone);
         }
 
+        // Cluser role binding details window
+        if cluster_rb_details_window.show {
+            let cluster_rb_details_clone = Arc::clone(&cluster_rb_details);
+            let cluster_rb_clone = Arc::clone(&cluster_rbs);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_cluster_rb_details_window(ctx, &mut cluster_rb_details_window, cluster_rb_details_clone, cluster_rb_clone, yaml_editor_window_clone, client_clone);
+        }
+
         // Secret details window
         if secret_details_window.show {
             let secret_details_clone = Arc::clone(&secret_details);
@@ -4244,35 +4342,6 @@ async fn main() {
         show_delete_confirmation(ctx, &mut confirmation_dialog);
 
         ctx.request_repaint();
-
-
-
-        // let screen_rect = ctx.screen_rect();
-        // let x = screen_rect.min.x;
-        // let y = screen_rect.min.y;
-        // let width = screen_rect.width();
-        // let height = screen_rect.height();
-
-        // let moved_x = app_config.options.last_window_pos_x.map_or(true, |old| old != x);
-
-
-        // if let Some(window) = ctx.layer_painter(egui::LayerId:: window("Моё окно", 0)) {
-        //     let rect = window .clip_rect(); // позиция и размер окна
-        //     let pos = rect.min;
-        //     let size = rect.size();
-
-        //     let moved = egui::pos2(app_config.options.last_window_pos_x, app_config.options.last_window_pos_y).map_or(true, |old| old != pos);
-        //     let resized = self.last_window_size.map_or(true, |old| old != size);
-
-        //     if moved || resized {
-        //         // обновляем состояние
-        //         self.last_window_pos = Some(pos);
-        //         self.last_window_size = Some(size);
-
-        //         // сохраняем конфиг
-        //         let _ = write_config_to_file(pos.x, pos.y, size.y, size.x);
-        //     }
-        // }
     })
     .unwrap();
 }
