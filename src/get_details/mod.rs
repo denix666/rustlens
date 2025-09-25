@@ -16,6 +16,9 @@ pub use get_pvc_details::*;
 pub mod get_crd_details;
 pub use get_crd_details::*;
 
+pub mod get_rb_details;
+pub use get_rb_details::*;
+
 pub mod get_cluster_rb_details;
 pub use get_cluster_rb_details::*;
 

@@ -94,6 +94,7 @@ enum ResourceType {
     ExternalSecret,
     ServiceAccount,
     Role,
+    RoleBinding,
     ClusterRole,
     ClusterRoleBinding,
     ConfigMap,
@@ -145,6 +146,7 @@ async fn main() {
     let mut service_details_window = ui::service_details::ServiceDetailsWindow::new();
     let mut service_account_details_window = ui::service_account_details::ServiceAccountDetailsWindow::new();
     let mut role_details_window = ui::role_details::RoleDetailsWindow::new();
+    let mut rb_details_window = ui::rb_details::RoleBindingDetailsWindow::new();
     let mut crd_details_window = ui::crd_details::CrdDetailsWindow::new();
     let mut cluster_role_details_window = ui::cluster_role_details::ClusterRoleDetailsWindow::new();
     let mut cluster_rb_details_window = ui::cluster_rb_details::ClusterRoleBindingDetailsWindow::new();
@@ -183,6 +185,7 @@ async fn main() {
     let mut filter_replicasets = String::new();
     let mut filter_secrets = String::new();
     let mut filter_roles = String::new();
+    let mut filter_rbs = String::new();
     let mut filter_cluster_roles = String::new();
     let mut filter_cluster_rb = String::new();
     let mut filter_statefulsets = String::new();
@@ -258,6 +261,18 @@ async fn main() {
         Arc::clone(&roles_loading),
         |c, s, l| {
         Box::pin(watch_roles(c, s, l))
+    });
+
+    // ROLE BINDINGS
+    let rbs = Arc::new(Mutex::new(Vec::<RoleBindingItem>::new()));
+    let rb_details = Arc::new(Mutex::new(RoleBindingDetails::default()));
+    let rb_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&rbs),
+        Arc::clone(&rb_loading),
+        |c, s, l| {
+        Box::pin(watch_rbs(c, s, l))
     });
 
     // CLUSTER ROLES
@@ -1221,7 +1236,115 @@ async fn main() {
                     }
                 },
                 Category::RoleBindings => {
-                    ui.label("This part is still not done. Comming soon...");
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_rbs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        rbs.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        rbs.lock().unwrap().iter().cloned().collect()
+                    };
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Role Bindings - {}", visible_rbs.len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::RoleBinding;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_rbs).hint_text("Filter role bindings...").desired_width(200.0));
+                        filter_rbs = filter_rbs.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                            filter_rbs.clear();
+                        }
+                    });
+                    ui.separator();
+                    if rb_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        if visible_rbs.len() == 0 {
+                            show_empty(ui);
+                        } else {
+                            egui::ScrollArea::vertical().id_salt("rbs_scroll").show(ui, |ui| {
+                                egui::Grid::new("rbs_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                    ui.label("Name");
+                                    ui.label("Namespace");
+                                    ui.label("Age");
+                                    ui.label("Actions");
+                                    ui.end_row();
+                                    for item in visible_rbs.iter().rev().take(200) {
+                                        let cur_item_object = &item.name;
+                                        if filter_rbs.is_empty() || cur_item_object.contains(&filter_rbs) {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&rb_details);
+                                                let ns = item.namespace.clone();
+                                                rb_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_rb_details(client_clone, &name, ns, details).await {
+                                                            eprintln!("Details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    crate::edit_yaml_for::<k8s_openapi::api::rbac::v1::RoleBinding>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::rbac::v1::RoleBinding>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                eprintln!("Failed to delete RoleBinding: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
                 },
                 Category::ClusterRoleBindings => {
                     let visible_cluster_rbs = cluster_rbs.lock().unwrap();
@@ -4240,6 +4363,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_role_details_window(ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+        }
+
+        // Role bindings details window
+        if rb_details_window.show {
+            let rb_details_clone = Arc::clone(&rb_details);
+            let rbs_clone = Arc::clone(&rbs);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_rb_details_window(ctx, &mut rb_details_window, rb_details_clone, rbs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Cluser role details window

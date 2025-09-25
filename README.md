@@ -14,7 +14,7 @@ A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster. Thi
 * **View Resources:** List nodes, pods, services, and deployments across all namespaces.
 * **Inspect Resources:** Get detailed descriptions of specific cluster resources (`describe`).
 * **Manage Pods:** View real-time logs from any running pod.
-* **Control Deployments:** Scale your deployments up or down with a simple command.
+* **Control Deployments:** Scale your deployments up or down.
 * And much more!
 
 ---
@@ -28,6 +28,8 @@ For a successful connection to your Kubernetes cluster, you must have a valid co
     * On **Windows**, this path is `%USERPROFILE%\kube\.config`
 
 Please ensure your cluster connection details are correctly specified in this file.
+
+There are plans in the future to implement multicluster connection.
 
 ---
 

@@ -80,6 +80,13 @@ metadata:
   namespace: namespace-name
 "#;
 
+pub const ROLE_BINDING_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: role-binding-name
+  namespace: namespace-name
+"#;
+
 pub const CLUSTER_ROLE_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

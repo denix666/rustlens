@@ -35,7 +35,7 @@ pub fn show_cluster_rb_details_window(
         return;
     }
 
-    let response = egui::Window::new("Service account details").min_width(800.0).collapsible(false).resizable(true).open(&mut cluster_rb_details_window.show).show(ctx, |ui| {
+    let response = egui::Window::new("Cluster role binding details").min_width(800.0).collapsible(false).resizable(true).open(&mut cluster_rb_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO

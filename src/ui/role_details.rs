@@ -36,7 +36,7 @@ pub fn show_role_details_window(
     }
     let cur_ns = &role_item.unwrap().namespace;
 
-    let response = egui::Window::new("Service account details").min_width(800.0).collapsible(false).resizable(true).open(&mut role_details_window.show).show(ctx, |ui| {
+    let response = egui::Window::new("Role details").min_width(800.0).collapsible(false).resizable(true).open(&mut role_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO
