@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ui;
+use serde::{Deserialize, Serialize};
 use ui::*;
 
 mod watchers;
@@ -37,7 +38,7 @@ pub static ACTUAL_K8S_MINOR_VERSION: OnceLock<u32> = OnceLock::new();
 const CONFIG_DIR: &str = ".local/share/rustlens";
 const MAIN_CONFIG_FILE_NAME: &str = "config.toml";
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Deserialize, Serialize, Clone, Copy)]
 enum SortBy {
     Name,
     Age,
@@ -115,6 +116,7 @@ struct AppState {
 async fn main() {
     let mut title = String::from("RustLens v");
     let mut app_config = read_app_config_from_file();
+    let mut config_should_be_saved = false;
 
     title.push_str(env!("CARGO_PKG_VERSION"));
     let mut options = eframe::NativeOptions {
@@ -160,9 +162,6 @@ async fn main() {
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
     //####################################################//
-    let mut sort_by = SortBy::Name;
-    let mut sort_asc = true;
-
     let mut selected_cr = String::new();
 
     let ctx_info = get_current_context_info().unwrap();
@@ -552,11 +551,7 @@ async fn main() {
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         // Manage window position and size
         if window_moved_or_resized(ctx, &mut app_config) {
-            let _ = write_config_to_file(
-                app_config.options.last_window_pos_x,
-                app_config.options.last_window_pos_y,
-                app_config.options.last_width,
-                app_config.options.last_height);
+            config_should_be_saved = true;
         }
 
         // Setup style
@@ -3203,12 +3198,13 @@ async fn main() {
                                 egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label(""); // For hightlight
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        if sort_by == SortBy::Name {
-                                            sort_asc = !sort_asc;
+                                        if app_config.sort_preferences.nodes_sort_by == SortBy::Name {
+                                            app_config.sort_preferences.nodes_sort_asc = !app_config.sort_preferences.nodes_sort_asc;
                                         } else {
-                                            sort_by = SortBy::Name;
-                                            sort_asc = true;
+                                            app_config.sort_preferences.nodes_sort_by = SortBy::Name;
+                                            app_config.sort_preferences.nodes_sort_asc = true;
                                         }
+                                        config_should_be_saved = true;
                                     }
                                     ui.label("CPU");
                                     ui.label("Memory");
@@ -3217,12 +3213,13 @@ async fn main() {
                                     ui.label("Version");
                                     ui.label("Role");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        if sort_by == SortBy::Age {
-                                            sort_asc = !sort_asc;
+                                        if app_config.sort_preferences.nodes_sort_by == SortBy::Age {
+                                            app_config.sort_preferences.nodes_sort_asc = !app_config.sort_preferences.nodes_sort_asc;
                                         } else {
-                                            sort_by = SortBy::Age;
-                                            sort_asc = true;
+                                            app_config.sort_preferences.nodes_sort_by = SortBy::Age;
+                                            app_config.sort_preferences.nodes_sort_asc = true;
                                         }
+                                        config_should_be_saved = true;
                                     }
                                     ui.label("Status");
                                     ui.label("");
@@ -3230,7 +3227,7 @@ async fn main() {
                                     ui.end_row();
                                     let mut sorted_nodes = nodes.clone();
                                     sorted_nodes.sort_by(|a, b| {
-                                        let ord = match sort_by {
+                                        let ord = match app_config.sort_preferences.nodes_sort_by {
                                             SortBy::Name => a.name.cmp(&b.name),
                                             SortBy::Age => {
                                                 let at = a.creation_timestamp.as_ref();
@@ -3238,7 +3235,7 @@ async fn main() {
                                                 at.cmp(&bt)
                                             }
                                         };
-                                        if sort_asc { ord } else { ord.reverse() }
+                                        if app_config.sort_preferences.nodes_sort_asc { ord } else { ord.reverse() }
                                     });
                                     for item in sorted_nodes.iter() {
                                         let cur_item_name = &item.name;
@@ -3427,28 +3424,30 @@ async fn main() {
                                 egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("");
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        if sort_by == SortBy::Name {
-                                            sort_asc = !sort_asc;
+                                        if app_config.sort_preferences.namespace_sort_by == SortBy::Name {
+                                            app_config.sort_preferences.namespace_sort_asc = !app_config.sort_preferences.namespace_sort_asc;
                                         } else {
-                                            sort_by = SortBy::Name;
-                                            sort_asc = true;
+                                            app_config.sort_preferences.namespace_sort_by = SortBy::Name;
+                                            app_config.sort_preferences.namespace_sort_asc = true;
                                         }
+                                        config_should_be_saved = true;
                                     }
                                     ui.label("Phase");
                                     ui.label("Labels");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        if sort_by == SortBy::Age {
-                                            sort_asc = !sort_asc;
+                                        if app_config.sort_preferences.namespace_sort_by == SortBy::Age {
+                                            app_config.sort_preferences.namespace_sort_asc = !app_config.sort_preferences.namespace_sort_asc;
                                         } else {
-                                            sort_by = SortBy::Age;
-                                            sort_asc = true;
+                                            app_config.sort_preferences.namespace_sort_by = SortBy::Age;
+                                            app_config.sort_preferences.namespace_sort_asc = true;
                                         }
+                                        config_should_be_saved = true;
                                     }
                                     ui.label("Actions");
                                     ui.end_row();
                                     let mut sorted_ns = ns.clone();
                                     sorted_ns.sort_by(|a, b| {
-                                        let ord = match sort_by {
+                                        let ord = match app_config.sort_preferences.namespace_sort_by {
                                             SortBy::Name => a.name.cmp(&b.name),
                                             SortBy::Age => {
                                                 let at = &a.creation_timestamp;
@@ -3456,7 +3455,7 @@ async fn main() {
                                                 at.cmp(&bt)
                                             }
                                         };
-                                        if sort_asc { ord } else { ord.reverse() }
+                                        if app_config.sort_preferences.namespace_sort_asc { ord } else { ord.reverse() }
                                     });
 
                                     for item in sorted_ns.iter_mut() {
@@ -3582,23 +3581,25 @@ async fn main() {
                                 egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                                     ui.label(""); // For hightlight
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        if sort_by == SortBy::Name {
-                                            sort_asc = !sort_asc;
+                                        if app_config.sort_preferences.pods_sort_by == SortBy::Name {
+                                            app_config.sort_preferences.pods_sort_asc = !app_config.sort_preferences.pods_sort_asc;
                                         } else {
-                                            sort_by = SortBy::Name;
-                                            sort_asc = true;
+                                            app_config.sort_preferences.pods_sort_by = SortBy::Name;
+                                            app_config.sort_preferences.pods_sort_asc = true;
                                         }
+                                        config_should_be_saved = true;
                                     }
                                     ui.label("Namespace");
                                     ui.label("Status");
                                     ui.label("Containers");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        if sort_by == SortBy::Age {
-                                            sort_asc = !sort_asc;
+                                        if app_config.sort_preferences.pods_sort_by == SortBy::Age {
+                                            app_config.sort_preferences.pods_sort_asc = !app_config.sort_preferences.pods_sort_asc;
                                         } else {
-                                            sort_by = SortBy::Age;
-                                            sort_asc = true;
+                                            app_config.sort_preferences.pods_sort_by = SortBy::Age;
+                                            app_config.sort_preferences.pods_sort_asc = true;
                                         }
+                                        config_should_be_saved = true;
                                     }
                                     ui.label("Restarts");
                                     ui.label("Controlled by");
@@ -3608,7 +3609,7 @@ async fn main() {
                                     ui.end_row();
                                     let mut sorted_pods = visible_pods.clone();
                                     sorted_pods.sort_by(|a, b| {
-                                        let ord = match sort_by {
+                                        let ord = match app_config.sort_preferences.pods_sort_by {
                                             SortBy::Name => a.name.cmp(&b.name),
                                             SortBy::Age => {
                                                 let at = a.creation_timestamp.as_ref();
@@ -3616,7 +3617,7 @@ async fn main() {
                                                 at.cmp(&bt)
                                             }
                                         };
-                                        if sort_asc { ord } else { ord.reverse() }
+                                        if app_config.sort_preferences.pods_sort_asc { ord } else { ord.reverse() }
                                     });
                                     for item in sorted_pods.iter() {
                                         let cur_item_name = &item.name;
@@ -4472,6 +4473,22 @@ async fn main() {
 
         // Confirmation dialog
         show_delete_confirmation(ctx, &mut confirmation_dialog);
+
+        if config_should_be_saved {
+            let _ = write_config_to_file(
+                app_config.options.last_window_pos_x,
+                app_config.options.last_window_pos_y,
+                app_config.options.last_width,
+                app_config.options.last_height,
+                app_config.sort_preferences.nodes_sort_by,
+                app_config.sort_preferences.nodes_sort_asc,
+                app_config.sort_preferences.pods_sort_by,
+                app_config.sort_preferences.pods_sort_asc,
+                app_config.sort_preferences.namespace_sort_by,
+                app_config.sort_preferences.namespace_sort_asc,
+            );
+            config_should_be_saved = false;
+        }
 
         ctx.request_repaint();
     })

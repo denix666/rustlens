@@ -4,6 +4,8 @@ use std::{fs::{self, OpenOptions}, path::PathBuf};
 use toml::to_string;
 use std::io::Write;
 
+use crate::SortBy;
+
 #[derive(Deserialize, Serialize)]
 pub struct AppOptions {
     pub last_window_pos_x: f32,
@@ -12,9 +14,20 @@ pub struct AppOptions {
     pub last_height: f32,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+pub struct SortPreferences {
+    pub nodes_sort_by: SortBy,
+    pub nodes_sort_asc: bool,
+    pub pods_sort_by: SortBy,
+    pub pods_sort_asc: bool,
+    pub namespace_sort_by: SortBy,
+    pub namespace_sort_asc: bool,
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct AppConfig {
     pub options: AppOptions,
+    pub sort_preferences: SortPreferences,
 }
 
 fn app_root_path() -> PathBuf {
@@ -26,7 +39,18 @@ fn app_root_path() -> PathBuf {
     return app_root_path
 }
 
-pub fn write_config_to_file(last_window_pos_x: f32, last_window_pos_y: f32, last_width: f32, last_height: f32) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_config_to_file(
+    last_window_pos_x: f32,
+    last_window_pos_y: f32,
+    last_width: f32,
+    last_height: f32,
+    nodes_sort_by: SortBy,
+    nodes_sort_asc: bool,
+    pods_sort_by: SortBy,
+    pods_sort_asc: bool,
+    namespace_sort_by: SortBy,
+    namespace_sort_asc: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_file_path = app_root_path();
     config_file_path.push(crate::MAIN_CONFIG_FILE_NAME);
 
@@ -41,6 +65,14 @@ pub fn write_config_to_file(last_window_pos_x: f32, last_window_pos_y: f32, last
             last_height,
             last_width,
         },
+        sort_preferences: SortPreferences {
+            nodes_sort_by,
+            nodes_sort_asc,
+            pods_sort_by,
+            pods_sort_asc,
+            namespace_sort_by,
+            namespace_sort_asc,
+        }
     };
 
     let toml_string = toml::to_string(&app_config)?;
@@ -68,18 +100,55 @@ pub fn read_app_config_from_file() -> AppConfig {
             last_window_pos_y: 10.0,
             last_width: 1600.0,
             last_height: 800.0,
-        }
+        },
+        sort_preferences: SortPreferences {
+            nodes_sort_by: SortBy::Name,
+            nodes_sort_asc: true,
+            pods_sort_by: SortBy::Age,
+            pods_sort_asc: false,
+            namespace_sort_by: SortBy::Name,
+            namespace_sort_asc: false,
+        },
     };
 
     let toml_str = match std::fs::read_to_string(config_file_path) {
         Ok(res) => res,
         Err(_) => {
-            write_config_to_file(20.0, 10.0, 1600.0, 800.0).unwrap();
+            write_config_to_file(
+                20.0,
+                10.0,
+                1600.0,
+                800.0,
+                SortBy::Name,
+                true,
+                SortBy::Age,
+                false,
+                SortBy::Name,
+                true,
+            ).unwrap();
             to_string(&new_config).unwrap()
         }
     };
 
-    let app_config = toml::from_str(&toml_str).expect("Failed to load configuration file...");
+    // Try to use loaded config. In case of error - create new (backward compatibility)
+    let app_config = match toml::from_str(&toml_str) {
+        Ok(res) => res,
+        Err(_) => {
+            write_config_to_file(
+                20.0,
+                10.0,
+                1600.0,
+                800.0,
+                SortBy::Name,
+                true,
+                SortBy::Age,
+                false,
+                SortBy::Name,
+                true,
+            ).unwrap();
+            new_config
+        }
+    };
 
     app_config
 }
