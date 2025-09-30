@@ -23,9 +23,9 @@ A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster. Thi
 
 For a successful connection to your Kubernetes cluster, you must have a valid configuration file.
 
-* **Configuration File:** The program requires a file named `.config` to be present in your home directory.
-    * On **macOS/Linux**, this path is `~/kube/.config`
-    * On **Windows**, this path is `%USERPROFILE%\kube\.config`
+* **Configuration File:** The program requires a file named `.kube/config` to be present in your home directory.
+    * On **macOS/Linux**, this path is `~/.kube/config`
+    * On **Windows**, this path is `%USERPROFILE%\.kube\config` (not tested yet)
 
 Please ensure your cluster connection details are correctly specified in this file.
 

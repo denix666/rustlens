@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+//#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ui;
 use serde::{Deserialize, Serialize};
@@ -4281,11 +4281,14 @@ async fn main() {
             let node_details_clone = Arc::clone(&node_details);
             let nodes_clone = Arc::clone(&nodes);
             let pods_clone = Arc::clone(&pods);
-            show_node_details_window(ctx, &mut node_details_window, node_details_clone, nodes_clone, pods_clone);
+            let details = Arc::clone(&pod_details);
+            let client_clone = Arc::clone(&client);
+            show_node_details_window(ctx, &mut node_details_window, node_details_clone, nodes_clone, pods_clone, &mut pod_details_window, details, client_clone);
         }
 
         // Pod details window
         if pod_details_window.show {
+            //node_details_window.show = false;
             let pod_details_clone = Arc::clone(&pod_details);
             let pods_clone = Arc::clone(&pods);
             let log_window_clone = Arc::clone(&log_window);

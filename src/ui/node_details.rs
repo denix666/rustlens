@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
-use egui::{Context, Key};
-use crate::{functions::item_color, theme::*};
+use egui::{Context, CursorIcon, Key};
+use kube::Client;
+use crate::{functions::item_color, get_details::get_pod_details, theme::*, ui::PodDetailsWindow};
 
 pub struct NodeDetailsWindow {
     pub show: bool,
@@ -19,8 +20,11 @@ pub fn show_node_details_window(
         node_details_window: &mut NodeDetailsWindow,
         details: Arc<Mutex<crate::NodeDetails>>,
         nodes: Arc<Mutex<Vec<crate::NodeItem>>>,
-        pods: Arc<Mutex<Vec<crate::PodItem>>>)
-{
+        pods: Arc<Mutex<Vec<crate::PodItem>>>,
+        pod_details_window: &mut PodDetailsWindow,
+        pod_details: Arc<Mutex<crate::PodDetails>>,
+        client: Arc<Client>
+){
     let guard_details = details.lock().unwrap(); // More detailed info
     let guard_nodes = nodes.lock().unwrap(); // Nodes with base details already we have
     let guard_pods = pods.lock().unwrap(); // Pods with base details already we have
@@ -150,7 +154,20 @@ pub fn show_node_details_window(
                         ui.label(egui::RichText::new("Status").color(PODS_HEAD_GRID_COLOR));
                         ui.end_row();
                         for j in pods.iter() {
-                            ui.label(egui::RichText::new(&j.name.to_string()).color(POD_NAME_COLUMN_COLOR));
+                            if ui.label(egui::RichText::new(&j.name).color(POD_NAME_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                let ns = j.namespace.clone();
+                                let name = j.name.clone();
+                                let client_clone = Arc::clone(&client);
+                                let details = Arc::clone(&pod_details);
+                                pod_details_window.show = true;
+                                tokio::spawn({
+                                    async move {
+                                        if let Err(e) = get_pod_details(client_clone, &name, ns, details).await {
+                                            eprintln!("Details fetch failed: {:?}", e);
+                                        }
+                                    }
+                                });
+                            }
                             ui.label(egui::RichText::new(&j.namespace.as_ref().unwrap().to_string()).color(NAMESPACE_COLUMN_COLOR));
                             ui.label(egui::RichText::new(&j.phase.as_ref().unwrap().to_string()).color(item_color(&j.phase.as_ref().unwrap().to_string())));
                             ui.end_row();
