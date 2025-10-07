@@ -271,12 +271,59 @@ pub fn show_pod_details_window(
                         ui.end_row();
 
                         ui.label(egui::RichText::new("Status:").color(ROW_NAME_COLOR));
-                        let status = container.state.as_deref().unwrap_or("Unknown");
+                        let status = container.state.as_deref().unwrap_or("");
                         let message = container.message.as_deref().unwrap_or("");
                         let label_text = format!("{} {}", status, message);
                         let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(DETAIL_COLOR)).wrap();
                         ui.add(label);
                         ui.end_row();
+
+                        if let Some(res) = &container.last_state {
+                            ui.label(egui::RichText::new("Last status:").color(ROW_NAME_COLOR));
+                            let label_text = format!("{}", res);
+                            let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(WARNING_COLOR)).wrap();
+                            ui.add(label);
+                            ui.end_row();
+                        }
+
+                        if let Some(res) = &container.reason {
+                            ui.label(egui::RichText::new("Last reason:").color(ROW_NAME_COLOR));
+                            let label_text = format!("{}", res);
+                            let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(WARNING_COLOR)).wrap();
+                            ui.add(label);
+                            ui.end_row();
+                        }
+
+                        if let Some(res) = &container.stop_signal {
+                            ui.label(egui::RichText::new("Last stop signal:").color(ROW_NAME_COLOR));
+                            let label_text = format!("{}", res);
+                            let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(WARNING_COLOR)).wrap();
+                            ui.add(label);
+                            ui.end_row();
+                        }
+
+                        if let Some(last_exit_code) = &container.last_exit_code {
+                            let (exit_code_text, exit_code_color) = match last_exit_code {
+                                0 => (format!("{} - Succes", last_exit_code.to_string()), NORMAL_COLOR),
+                                1 => (format!("{} - Command line error", last_exit_code.to_string()), ERROR_COLOR),
+                                2 => (format!("{} - Misuse of Shell Builtins", last_exit_code.to_string()), ERROR_COLOR),
+                                124 => (format!("{} - Timeout", last_exit_code.to_string()), ERROR_COLOR),
+                                125 => (format!("{} - The docker run command did not execute successfully", last_exit_code.to_string()), ERROR_COLOR),
+                                126 => (format!("{} - A command specified in the image specification could not be invoked", last_exit_code.to_string()), ERROR_COLOR),
+                                127 => (format!("{} - Command Not Found", last_exit_code.to_string()), ERROR_COLOR),
+                                128 => (format!("{} - Invalid argument", last_exit_code.to_string()), ERROR_COLOR),
+                                134 => (format!("{} - Abnormal termination", last_exit_code.to_string()), ERROR_COLOR),
+                                137 => (format!("{} - Killed by OOM", last_exit_code.to_string()), ERROR_COLOR),
+                                139 => (format!("{} - Segmentation Fault", last_exit_code.to_string()), ERROR_COLOR),
+                                143 => (format!("{} - Terminated by Signal", last_exit_code.to_string()), WARNING_COLOR),
+                                _ => (format!("{} - Unknown exit code", last_exit_code.to_string()), WARNING_COLOR),
+                            };
+
+                            ui.label(egui::RichText::new("Last Exit code:").color(ROW_NAME_COLOR));
+                            let label = egui::widgets::Label::new(egui::RichText::new(&exit_code_text).color(exit_code_color)).wrap();
+                            ui.add(label);
+                            ui.end_row();
+                        }
 
                         ui.label(egui::RichText::new("Image:").color(ROW_NAME_COLOR));
                         ui.label(egui::RichText::new(container.image.as_deref().unwrap_or_else(|| "Undefined")).color(DETAIL_COLOR));
@@ -313,7 +360,7 @@ pub fn show_pod_details_window(
                         if !container.mounts.is_empty() {
                             ui.label(egui::RichText::new("Mounts:").color(ROW_NAME_COLOR));
                             let grid_id = format!("pod_details_mounts_grid_{}", container.name);
-                            egui::Grid::new(grid_id).striped(true).min_col_width(20.0).show(ui, |ui| {
+                            egui::Grid::new(grid_id).striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                                 ui.label("");
                                 ui.end_row();
                                 for mount in container.mounts.iter() {
@@ -324,6 +371,34 @@ pub fn show_pod_details_window(
                                     } else {
                                         ui.label(egui::RichText::new("RW".to_string()).color(item_color("RW")));
                                     }
+                                    ui.end_row();
+                                }
+                            });
+                            ui.end_row();
+                        }
+
+                        if let Some(args) = &container.args {
+                            ui.label(egui::RichText::new("Args:").color(ROW_NAME_COLOR));
+                            let grid_id = format!("pod_details_args_grid_{}", container.name);
+                            egui::Grid::new(grid_id).striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
+                                ui.label("");
+                                ui.end_row();
+                                for arg in args.iter() {
+                                    ui.label(egui::RichText::new(&arg.to_string()).color(DETAIL_COLOR));
+                                    ui.end_row();
+                                }
+                            });
+                            ui.end_row();
+                        }
+
+                        if let Some(cmd) = &container.command {
+                            ui.label(egui::RichText::new("Command:").color(ROW_NAME_COLOR));
+                            let grid_id = format!("pod_details_command_grid_{}", container.name);
+                            egui::Grid::new(grid_id).striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
+                                ui.label("");
+                                ui.end_row();
+                                for c in cmd.iter() {
+                                    ui.label(egui::RichText::new(&c.to_string()).color(DETAIL_COLOR));
                                     ui.end_row();
                                 }
                             });

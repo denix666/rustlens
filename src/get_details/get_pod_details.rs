@@ -29,6 +29,8 @@ pub struct ContainerDetails {
     pub name: String,
     pub image: Option<String>,
     pub state: Option<String>, // e.g. "Running", "Terminated", "Waiting"
+    pub last_state: Option<String>,
+    pub reason: Option<String>,
     pub message: Option<String>,
     pub cpu_request: Option<String>,
     pub mem_request: Option<String>,
@@ -37,6 +39,10 @@ pub struct ContainerDetails {
     pub mounts: Vec<ContainerMount>,
     pub env_vars: Vec<ContainerEnv>,
     pub image_pull_policy: Option<String>,
+    pub stop_signal: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub command: Option<Vec<String>>,
+    pub last_exit_code: Option<i32>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -97,6 +103,15 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
 
         for cs in statuses {
             let spec_container = pod_spec.containers.iter().find(|c| c.name == cs.name);
+
+            let spec_map = if let Some(spec) = &pod.spec {
+                spec.containers
+                    .iter()
+                    .map(|c| (c.name.clone(), (c.args.clone(), c.command.clone())))
+                    .collect::<std::collections::HashMap<_, _>>()
+            } else {
+                Default::default()
+            };
 
             let (cpu_request, mem_request, cpu_limit, mem_limit) = if let Some(container) = spec_container {
                 if let Some(resources) = &container.resources {
@@ -160,6 +175,21 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 }
             });
 
+            let mut last_state = None;
+            let mut last_exit_code = None;
+            if let Some(lst) = &cs.last_state {
+                if lst.running.is_some() {
+                    last_state = Some("Running".to_string());
+                } else if let Some(_) = &lst.waiting {
+                    last_state = Some("Waiting".to_string());
+                } else if let Some(terminated) = &lst.terminated {
+                    last_state = Some("Terminated".to_string());
+                    last_exit_code = Some(terminated.exit_code);
+                }
+            }
+
+            let stop_signal = cs.stop_signal;
+
             let message = cs.state.as_ref().and_then(|s| {
                 if let Some(waiting) = &s.waiting {
                     waiting.message.clone()
@@ -170,8 +200,21 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 }
             });
 
+            let mut reason = None;
+            if let Some(st) = &cs.state {
+                if st.running.is_some() {
+                    // container running
+                } else if let Some(waiting) = &st.waiting {
+                    reason = waiting.reason.clone();
+                } else if let Some(terminated) = &st.terminated {
+                    reason = terminated.reason.clone();
+                }
+            }
+
             let image_pull_policy = spec_container.as_ref().and_then(|container| container.image_pull_policy.as_ref())
                 .map(|policy| policy.to_string());
+
+            let (args, command) = spec_map.get(&cs.name).cloned().unwrap_or((None, None));
 
             details_items.containers.push(ContainerDetails {
                 name: cs.name,
@@ -185,6 +228,12 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
                 mounts: container_mounts,
                 env_vars,
                 image_pull_policy,
+                last_state,
+                reason,
+                stop_signal,
+                args,
+                command,
+                last_exit_code,
             });
         }
     }
