@@ -13,7 +13,6 @@ pub struct EventDetails {
 #[derive(Default, Debug, Clone)]
 pub struct PvDetails {
     pub name: Option<String>,
-    pub reclaim_policy: Option<String>,
     pub labels: Option<BTreeMap<String, String>>,
     pub annotations: Option<BTreeMap<String, String>>,
     pub finalizers: Option<Vec<String>>,
@@ -33,8 +32,6 @@ pub async fn get_pv_details(client: Arc<Client>, name: &str, details: Arc<Mutex<
     details_items.labels = metadata.labels.clone();
     details_items.annotations = metadata.annotations.clone();
     details_items.finalizers = metadata.finalizers;
-
-    details_items.reclaim_policy = spec.and_then(|s| s.persistent_volume_reclaim_policy.clone());
     details_items.access_modes = spec.and_then(|s| s.access_modes.clone());
 
     details_items.events = pv_events.iter().map(|e| {

@@ -8,6 +8,7 @@ pub struct PvItem {
     pub name: String,
     pub storage_class: String,
     pub capacity: String,
+    pub reclaim_policy: String,
     pub claim: String,
     pub status: String,
     pub creation_timestamp: Option<Time>,
@@ -27,6 +28,11 @@ pub fn convert_pv(pv: PersistentVolume) -> Option<PvItem> {
             .and_then(|s| s.capacity.as_ref())
             .and_then(|cap| cap.get("storage"))
             .map(|q| q.0.to_string())
+            .unwrap_or_else(|| "-".to_string()),
+        reclaim_policy: pv
+            .spec
+            .as_ref()
+            .and_then(|s| s.persistent_volume_reclaim_policy.clone())
             .unwrap_or_else(|| "-".to_string()),
         claim: pv
             .spec

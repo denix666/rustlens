@@ -2376,6 +2376,7 @@ async fn main() {
                                     ui.label("Storage class");
                                     ui.label("Capacity");
                                     ui.label("Claim");
+                                    ui.label("Reclaim policy");
                                     ui.label("Status");
                                     ui.label("Age");
                                     ui.label("Actions");
@@ -2400,6 +2401,7 @@ async fn main() {
                                             ui.label(format!("{}", &item.storage_class));
                                             ui.label(format!("{}", &item.capacity));
                                             ui.label(format!("{}", &item.claim));
+                                            ui.label(egui::RichText::new(&item.reclaim_policy).color(item_color(&item.reclaim_policy)));
                                             ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {

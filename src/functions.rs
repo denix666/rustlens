@@ -13,6 +13,7 @@ use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet}
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -260,8 +261,8 @@ pub fn item_color(item: &str) -> Color32 {
         "Guaranteed" => Color32::from_rgb(6, 140, 0), // green
         "BestEffort" => Color32::from_rgb(112, 135, 9), // close to red
         "Cancelled" => Color32::from_rgb(116, 116, 116), // gray
-        "RW" => Color32::from_rgb(137, 90, 9), // close to orange
-        "RO" => Color32::from_rgb(6, 140, 0), // green
+        "RW" | "Delete" => Color32::from_rgb(137, 90, 9), // close to orange
+        "RO" | "Retain" => Color32::from_rgb(6, 140, 0), // green
         "Unknown" => Color32::from_rgb(198, 98, 247), // violet
         "CrashLoop" => Color32::RED,
         "NotReady" => Color32::RED,
@@ -528,12 +529,16 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
     Ok(())
 }
 
+fn get_kubeconfig_path() -> Option<PathBuf> {
+    home::home_dir().map(|mut path| {
+        path.push(".kube");
+        path.push("config");
+        path
+    })
+}
+
 pub fn get_current_context_info() -> Result<NamedContext, anyhow::Error> {
-    let home_path = match home::home_dir() {
-        Some(path) => path.to_string_lossy().to_string(),
-        _ => panic!("Impossible to get your home dir!"),
-    };
-    let config_path = format!("{}/.kube/config", home_path);
+    let config_path = get_kubeconfig_path().ok_or_else(|| anyhow::anyhow!("Impossible to get your home dir!"))?;
     let config = Kubeconfig::read_from(config_path)?;
 
     let current_context = config

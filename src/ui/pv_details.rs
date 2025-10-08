@@ -93,6 +93,10 @@ pub fn show_pv_details_window(
                     ui.label(egui::RichText::new("Claim:").color(ROW_NAME_COLOR));
                     ui.label(egui::RichText::new(&item.claim).color(DETAIL_COLOR));
                     ui.end_row();
+
+                    ui.label(egui::RichText::new("Reclaim policy:").color(ROW_NAME_COLOR));
+                    ui.label(egui::RichText::new(&item.reclaim_policy).color(item_color(&item.reclaim_policy)));
+                    ui.end_row();
                 }
 
                 if let Some(finalizers) = guard_details.finalizers.clone() {
@@ -116,13 +120,6 @@ pub fn show_pv_details_window(
                             ui.end_row();
                         }
                     });
-                    ui.end_row();
-                }
-
-                if let Some(rp) = guard_details.reclaim_policy.clone() {
-                    ui.separator(); ui.separator(); ui.end_row();
-                    ui.label(egui::RichText::new("Reclaim policy:").color(ROW_NAME_COLOR));
-                    ui.label(egui::RichText::new(&rp).color(DETAIL_COLOR));
                     ui.end_row();
                 }
 
