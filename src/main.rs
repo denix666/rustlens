@@ -1,4 +1,4 @@
-//#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ui;
 use serde::{Deserialize, Serialize};
@@ -549,6 +549,8 @@ async fn main() {
     let helm_releases_loading = Arc::new(AtomicBool::new(true));
 
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
+        ctx.set_visuals(egui::Visuals::dark());
+
         // Manage window position and size
         if window_moved_or_resized(ctx, &mut app_config) {
             config_should_be_saved = true;
