@@ -191,3 +191,72 @@ pub fn show_virtual_service_details(name: &String, data: &Value, ui: &mut egui::
 
     ui.end_row();
 }
+
+
+// CiliumLoadBalancerIPPool
+/////////////////////////////////////////////
+pub fn show_cilium_load_balancer_ip_pool_header(ui: &mut egui::Ui) {
+    ui.label("Name");
+    ui.label("Age");
+    ui.label("allowFirstLastIPs");
+    ui.label("IP Pools");
+    ui.label("Disabled");
+    ui.end_row();
+}
+
+pub fn show_cilium_load_balancer_ip_pool_details(name: &String, data: &Value, ui: &mut egui::Ui) {
+    let metadata_obj = data.get("metadata");
+    let spec_obj = data.get("spec");
+
+    let creation_timestamp = metadata_obj
+        .and_then(|s| s.get("creationTimestamp"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let datetime: DateTime<Utc> = creation_timestamp.parse().unwrap_or_default();
+    let creation_timestamp_k8s_time = Time(datetime);
+
+    let allow_first_last_ips = spec_obj
+        .and_then(|s| s.get("allowFirstLastIPs"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+
+    let disabled = spec_obj
+        .and_then(|s| s.get("disabled"))
+        .and_then(|v| v.as_bool()).unwrap_or_default();
+
+    let blocks_str = spec_obj
+        .and_then(|s| s.get("blocks"))
+        .and_then(|b| b.as_array())
+        .map(|blocks_array| {
+            blocks_array
+                .iter()
+                .map(|block_obj| {
+                    if let Some(cidr) = block_obj.get("cidr").and_then(|v| v.as_str()) {
+                        cidr.to_string()
+                    } else if let (Some(start), Some(stop)) = (
+                        block_obj.get("start").and_then(|v| v.as_str()),
+                        block_obj.get("stop").and_then(|v| v.as_str())
+                    ) {
+                        format!("{} - {}", start, stop)
+                    } else {
+                        "?".to_string()
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join(", ")
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "-".to_string());
+
+    ui.label(egui::RichText::new(name).color(ITEM_NAME_COLOR));
+    ui.label(crate::format_age(&creation_timestamp_k8s_time));
+    ui.label(allow_first_last_ips);
+    ui.label(blocks_str);
+    if disabled {
+        ui.label("Yes");
+    } else {
+        ui.label("No");
+    }
+
+    ui.end_row();
+}

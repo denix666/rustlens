@@ -815,6 +815,16 @@ async fn main() {
                                     });
                                 });
                             },
+                            "CiliumLoadBalancerIPPool" => {
+                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                    egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
+                                        show_cilium_load_balancer_ip_pool_header(ui);
+                                        for j in cr_items.clone().iter() {
+                                            show_cilium_load_balancer_ip_pool_details(&j.name, &j.data, ui);
+                                        }
+                                    });
+                                });
+                            },
                             _ => {
                                 egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
                                     fn value_to_string(v: &Value) -> Option<String> {
