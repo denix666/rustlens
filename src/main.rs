@@ -969,9 +969,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_service_accounts).hint_text("Filter service accounts...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_service_accounts).hint_text("Filter service accounts...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_service_accounts = filter_service_accounts.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_service_accounts.clear();
                         }
                     });
@@ -1080,9 +1080,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_roles).hint_text("Filter roles...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_roles).hint_text("Filter roles...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_roles = filter_roles.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_roles.clear();
                         }
                     });
@@ -1168,9 +1168,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_cluster_roles).hint_text("Filter cluster roles...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_cluster_roles).hint_text("Filter cluster roles...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_cluster_roles = filter_cluster_roles.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_cluster_roles.clear();
                         }
                     });
@@ -1266,9 +1266,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_rbs).hint_text("Filter role bindings...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_rbs).hint_text("Filter role bindings...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_rbs = filter_rbs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_rbs.clear();
                         }
                     });
@@ -1354,9 +1354,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_cluster_rb).hint_text("Filter cluster rbs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_cluster_rb).hint_text("Filter cluster rbs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_cluster_rb = filter_cluster_rb.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_cluster_rb.clear();
                         }
                     });
@@ -1445,9 +1445,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_helm_releases).hint_text("Filter releases...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_helm_releases).hint_text("Filter releases...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_helm_releases = filter_helm_releases.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_helm_releases.clear();
                         }
                     });
@@ -1497,9 +1497,9 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Custom Resources Definitions - {}", crds.lock().unwrap().len()));
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_crds).hint_text("Filter crds...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_crds).hint_text("Filter crds...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_crds = filter_crds.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_crds.clear();
                         }
                     });
@@ -1607,9 +1607,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_network_policies).hint_text("Filter policies...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_network_policies).hint_text("Filter policies...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_network_policies = filter_network_policies.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_network_policies.clear();
                         }
                     });
@@ -1702,9 +1702,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_pdbs).hint_text("Filter pdbs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_pdbs).hint_text("Filter pdbs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_pdbs = filter_pdbs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_pdbs.clear();
                         }
                     });
@@ -1808,9 +1808,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_daemonsets).hint_text("Filter daemonsets...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_daemonsets).hint_text("Filter daemonsets...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_daemonsets = filter_daemonsets.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_daemonsets.clear();
                         }
                     });
@@ -1985,9 +1985,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_replicasets).hint_text("Filter replicasets...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_replicasets).hint_text("Filter replicasets...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_replicasets = filter_replicasets.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_replicasets.clear();
                         }
                         ui.separator();
@@ -2139,9 +2139,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_ingresses).hint_text("Filter ingresses...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_ingresses).hint_text("Filter ingresses...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_ingresses = filter_ingresses.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_ingresses.clear();
                         }
                     });
@@ -2228,9 +2228,9 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("CSI Drivers - {}", csi_drivers.lock().unwrap().len()));
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_csi_drivers).hint_text("Filter csi drivers...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_csi_drivers).hint_text("Filter csi drivers...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_csi_drivers = filter_csi_drivers.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_csi_drivers.clear();
                         }
                     });
@@ -2293,9 +2293,9 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("StorageClasses - {}", pvs.lock().unwrap().len()));
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_scs).hint_text("Filter scs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_scs).hint_text("Filter scs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_scs = filter_scs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_scs.clear();
                         }
                     });
@@ -2358,9 +2358,9 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("PersistentVolumes - {}", pvs.lock().unwrap().len()));
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_pvs).hint_text("Filter pvs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_pvs).hint_text("Filter pvs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_pvs = filter_pvs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_pvs.clear();
                         }
                     });
@@ -2480,9 +2480,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_pvcs).hint_text("Filter pvcs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_pvcs).hint_text("Filter pvcs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_pvcs = filter_pvcs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_pvcs.clear();
                         }
                     });
@@ -2593,9 +2593,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_endpoints).hint_text("Filter jobs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_endpoints).hint_text("Filter endpoints...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_endpoints = filter_endpoints.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_endpoints.clear();
                         }
                     });
@@ -2702,9 +2702,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_jobs).hint_text("Filter jobs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_jobs).hint_text("Filter jobs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_jobs = filter_jobs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_jobs.clear();
                         }
                     });
@@ -2818,9 +2818,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_services).hint_text("Filter services...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_services).hint_text("Filter services...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_services = filter_services.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_services.clear();
                         }
                     });
@@ -2844,9 +2844,9 @@ async fn main() {
                                     ui.label("Selector");
                                     ui.label("Actions");
                                     ui.end_row();
-                                    for item in visible_services.iter().rev().take(200) {
+                                    for item in visible_services.iter().rev() {
                                         let cur_item_object = &item.name;
-                                        if filter_services.is_empty() || cur_item_object.contains(&filter_services) {
+                                        if filter_services.is_empty() || cur_item_object.contains(&filter_services) || item.svc_type.to_lowercase().contains(&filter_services) {
                                             if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 let name = cur_item_object.clone();
                                                 let client_clone = Arc::clone(&client);
@@ -2935,9 +2935,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_cronjobs).hint_text("Filter cronjobs...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_cronjobs).hint_text("Filter cronjobs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_cronjobs = filter_cronjobs.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_cronjobs.clear();
                         }
                     });
@@ -3048,9 +3048,9 @@ async fn main() {
                                 );
                             }
                         });
-                        ui.add(egui::TextEdit::singleline(&mut filter_statefulsets).hint_text("Filter statefulsets...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_statefulsets).hint_text("Filter statefulsets...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_statefulsets = filter_statefulsets.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_statefulsets.clear();
                         }
                     });
@@ -3150,9 +3150,9 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Nodes - {}", nodes.lock().unwrap().len()));
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_nodes).hint_text("Filter nodes...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_nodes).hint_text("Filter nodes...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_nodes = filter_nodes.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_nodes.clear();
                         }
 
@@ -3410,9 +3410,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_namespaces).hint_text("Filter namespaces...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_namespaces).hint_text("Filter namespaces...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_namespaces = filter_namespaces.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_namespaces.clear();
                         }
                     });
@@ -3568,9 +3568,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_pods).hint_text("Filter pods...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_pods).hint_text("Filter pods...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_pods = filter_pods.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_pods.clear();
                         }
                     });
@@ -3860,9 +3860,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_deployments).hint_text("Filter deployments...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_deployments).hint_text("Filter deployments...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_deployments = filter_deployments.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_deployments.clear();
                         }
                     });
@@ -3884,7 +3884,7 @@ async fn main() {
                                     ui.label("Age");
                                     ui.label("Actions");
                                     ui.end_row();
-                                    for item in visible_deployments.iter().rev().take(200) {
+                                    for item in visible_deployments.iter().rev() {
                                         let cur_item_object = &item.name;
                                         if filter_deployments.is_empty() || cur_item_object.contains(&filter_deployments) {
                                             if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -3994,9 +3994,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter secrets...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_secrets).hint_text("Filter secrets...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_secrets = filter_secrets.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_secrets.clear();
                         }
                     });
@@ -4107,9 +4107,9 @@ async fn main() {
                             new_resource_window.show = true;
                         }
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_configmaps).hint_text("Filter configmaps...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_configmaps).hint_text("Filter configmaps...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_configmaps = filter_configmaps.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_configmaps.clear();
                         }
                     });
@@ -4196,9 +4196,9 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Events - {}", events.lock().unwrap().len()));
                         ui.separator();
-                        ui.add(egui::TextEdit::singleline(&mut filter_events).hint_text("Filter events...").desired_width(200.0));
+                        ui.add(egui::TextEdit::singleline(&mut filter_events).hint_text("Filter events...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_events = filter_events.to_lowercase();
-                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).clicked() {
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_events.clear();
                         }
                     });

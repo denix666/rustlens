@@ -87,9 +87,12 @@ pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<PvcItem>>>,
                     }
                 }
                 Event::Delete(pvc) => {
-                    if let Some(item) = pvc.metadata.name {
-                        let mut pvc_vec = pvc_list.lock().unwrap();
-                        pvc_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (pvc.metadata.name, pvc.metadata.namespace) {
+                        let mut list = pvc_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

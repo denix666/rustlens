@@ -84,9 +84,12 @@ pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<V
                     }
                 }
                 Event::Delete(pdb) => {
-                    if let Some(item) = pdb.metadata.name {
-                        let mut pdb_vec = list.lock().unwrap();
-                        pdb_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (pdb.metadata.name, pdb.metadata.namespace) {
+                        let mut list = list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

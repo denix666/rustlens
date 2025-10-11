@@ -91,9 +91,12 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<JobItem>>>
                     }
                 }
                 Event::Delete(job) => {
-                    if let Some(item) = job.metadata.name {
-                        let mut job_vec = jobs_list.lock().unwrap();
-                        job_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (job.metadata.name, job.metadata.namespace) {
+                        let mut list = jobs_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

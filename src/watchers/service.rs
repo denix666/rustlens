@@ -134,9 +134,12 @@ pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<Se
                     }
                 }
                 Event::Delete(svc) => {
-                    if let Some(item) = svc.metadata.name {
-                        let mut svcs_vec = services_list.lock().unwrap();
-                        svcs_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (svc.metadata.name, svc.metadata.namespace) {
+                        let mut list = services_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

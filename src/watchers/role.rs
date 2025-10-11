@@ -68,9 +68,12 @@ pub async fn watch_roles(client: Arc<Client>, roles_list: Arc<Mutex<Vec<RoleItem
                     }
                 }
                 watcher::Event::Delete(role) => {
-                    if let Some(item) = role.metadata.name {
-                        let mut roles_vec = roles_list.lock().unwrap();
-                        roles_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (role.metadata.name, role.metadata.namespace) {
+                        let mut list = roles_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

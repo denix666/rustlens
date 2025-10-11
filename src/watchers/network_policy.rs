@@ -47,14 +47,14 @@ pub fn convert_network_policy(policy: NetworkPolicy) -> Option<NetworkPolicyItem
     })
 }
 
-pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<NetworkPolicyItem>>>, load_status: Arc<AtomicBool>) {
+pub async fn watch_network_policies(client: Arc<Client>, np_list: Arc<Mutex<Vec<NetworkPolicyItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<NetworkPolicy> = Api::all(client.as_ref().clone());
 
     load_status.store(true, Ordering::Relaxed);
 
     // first-fast load
     if let Ok(ol) = api.list(&ListParams::default()).await {
-        let mut items = list.lock().unwrap();
+        let mut items = np_list.lock().unwrap();
         *items = ol.into_iter().filter_map(convert_network_policy).collect();
     }
 
@@ -73,7 +73,7 @@ pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<Net
                     }
                 }
                 Event::InitDone => {
-                    let mut list_guard = list.lock().unwrap();
+                    let mut list_guard = np_list.lock().unwrap();
                     *list_guard = initial.clone();
                     initialized = true;
 
@@ -84,7 +84,7 @@ pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<Net
                         continue;
                     }
                     if let Some(item) = convert_network_policy(policy) {
-                        let mut list = list.lock().unwrap();
+                        let mut list = np_list.lock().unwrap();
                         if let Some(existing) = list.iter_mut().find(|f| f.name == item.name && f.namespace == item.namespace) {
                             *existing = item; // renew
                         } else {
@@ -93,9 +93,12 @@ pub async fn watch_network_policies(client: Arc<Client>, list: Arc<Mutex<Vec<Net
                     }
                 }
                 Event::Delete(policy) => {
-                    if let Some(item) = policy.metadata.name {
-                        let mut policy_vec = list.lock().unwrap();
-                        policy_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (policy.metadata.name, policy.metadata.namespace) {
+                        let mut list = np_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

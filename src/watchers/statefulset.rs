@@ -75,9 +75,12 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<Stat
                     }
                 }
                 Event::Delete(ss) => {
-                    if let Some(item) = ss.metadata.name {
-                        let mut ss_vec = ss_list.lock().unwrap();
-                        ss_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (ss.metadata.name, ss.metadata.namespace) {
+                        let mut list = ss_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

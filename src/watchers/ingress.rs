@@ -114,9 +114,12 @@ pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<
                     }
                 }
                 Event::Delete(ing) => {
-                    if let Some(item) = ing.metadata.name {
-                        let mut ings_vec = ingresses_list.lock().unwrap();
-                        ings_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (ing.metadata.name, ing.metadata.namespace) {
+                        let mut list = ingresses_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

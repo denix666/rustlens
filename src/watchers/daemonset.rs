@@ -76,9 +76,12 @@ pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Ve
                     }
                 }
                 Event::Delete(ds) => {
-                    if let Some(item) = ds.metadata.name {
-                        let mut ds_vec = daemonsets_list.lock().unwrap();
-                        ds_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (ds.metadata.name, ds.metadata.namespace) {
+                        let mut list = daemonsets_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

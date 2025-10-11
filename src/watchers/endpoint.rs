@@ -105,9 +105,12 @@ pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<
                     }
                 }
                 Event::Delete(ep) => {
-                    if let Some(item) = ep.metadata.name {
-                        let mut eps_vec = endpoints_list.lock().unwrap();
-                        eps_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (ep.metadata.name, ep.metadata.namespace) {
+                        let mut list = endpoints_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

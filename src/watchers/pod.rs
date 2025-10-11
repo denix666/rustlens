@@ -29,7 +29,7 @@ pub struct PodItem {
 }
 
 fn convert_pod(pod: Pod) -> Option<PodItem> {
-    let name = pod.metadata.name.unwrap();
+    let name = pod.metadata.name?;
     let phase = pod.status.as_ref().and_then(|s| s.phase.clone());
     let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
     let terminating = pod.metadata.deletion_timestamp.is_some();
@@ -156,9 +156,12 @@ pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<PodItem>>>
                     }
                 }
                 watcher::Event::Delete(pod) => {
-                    if let Some(item) = pod.metadata.name {
-                        let mut pods_vec = pods_list.lock().unwrap();
-                        pods_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (pod.metadata.name, pod.metadata.namespace) {
+                        let mut list = pods_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

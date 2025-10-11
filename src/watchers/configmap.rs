@@ -71,9 +71,12 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
                     }
                 }
                 watcher::Event::Delete(cm) => {
-                    if let Some(item) = cm.metadata.name {
-                        let mut cm_vec = configmaps_list.lock().unwrap();
-                        cm_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (cm.metadata.name, cm.metadata.namespace) {
+                        let mut list = configmaps_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

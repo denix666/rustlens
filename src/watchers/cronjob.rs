@@ -92,9 +92,12 @@ pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<Cro
                     }
                 }
                 Event::Delete(cronjob) => {
-                    if let Some(item) = cronjob.metadata.name {
-                        let mut cronjobs_vec = cronjob_list.lock().unwrap();
-                        cronjobs_vec.retain(|n| n.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (cronjob.metadata.name, cronjob.metadata.namespace) {
+                        let mut list = cronjob_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

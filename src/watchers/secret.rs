@@ -69,9 +69,12 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<Secr
                     }
                 }
                 watcher::Event::Delete(secret) => {
-                    if let Some(item) = secret.metadata.name {
-                        let mut secrets_vec = secrets_list.lock().unwrap();
-                        secrets_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (secret.metadata.name, secret.metadata.namespace) {
+                        let mut list = secrets_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

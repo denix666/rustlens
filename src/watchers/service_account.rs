@@ -68,9 +68,12 @@ pub async fn watch_service_accounts(client: Arc<Client>, service_accounts_list: 
                     }
                 }
                 watcher::Event::Delete(service_account) => {
-                    if let Some(item) = service_account.metadata.name {
-                        let mut service_accounts_vec = service_accounts_list.lock().unwrap();
-                        service_accounts_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (service_account.metadata.name, service_account.metadata.namespace) {
+                        let mut list = service_accounts_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

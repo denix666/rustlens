@@ -83,9 +83,12 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                 }
 
                 WatcherEvent::Delete(deploy) => {
-                    if let Some(item) = deploy.metadata.name {
-                        let mut deploy_vec = deployments_list.lock().unwrap();
-                        deploy_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (deploy.metadata.name, deploy.metadata.namespace) {
+                        let mut list = deployments_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

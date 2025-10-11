@@ -7,7 +7,6 @@ use kube::{Api, runtime::watcher, runtime::watcher::Event};
 #[derive(Debug, Clone)]
 pub struct ReplicaSetItem {
     pub name: String,
-    //pub labels: BTreeMap<String, String>,
     pub desired: i32,
     pub current: i32,
     pub ready: i32,
@@ -18,7 +17,6 @@ pub struct ReplicaSetItem {
 pub fn convert_replicaset(rs: ReplicaSet) -> Option<ReplicaSetItem> {
     Some(ReplicaSetItem {
         name: rs.metadata.name.clone()?,
-        //labels: rs.metadata.labels.unwrap_or_default(),
         desired: rs.spec.as_ref()?.replicas.unwrap_or(0),
         current: rs.status.as_ref()?.replicas,
         ready: rs.status.as_ref()?.ready_replicas.unwrap_or(0),
@@ -73,9 +71,12 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<Repli
                     }
                 }
                 Event::Delete(rs) => {
-                    if let Some(item) = rs.metadata.name {
-                        let mut rs_vec = rs_list.lock().unwrap();
-                        rs_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (rs.metadata.name, rs.metadata.namespace) {
+                        let mut list = rs_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },

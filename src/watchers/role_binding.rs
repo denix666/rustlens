@@ -68,9 +68,12 @@ pub async fn watch_rbs(client: Arc<Client>, rbs_list: Arc<Mutex<Vec<RoleBindingI
                     }
                 }
                 watcher::Event::Delete(rb) => {
-                    if let Some(item) = rb.metadata.name {
-                        let mut rbs_vec = rbs_list.lock().unwrap();
-                        rbs_vec.retain(|p| p.name != item);
+                    if !initialized {
+                        continue;
+                    }
+                    if let (Some(name), Some(namespace)) = (rb.metadata.name, rb.metadata.namespace) {
+                        let mut list = rbs_list.lock().unwrap();
+                        list.retain(|item| !(item.name == name && item.namespace.as_ref() == Some(&namespace)));
                     }
                 }
             },
