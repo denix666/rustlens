@@ -2841,7 +2841,6 @@ async fn main() {
                                     ui.label("Status");
                                     ui.label("Age");
                                     ui.label("Ports");
-                                    ui.label("Selector");
                                     ui.label("Actions");
                                     ui.end_row();
                                     for item in visible_services.iter().rev() {
@@ -2870,7 +2869,6 @@ async fn main() {
                                             ui.label(format!("{:?}", &item.status));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(egui::RichText::new(&item.ports).color(egui::Color32::LIGHT_YELLOW));
-                                            ui.label(format!("{:?}", &item.selector));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {

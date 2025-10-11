@@ -11,7 +11,6 @@ pub struct ServiceItem {
     pub cluster_ip: String,
     pub ports: String,
     pub external_ip: String,
-    pub selector: String,
     pub creation_timestamp: Option<Time>,
     pub status: String,
     pub namespace: Option<String>,
@@ -64,24 +63,12 @@ pub fn convert_service(svc: Service) -> Option<ServiceItem> {
         "None".to_string()
     };
 
-    let selector = spec
-        .selector
-        .as_ref()
-        .map(|s| {
-            s.iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        })
-        .unwrap_or_else(|| "-".to_string());
-
     Some(ServiceItem {
         name,
         svc_type,
         cluster_ip,
         ports,
         external_ip,
-        selector,
         creation_timestamp: svc.metadata.creation_timestamp,
         status: "OK".to_string(),
         namespace: svc.metadata.namespace.clone(),

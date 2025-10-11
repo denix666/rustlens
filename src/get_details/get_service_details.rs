@@ -17,6 +17,7 @@ pub struct ServiceDetails {
     pub labels: Option<BTreeMap<String, String>>,
     pub annotations: Option<BTreeMap<String, String>>,
     pub events: Vec<EventDetails>,
+    pub selector: Option<BTreeMap<String, String>>,
 }
 
 pub async fn get_service_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<ServiceDetails>>) -> Result<(), kube::Error> {
@@ -26,11 +27,13 @@ pub async fn get_service_details(client: Arc<Client>, name: &str, ns: Option<Str
     let service_events = crate::get_resource_events(client.clone(), "Service", ns.clone().as_str(), name).await.unwrap();
     let mut details_items = details.lock().unwrap();
     let metadata = service.metadata.clone();
+    let spec = service.spec.as_ref();
 
     details_items.name = metadata.name;
     details_items.namespace = Some(ns);
     details_items.labels = metadata.labels.clone();
     details_items.annotations = metadata.annotations.clone();
+    details_items.selector = spec.unwrap().selector.clone();
 
     details_items.events = service_events.iter().map(|e| {
         EventDetails {

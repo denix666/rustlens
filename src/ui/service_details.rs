@@ -105,6 +105,19 @@ pub fn show_service_details_window(
                     ui.end_row();
                 }
 
+                if let Some(selector) = guard_details.selector.clone() {
+                    ui.separator(); ui.separator(); ui.end_row();
+                    ui.label(egui::RichText::new("Selector:").color(ROW_NAME_COLOR));
+                    egui::Grid::new("service_details_selector_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                        for (j, y) in selector.iter() {
+                            ui.label(egui::RichText::new(j).color(DETAIL_COLOR));
+                            ui.label(egui::RichText::new(y).color(SECOND_DETAIL_COLOR));
+                            ui.end_row();
+                        }
+                    });
+                    ui.end_row();
+                }
+
                 if let Some(annotations) = guard_details.annotations.clone() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Annotations:").color(ROW_NAME_COLOR));
