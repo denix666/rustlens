@@ -79,7 +79,15 @@ pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<S
                         list.push(item);
                     }
                 }
-                Event::Delete(_) => {}
+                Event::Delete(sc) => {
+                    if !initialized {
+                        continue;
+                    }
+                    if let Some(name) = sc.metadata.name {
+                        let mut list = sc_list.lock().unwrap();
+                        list.retain(|item| item.name != name);
+                    }
+                }
             },
             Err(e) => eprintln!("StorageClass watch error: {:?}", e),
         }

@@ -104,6 +104,7 @@ enum ResourceType {
     Ingress,
     Service,
     Deployment,
+    StorageClass,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -2301,7 +2302,13 @@ async fn main() {
                 },
                 Category::StorageClasses => {
                     ui.horizontal(|ui| {
-                        ui.heading(format!("StorageClasses - {}", pvs.lock().unwrap().len()));
+                        ui.heading(format!("StorageClasses - {}", storage_classes.lock().unwrap().len()));
+                        ui.separator();
+                        if ui.button(egui::RichText::new("➕ Add new").size(16.0).color(GREEN_BUTTON)).clicked() {
+                            new_resource_window.resource_type = ResourceType::StorageClass;
+                            new_resource_window.content.clear();
+                            new_resource_window.show = true;
+                        }
                         ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_scs).hint_text("Filter scs...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_scs = filter_scs.to_lowercase();
@@ -2354,6 +2361,18 @@ async fn main() {
                                                             }
                                                         }
                                                     });
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), None, move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_storage_class(Arc::clone(&client_clone), &cur_item).await {
+                                                                eprintln!("Failed to delete storage class: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu)
                                                 }
                                             });
                                             ui.end_row();

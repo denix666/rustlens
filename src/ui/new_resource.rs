@@ -24,6 +24,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
             new_resource_window.content = match new_resource_window.resource_type {
                 crate::ResourceType::NameSpace => crate::NAMESPACE_TEMPLATE.to_string(),
                 crate::ResourceType::Pod => crate::POD_TEMPLATE.to_string(),
+                crate::ResourceType::StorageClass => crate::STORAGE_CLASS_TEMPLATE.to_string(),
                 crate::ResourceType::Deployment => crate::DEPLOYMENT_TEMPLATE.to_string(),
                 crate::ResourceType::Service => crate::SERVICE_TEMPLATE.to_string(),
                 crate::ResourceType::DaemonSet => crate::DAEMONSET_TEMPLATE.to_string(),
@@ -50,6 +51,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     crate::ResourceType::NameSpace => "NameSpace",
                     crate::ResourceType::Secret => "Secret",
                     crate::ResourceType::Deployment => "Deployment",
+                    crate::ResourceType::StorageClass => "StorageClass",
                     crate::ResourceType::Role => "Role",
                     crate::ResourceType::RoleBinding => "RoleBinding",
                     crate::ResourceType::Service => "Service",
@@ -77,6 +79,9 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::Service, "Service",).clicked() {
                         new_resource_window.content = crate::SERVICE_TEMPLATE.to_string();
+                    };
+                    if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::StorageClass, "StorageClass",).clicked() {
+                        new_resource_window.content = crate::STORAGE_CLASS_TEMPLATE.to_string();
                     };
                     if ui.selectable_value(&mut new_resource_window.resource_type, crate::ResourceType::DaemonSet, "DaemonSet",).clicked() {
                         new_resource_window.content = crate::DAEMONSET_TEMPLATE.to_string();

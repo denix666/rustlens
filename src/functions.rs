@@ -2,6 +2,7 @@ use eframe::egui::Color32;
 use futures::{AsyncBufReadExt};
 use k8s_openapi::api::networking::v1::Ingress;
 use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, Role, RoleBinding};
+use k8s_openapi::api::storage::v1::StorageClass;
 use k8s_openapi::{ClusterResourceScope, Metadata, NamespaceResourceScope, Resource};
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Client, Config};
@@ -496,6 +497,11 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
             let api: Api<Namespace> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
+        crate::ResourceType::StorageClass => {
+            let obj: StorageClass = serde_yaml::from_value(value)?;
+            let api: Api<StorageClass> = Api::all(client.as_ref().clone());
+            api.create(&PostParams::default(), &obj).await?;
+        },
         crate::ResourceType::ClusterRole => {
             let obj: ClusterRole = serde_yaml::from_value(value)?;
             let api: Api<ClusterRole> = Api::all(client.as_ref().clone());
@@ -623,6 +629,12 @@ pub async fn delete_pod(client: Arc<Client>, pod_name: String, namespace: Option
 pub async fn delete_cluster_role(client: Arc<Client>, cluster_role_name: &str) -> Result<(), kube::Error> {
     let roles: Api<ClusterRole> = Api::all(client.as_ref().clone());
     roles.delete(cluster_role_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+pub async fn delete_storage_class(client: Arc<Client>, storage_class_name: &str) -> Result<(), kube::Error> {
+    let sc: Api<StorageClass> = Api::all(client.as_ref().clone());
+    sc.delete(storage_class_name, &DeleteParams::default()).await?;
     Ok(())
 }
 

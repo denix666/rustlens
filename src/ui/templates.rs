@@ -13,6 +13,12 @@ data:
   key: "value"
 "#;
 
+pub const STORAGE_CLASS_TEMPLATE: &'static str = r#"apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sc-name
+"#;
+
 pub const PVC_TEMPLATE: &'static str = r#"apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
