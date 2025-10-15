@@ -273,7 +273,7 @@ pub fn item_color(item: &str) -> Color32 {
         "Failed" => Color32::RED,
         "Progressing" => Color32::LIGHT_BLUE,
         "Available" => Color32::LIGHT_GREEN,
-        "Released" => Color32::GRAY,
+        "Released" => Color32::CYAN,
         "Pending" => Color32::ORANGE,
         "SchedulingDisabled" => Color32::ORANGE,
         "Lost" => Color32::LIGHT_RED,

@@ -2,7 +2,6 @@ use egui::{text::LayoutJob, Color32, Context, FontId, Key, TextFormat, TextStyle
 use kube::Client;
 use std::{sync::{Arc, Mutex}, time::{Duration, Instant}};
 use regex::RegexBuilder;
-
 use crate::ui::DecoderWindow;
 
 pub struct YamlEditorWindow {
@@ -66,7 +65,6 @@ fn show_status_banner(ctx: &egui::Context, editor: &mut YamlEditorWindow) {
             });
     }
 }
-
 
 pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &mut DecoderWindow, client: Arc<Client>) {
     let response = egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).default_width(800.0).default_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
@@ -246,6 +244,6 @@ pub fn make_yaml_layouter(
         }
 
         job.wrap.max_width = wrap_width;
-        ui.fonts(|f| f.layout_job(job))
+        ui.ctx().fonts_mut(|f| f.layout_job(job))
     })
 }

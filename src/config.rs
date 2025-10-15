@@ -156,8 +156,8 @@ pub fn read_app_config_from_file() -> AppConfig {
 pub fn window_moved_or_resized(ctx: &Context, app_config: &mut AppConfig) -> bool {
     let mut changed = false;
 
-    let size_x = ctx.screen_rect().width();
-    let size_y = ctx.screen_rect().height();
+    let size_x = ctx.viewport_rect().width();
+    let size_y = ctx.viewport_rect().height();
 
     ctx.input(|i| {
         if let Some(rect) = i.viewport().outer_rect {
