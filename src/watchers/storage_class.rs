@@ -76,7 +76,11 @@ pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<S
                     }
                     if let Some(item) = convert_storage_class(sc) {
                         let mut list = sc_list.lock().unwrap();
-                        list.push(item);
+                        if let Some(existing) = list.iter_mut().find(|n| n.name == item.name) {
+                            *existing = item;
+                        } else {
+                            list.push(item);
+                        }
                     }
                 }
                 Event::Delete(sc) => {
