@@ -2636,7 +2636,7 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
-                                egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
                                     ui.label("Addresses");
@@ -2664,7 +2664,8 @@ async fn main() {
                                             if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.addresses));
+                                            //ui.label(format!("{}", &item.addresses));
+                                            ui.add(egui::Label::new(egui::RichText::new(format!("{}", &item.addresses))).wrap());
                                             ui.label(format!("{:?}", &item.ports));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
@@ -3241,6 +3242,7 @@ async fn main() {
                                     ui.label("Memory");
                                     ui.label("Storage");
                                     ui.label("Taints");
+                                    ui.label("Custom labels");
                                     ui.label("Version");
                                     ui.label("Role");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -3327,6 +3329,15 @@ async fn main() {
                                                 ui.label(taints.len().to_string())
                                                     .on_hover_cursor(CursorIcon::PointingHand)
                                                     .on_hover_text(&taints_list);
+                                            } else {
+                                                ui.label("0");
+                                            }
+                                            let labels = &item.labels;
+                                            if labels.len() > 0 {
+                                                let labels_list: String = labels.join("\n");
+                                                ui.label(labels.len().to_string())
+                                                    .on_hover_cursor(CursorIcon::PointingHand)
+                                                    .on_hover_text(&labels_list);
                                             } else {
                                                 ui.label("0");
                                             }

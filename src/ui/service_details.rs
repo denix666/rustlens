@@ -90,6 +90,28 @@ pub fn show_service_details_window(
                         ui.label(egui::RichText::new(namespace).color(DETAIL_COLOR));
                         ui.end_row();
                     }
+
+                    ui.label(egui::RichText::new("Type:").color(ROW_NAME_COLOR));
+                    ui.label(egui::RichText::new(&item.svc_type).color(DETAIL_COLOR));
+                    ui.end_row();
+
+                    if &item.cluster_ip != "None" {
+                        ui.label(egui::RichText::new("Internal IP:").color(ROW_NAME_COLOR));
+                        ui.label(egui::RichText::new(&item.cluster_ip).color(DETAIL_COLOR));
+                        ui.end_row();
+                    }
+
+                    if &item.external_ip != "None" {
+                        ui.label(egui::RichText::new("External IP:").color(ROW_NAME_COLOR));
+                        ui.label(egui::RichText::new(&item.external_ip).color(DETAIL_COLOR));
+                        ui.end_row();
+                    }
+
+                    ui.separator(); ui.separator(); ui.end_row();
+
+                    ui.label(egui::RichText::new("Ports:").color(ROW_NAME_COLOR));
+                    ui.add(egui::Label::new(egui::RichText::new(&item.ports).color(DETAIL_COLOR)).wrap());
+                    ui.end_row();
                 }
 
                 if let Some(labels) = guard_details.labels.clone() {

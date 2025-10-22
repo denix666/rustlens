@@ -45,6 +45,7 @@ pub struct NodeItem {
     pub name: String,
     pub status: String, // "Ready", "NotReady", "Unknown"
     pub roles: Vec<String>,
+    pub labels: Vec<String>,
     pub scheduling_disabled: bool,
     pub taints: Option<Vec<k8s_openapi::api::core::v1::Taint>>,
     pub creation_timestamp: Option<Time>,
@@ -216,6 +217,13 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
         .and_then(|info| Some(info.kubelet_version.clone()));
     let scheduling_disabled = node.spec.as_ref().and_then(|spec| spec.unschedulable).unwrap_or(false);
     let taints = node.spec.as_ref().and_then(|spec| spec.taints.clone());
+    let labels: Vec<String> = node.metadata.labels.as_ref()
+        .map(|labels_map| { // If labels_map == Some(BTreeMap), do:
+            labels_map.iter()
+                .filter(|(k, _v)| !k.contains("kubernetes"))
+                .map(|(k, v)| format!("{}={}", k.to_string(), v.to_string()))
+                .collect()
+        }).unwrap_or_else(Vec::new);
     let roles = node.metadata.labels.unwrap_or_default()
         .iter()
         .filter_map(|(key, value)| {
@@ -253,6 +261,7 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
         scheduling_disabled,
         taints,
         version,
+        labels,
         storage_total: None,
         storage_used: None,
         storage_percent: None,
