@@ -3242,7 +3242,7 @@ async fn main() {
                                     ui.label("Memory");
                                     ui.label("Storage");
                                     ui.label("Taints");
-                                    ui.label("Custom labels");
+                                    ui.label("Labels");
                                     ui.label("Version");
                                     ui.label("Role");
                                     if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -3255,7 +3255,6 @@ async fn main() {
                                         config_should_be_saved = true;
                                     }
                                     ui.label("Status");
-                                    ui.label("");
                                     ui.label("Actions");
                                     ui.end_row();
                                     let mut sorted_nodes = nodes.clone();
@@ -3311,6 +3310,7 @@ async fn main() {
                                             } else {
                                                 ui.add(egui::ProgressBar::new(0.0).fill(progress_color(0.0)).show_percentage()).on_hover_text("Loading...");
                                             }
+
                                             if let Some(taints) = &item.taints {
                                                 let taints_list: String = taints
                                                     .iter()
@@ -3326,27 +3326,31 @@ async fn main() {
                                                         }
                                                     }).collect::<Vec<String>>().join("\n");
 
-                                                ui.label(taints.len().to_string())
+                                                ui.label(egui::RichText::new(taints.len().to_string()).color(DETAIL_COLOR))
                                                     .on_hover_cursor(CursorIcon::PointingHand)
                                                     .on_hover_text(&taints_list);
                                             } else {
                                                 ui.label("0");
                                             }
+
                                             let labels = &item.labels;
                                             if labels.len() > 0 {
                                                 let labels_list: String = labels.join("\n");
-                                                ui.label(labels.len().to_string())
+                                                ui.label(egui::RichText::new(labels.len().to_string()).color(DETAIL_COLOR))
                                                     .on_hover_cursor(CursorIcon::PointingHand)
                                                     .on_hover_text(&labels_list);
                                             } else {
                                                 ui.label("0");
                                             }
+
                                             if let Some(version) = &item.version {
                                                 ui.label(egui::RichText::new(version).color(item_color(version)));
                                             } else {
                                                 ui.label("unknown");
                                             }
+
                                             ui.label(format!("{}", item.roles.join(", ")));
+
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
 
                                             let node_status = egui::RichText::new(&item.status).color(item_color(&item.status));
@@ -3355,8 +3359,38 @@ async fn main() {
                                                 false => egui::RichText::new(""),
                                             };
 
-                                            ui.label( node_status);
-                                            ui.label( scheduling_status);
+                                            let mut disk_pressure_status = egui::RichText::new("");
+                                            if let Some(taints) = &item.taints {
+                                                let has_disk_pressure = taints.iter().any(|taint| {
+                                                    taint.key == "node.kubernetes.io/disk-pressure" &&
+                                                    taint.value.as_deref().unwrap_or("").is_empty() &&
+                                                    taint.effect == "NoSchedule"
+                                                });
+
+                                                if has_disk_pressure {
+                                                    disk_pressure_status = egui::RichText::new("DiskPressure").color(egui::Color32::MAGENTA);
+                                                }
+                                            }
+
+                                            let mut memory_pressure_status = egui::RichText::new("");
+                                            if let Some(taints) = &item.taints {
+                                                let has_memory_pressure = taints.iter().any(|taint| {
+                                                    taint.key == "node.kubernetes.io/memory-pressure" &&
+                                                    taint.value.as_deref().unwrap_or("").is_empty() &&
+                                                    taint.effect == "NoSchedule"
+                                                });
+
+                                                if has_memory_pressure {
+                                                    memory_pressure_status = egui::RichText::new("MemoryPressure").color(egui::Color32::MAGENTA);
+                                                }
+                                            }
+
+                                            ui.horizontal(|ui| {
+                                                ui.label(node_status);
+                                                ui.label(scheduling_status);
+                                                ui.label(disk_pressure_status);
+                                                ui.label(memory_pressure_status);
+                                            });
 
                                             let action_button = ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
