@@ -2402,17 +2402,45 @@ async fn main() {
                         } else {
                             let pvs_list = pvs.lock().unwrap();
                             egui::ScrollArea::vertical().id_salt("pvs_scroll").show(ui, |ui| {
-                                egui::Grid::new("pvs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                                    ui.label("Name");
+                                egui::Grid::new("pvs_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
+                                    if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                        if app_config.sort_preferences.pvs_sort_by == SortBy::Name {
+                                            app_config.sort_preferences.pvs_sort_asc = !app_config.sort_preferences.pvs_sort_asc;
+                                        } else {
+                                            app_config.sort_preferences.pvs_sort_by = SortBy::Name;
+                                            app_config.sort_preferences.pvs_sort_asc = true;
+                                        }
+                                        config_should_be_saved = true;
+                                    }
                                     ui.label("Storage class");
                                     ui.label("Capacity");
                                     ui.label("Claim");
                                     ui.label("Reclaim policy");
                                     ui.label("Status");
-                                    ui.label("Age");
+                                    if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                        if app_config.sort_preferences.pvs_sort_by == SortBy::Age {
+                                            app_config.sort_preferences.pvs_sort_asc = !app_config.sort_preferences.pvs_sort_asc;
+                                        } else {
+                                            app_config.sort_preferences.pvs_sort_by = SortBy::Age;
+                                            app_config.sort_preferences.pvs_sort_asc = true;
+                                        }
+                                        config_should_be_saved = true;
+                                    }
                                     ui.label("Actions");
                                     ui.end_row();
-                                    for item in pvs_list.iter().rev().take(200) {
+                                    let mut sorted_pvs: Vec<_> = pvs_list.iter().cloned().collect();
+                                    sorted_pvs.sort_by(|a, b| {
+                                        let ord = match app_config.sort_preferences.pvs_sort_by {
+                                            SortBy::Name => a.name.cmp(&b.name),
+                                            SortBy::Age => {
+                                                let at = a.creation_timestamp.as_ref();
+                                                let bt = b.creation_timestamp.as_ref();
+                                                at.cmp(&bt)
+                                            }
+                                        };
+                                        if app_config.sort_preferences.pvs_sort_asc { ord } else { ord.reverse() }
+                                    });
+                                    for item in sorted_pvs.iter() {
                                         let cur_item_object = &item.name;
                                         let cur_item_claim = &item.claim;
                                         if filter_pvs.is_empty() || cur_item_object.contains(&filter_pvs) || cur_item_claim.contains(&filter_pvs) {
@@ -2523,17 +2551,45 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
-                                egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                                    ui.label("Name");
+                                egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
+                                    if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                        if app_config.sort_preferences.pvcs_sort_by == SortBy::Name {
+                                            app_config.sort_preferences.pvcs_sort_asc = !app_config.sort_preferences.pvcs_sort_asc;
+                                        } else {
+                                            app_config.sort_preferences.pvcs_sort_by = SortBy::Name;
+                                            app_config.sort_preferences.pvcs_sort_asc = true;
+                                        }
+                                        config_should_be_saved = true;
+                                    }
                                     ui.label("Namespace");
                                     ui.label("StorageClass");
                                     ui.label("Volume");
                                     ui.label("Size");
                                     ui.label("Status");
-                                    ui.label("Age");
+                                    if ui.label("Age").on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                        if app_config.sort_preferences.pvcs_sort_by == SortBy::Age {
+                                            app_config.sort_preferences.pvcs_sort_asc = !app_config.sort_preferences.pvcs_sort_asc;
+                                        } else {
+                                            app_config.sort_preferences.pvcs_sort_by = SortBy::Age;
+                                            app_config.sort_preferences.pvcs_sort_asc = true;
+                                        }
+                                        config_should_be_saved = true;
+                                    }
                                     ui.label("Actions");
                                     ui.end_row();
-                                    for item in visible_pvcs.iter().rev().take(200) {
+                                    let mut sorted_pvcs = visible_pvcs.clone();
+                                    sorted_pvcs.sort_by(|a, b| {
+                                        let ord = match app_config.sort_preferences.pvcs_sort_by {
+                                            SortBy::Name => a.name.cmp(&b.name),
+                                            SortBy::Age => {
+                                                let at = a.creation_timestamp.as_ref();
+                                                let bt = b.creation_timestamp.as_ref();
+                                                at.cmp(&bt)
+                                            }
+                                        };
+                                        if app_config.sort_preferences.pvcs_sort_asc { ord } else { ord.reverse() }
+                                    });
+                                    for item in sorted_pvcs.iter() {
                                         let cur_item_object = &item.name;
                                         if filter_pvcs.is_empty() || cur_item_object.contains(&filter_pvcs) {
                                             if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -4563,6 +4619,10 @@ async fn main() {
                 app_config.sort_preferences.nodes_sort_asc,
                 app_config.sort_preferences.pods_sort_by,
                 app_config.sort_preferences.pods_sort_asc,
+                app_config.sort_preferences.pvs_sort_by,
+                app_config.sort_preferences.pvs_sort_asc,
+                app_config.sort_preferences.pvcs_sort_by,
+                app_config.sort_preferences.pvcs_sort_asc,
                 app_config.sort_preferences.namespace_sort_by,
                 app_config.sort_preferences.namespace_sort_asc,
             );
