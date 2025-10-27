@@ -1,7 +1,10 @@
 use egui::{Context, Key, ScrollArea, TextStyle};
 use kube::Client;
-use std::{fs, sync::{Arc, Mutex}, time::{Duration, Instant}};
+use regex::Regex;
+use std::{collections::HashMap, fs, sync::{Arc, Mutex}, time::{Duration, Instant}};
 use rfd::FileDialog;
+
+use crate::ui::LogParserWindow;
 
 pub struct LogWindow {
     pub pod_name: String,
@@ -31,7 +34,7 @@ impl LogWindow {
     }
 }
 
-pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Client>) {
+pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_window: &mut LogParserWindow, client: Arc<Client>) {
     let response = egui::Window::new("Logs").collapsible(false).resizable(true).open(&mut log_window.show).auto_sized().max_height(500.0).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("Container:");
@@ -85,6 +88,79 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, client: Arc<Cl
                                     Some((format!("❌ Failed to export: {}", e), Instant::now()));
                             }
                         }
+                    }
+                }
+            }
+            ui.separator();
+            if ui.button(egui::RichText::new("🔎 Log parser").size(16.0).color(egui::Color32::LIGHT_GREEN)).clicked() {
+                match crate::ui::log_parser::load_plugins() {
+                    Ok(plugins) => {
+                        if plugins.is_empty() {
+                            eprintln!("{}: plugins not found in ~/.local/share/rustlens/plugins", "Warning");
+                        } else {
+                            let mut compiled: Vec<(String, super::RuleSpec, Regex)> = Vec::new();
+                            for (pname, plugin) in &plugins {
+                                for rule in &plugin.rules {
+                                    for pat in &rule.patterns {
+                                        let re_result = anyhow::Context::with_context(Regex::new(pat), || {
+                                            format!("Error in regexp '{}' in plugin '{}'", rule.id, pname)
+                                        });
+                                        match re_result {
+                                            Ok(re) => {
+                                                compiled.push((pname.clone(), rule.clone(), re));
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Failed to compile regex from plugin '{}' (rule: {}): {:?}", pname, rule.id, e);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            let mut stats: HashMap<(String, String), crate::ui::log_parser::RuleStats> = HashMap::new();
+
+                            if let Ok(log_buffer) = log_window.buffer.lock() {
+                                let lines: Vec<_> = log_buffer.lines().collect();
+                                for (line_idx, line) in lines.into_iter().enumerate().rev() {
+                                    for (pname, rule, re) in &compiled {
+                                        if re.is_match(&line) {
+                                            let key = (pname.clone(), rule.id.clone());
+                                            let entry = stats.entry(key.clone()).or_insert_with(|| crate::ui::log_parser::RuleStats {
+                                                plugin: pname.clone(),
+                                                id: rule.id.clone(),
+                                                title: rule.title.clone(),
+                                                level: rule.level.clone(),
+                                                matches: 0,
+                                                examples: Vec::new(),
+                                                message: rule.message.clone(),
+                                                recommendation: rule.recommendation.clone(),
+                                            });
+                                            entry.matches += 1;
+
+                                            if entry.examples.len() < rule.context_lines.unwrap_or(3) {
+                                                entry.examples.push(format!("{}: {}", line_idx + 1, line));
+                                            }
+                                        }
+                                    }
+                                }
+
+                                let filtered: Vec<crate::ui::log_parser::RuleStats> = stats.into_values().filter(|s| {
+                                    let plugin = plugins.get(&s.plugin).unwrap();
+                                    let rule = plugin.rules.iter().find(|r| r.id == s.id).unwrap();
+                                    if let Some(th) = rule.threshold {
+                                        s.matches >= th as u64
+                                    } else {
+                                        true
+                                    }
+                                }).collect();
+
+                                log_parser_window.filtered = filtered;
+                                log_parser_window.show = true;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to load plugins: {:?}", e);
                     }
                 }
             }

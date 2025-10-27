@@ -30,6 +30,7 @@ pub mod crd_details;
 pub mod cr_details_parser;
 pub mod cluster_rb_details;
 pub mod rb_details;
+pub mod log_parser;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -63,3 +64,4 @@ pub use crd_details::*;
 pub use cr_details_parser::*;
 pub use cluster_rb_details::*;
 pub use rb_details::*;
+pub use log_parser::*;

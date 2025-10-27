@@ -157,6 +157,7 @@ async fn main() {
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
+    let mut log_parser_window = ui::log_parser::LogParserWindow::new();
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
     let mut decoder_window = ui::decoder::DecoderWindow::new();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
@@ -2076,7 +2077,7 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
                                                     scale_window.show = true;
                                                     scale_window.name = Some(item.name.clone());
-                                                    scale_window.namespace = selected_ns.clone();
+                                                    scale_window.namespace = item.namespace.clone();
                                                     scale_window.cur_replicas = item.current;
                                                     scale_window.desired_replicas = item.desired;
                                                     scale_window.resource_kind = Some(ScaleTarget::ReplicaSet);
@@ -3189,7 +3190,7 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
                                                     scale_window.show = true;
                                                     scale_window.name = Some(item.name.clone());
-                                                    scale_window.namespace = selected_ns.clone();
+                                                    scale_window.namespace = item.namespace.clone();
                                                     scale_window.cur_replicas = item.ready_replicas;
                                                     scale_window.desired_replicas = item.ready_replicas;
                                                     scale_window.resource_kind = Some(ScaleTarget::StatefulSet);
@@ -4073,7 +4074,7 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
                                                     scale_window.show = true;
                                                     scale_window.name = Some(item.name.clone());
-                                                    scale_window.namespace = selected_ns.clone();
+                                                    scale_window.namespace = item.namespace.clone();
                                                     scale_window.cur_replicas = item.replicas;
                                                     scale_window.desired_replicas = item.replicas;
                                                     scale_window.resource_kind = Some(ScaleTarget::Deployment);
@@ -4400,11 +4401,17 @@ async fn main() {
             show_new_resource_window(ctx, &mut new_resource_window, client_clone);
         }
 
+        // Log parser window
+        if log_parser_window.show {
+            show_log_parser_window(ctx, &mut log_parser_window);
+        }
+
         // Logs window
-        if let Ok(mut logs) = log_window.lock() {
-            if logs.show {
+        if let Ok(mut logs_w) = log_window.lock() {
+            if logs_w.show {
                 let client_clone = Arc::clone(&client);
-                show_log_window(ctx, &mut logs, client_clone);
+                //let log_parser_w = log_parser_window.lock();
+                show_log_window(ctx, &mut logs_w, &mut log_parser_window, client_clone);
             }
         }
 

@@ -265,7 +265,7 @@ pub fn item_color(item: &str) -> Color32 {
         "RW" | "Delete" => Color32::from_rgb(137, 90, 9), // close to orange
         "RO" | "Retain" => Color32::from_rgb(6, 140, 0), // green
         "Unknown" => Color32::from_rgb(198, 98, 247), // violet
-        "CrashLoop" => Color32::RED,
+        "CrashLoop" | "error" | "Error" | "ERROR" => Color32::RED,
         "NotReady" => Color32::RED,
         "Waiting" => Color32::YELLOW,
         "Terminated" => Color32::from_rgb(168, 0, 113), // pinc
@@ -274,11 +274,10 @@ pub fn item_color(item: &str) -> Color32 {
         "Progressing" => Color32::LIGHT_BLUE,
         "Available" => Color32::LIGHT_GREEN,
         "Released" => Color32::CYAN,
-        "Pending" => Color32::ORANGE,
+        "Pending" | "warn" | "warning" | "WARNING" | "Warning" => Color32::ORANGE,
         "SchedulingDisabled" => Color32::ORANGE,
         "Lost" => Color32::LIGHT_RED,
         "Terminating" => Color32::from_rgb(168, 0, 113), // pinc
-        "Warning" => Color32::ORANGE,
         _ => {
             if let Some(pos) = item.find('.') {
                 let after_dot = &item[pos + 1..];
