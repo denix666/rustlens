@@ -23,7 +23,6 @@ impl LogParserWindow {
 #[derive(Debug, Deserialize)]
 pub struct Plugin {
     pub name: String,
-    //pub description: Option<String>,
     pub rules: Vec<RuleSpec>,
 }
 
@@ -50,6 +49,23 @@ pub struct RuleStats {
     pub message: Option<String>,
     pub recommendation: Option<String>,
 }
+
+// -------------------------
+// Plugin example (plugins/example_slow_queries.yaml)
+// -------------------------
+// name: "SlowQueryDetector"
+// description: "Search for slow queries and give reccomendations"
+// rules:
+//   - id: "slow-query-1"
+//     title: "Slow SELECT-queries"
+//     patterns:
+//       - "SELECT .*FROM users .*time=(\\d+)ms"
+//       - "Query took more than [0-9]+ms"
+//     level: "warn"
+//     message: "Query took a long time"
+//     recommendation: "Check indexes used in WHERE; think about adding indexes or optimize query."
+//     threshold: 1
+//     context_lines: 3
 
 pub fn load_plugins() -> anyhow::Result<HashMap<String, Plugin>> {
     let mut plugins_dir = home::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
