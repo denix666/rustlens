@@ -631,6 +631,12 @@ pub async fn delete_cluster_role(client: Arc<Client>, cluster_role_name: &str) -
     Ok(())
 }
 
+pub async fn delete_cluster_role_binding(client: Arc<Client>, cluster_role_binding_name: &str) -> Result<(), kube::Error> {
+    let roles: Api<ClusterRoleBinding> = Api::all(client.as_ref().clone());
+    roles.delete(cluster_role_binding_name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
 pub async fn delete_storage_class(client: Arc<Client>, storage_class_name: &str) -> Result<(), kube::Error> {
     let sc: Api<StorageClass> = Api::all(client.as_ref().clone());
     sc.delete(storage_class_name, &DeleteParams::default()).await?;

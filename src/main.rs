@@ -1228,10 +1228,12 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_cluster_role(client_clone, &cur_item.clone()).await {
-                                                            eprintln!("Failed to delete cluster role: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), None, move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = delete_cluster_role(client_clone, &cur_item.clone()).await {
+                                                                eprintln!("Failed to delete cluster role: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
@@ -1414,10 +1416,12 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
                                                     let client_clone = Arc::clone(&client);
-                                                    tokio::spawn(async move {
-                                                        if let Err(err) = delete_cluster_role(client_clone, &cur_item.clone()).await {
-                                                            eprintln!("Failed to delete cluster role binding: {}", err);
-                                                        }
+                                                    confirmation_dialog.request(cur_item.clone(), None, move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = delete_cluster_role_binding(client_clone, &cur_item.clone()).await {
+                                                                eprintln!("Failed to delete cluster role binding: {}", err);
+                                                            }
+                                                        });
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
