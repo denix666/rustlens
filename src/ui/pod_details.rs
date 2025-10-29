@@ -125,7 +125,7 @@ pub fn show_pod_details_window(
                     }
 
                     ui.label(egui::RichText::new("Restarts count:").color(ROW_NAME_COLOR));
-                    ui.label(egui::RichText::new(&item.restart_count.to_string()).color(DETAIL_COLOR));
+                    ui.label(egui::RichText::new(&item.restart_count.to_string()).color(WARNING_COLOR));
                     ui.end_row();
                 }
 

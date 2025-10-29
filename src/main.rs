@@ -160,6 +160,7 @@ async fn main() {
     let mut log_parser_window = ui::log_parser::LogParserWindow::new();
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
     let mut decoder_window = ui::decoder::DecoderWindow::new();
+    let mut ipcalculator_window = ui::ip_calculator::IpCalculatorWindow::new();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -572,6 +573,20 @@ async fn main() {
         .into();
 
         ctx.set_style(style);
+
+        egui::TopBottomPanel::top("top panel").show(ctx, |ui| {
+            ui.add_space(7.0);
+            ui.horizontal(|ui| {
+                if ui.button(egui::RichText::new("🖹 Base64 decoder").size(17.0).color(egui::Color32::LIGHT_BLUE)).on_hover_text("Base64 text decoder").clicked() {
+                    decoder_window.show = true;
+                }
+                ui.separator();
+                if ui.button(egui::RichText::new("🖩 IP calculator").size(17.0).color(egui::Color32::LIGHT_GREEN)).on_hover_text("IP/Subnet calculator").clicked() {
+                    ipcalculator_window.show = true;
+                }
+            });
+            ui.add_space(7.0);
+        });
 
         egui::SidePanel::left("tasks panel").resizable(false).exact_width(290.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("menu_scroll").show(ui, |ui| {
@@ -4389,6 +4404,11 @@ async fn main() {
         // Decoder window
         if decoder_window.show {
             show_decoder_window(ctx, &mut decoder_window);
+        }
+
+        // IP Calculator window
+        if ipcalculator_window.show {
+            show_ipcalculator_window(ctx, &mut ipcalculator_window);
         }
 
         // YAML editor
