@@ -161,6 +161,7 @@ async fn main() {
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
     let mut decoder_window = ui::decoder::DecoderWindow::new();
     let mut ipcalculator_window = ui::ip_calculator::IpCalculatorWindow::new();
+    let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -583,6 +584,10 @@ async fn main() {
                 ui.separator();
                 if ui.button(egui::RichText::new("🖩 IP calculator").size(17.0).color(egui::Color32::LIGHT_GREEN)).on_hover_text("IP/Subnet calculator").clicked() {
                     ipcalculator_window.show = true;
+                }
+                ui.separator();
+                if ui.button(egui::RichText::new("🔁 YAML/JSON converter").size(17.0).color(egui::Color32::LIGHT_YELLOW)).on_hover_text("YAML/JSON converter").clicked() {
+                    yaml2json_window.show = true;
                 }
             });
             ui.add_space(7.0);
@@ -4409,6 +4414,11 @@ async fn main() {
         // IP Calculator window
         if ipcalculator_window.show {
             show_ipcalculator_window(ctx, &mut ipcalculator_window);
+        }
+
+        // YAML/JSON converter
+        if yaml2json_window.show {
+            show_yaml2json_window(ctx, &mut yaml2json_window);
         }
 
         // YAML editor
