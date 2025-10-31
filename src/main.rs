@@ -162,6 +162,7 @@ async fn main() {
     let mut decoder_window = ui::decoder::DecoderWindow::new();
     let mut ipcalculator_window = ui::ip_calculator::IpCalculatorWindow::new();
     let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
+    let mut res_conventer_window = ui::res_conventer::ResConverterWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -578,16 +579,20 @@ async fn main() {
         egui::TopBottomPanel::top("top panel").show(ctx, |ui| {
             ui.add_space(7.0);
             ui.horizontal(|ui| {
-                if ui.button(egui::RichText::new("🖹 Base64 decoder").size(17.0).color(egui::Color32::LIGHT_BLUE)).on_hover_text("Base64 text decoder").clicked() {
+                if ui.button(egui::RichText::new("🖹 Base64 decoder").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("Base64 text decoder").clicked() {
                     decoder_window.show = true;
                 }
                 ui.separator();
-                if ui.button(egui::RichText::new("🖩 IP calculator").size(17.0).color(egui::Color32::LIGHT_GREEN)).on_hover_text("IP/Subnet calculator").clicked() {
+                if ui.button(egui::RichText::new("🖩 IP calculator").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("IP/Subnet calculator").clicked() {
                     ipcalculator_window.show = true;
                 }
                 ui.separator();
-                if ui.button(egui::RichText::new("🔁 YAML/JSON converter").size(17.0).color(egui::Color32::LIGHT_YELLOW)).on_hover_text("YAML/JSON converter").clicked() {
+                if ui.button(egui::RichText::new("🔁 YAML/JSON converter").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("YAML/JSON converter").clicked() {
                     yaml2json_window.show = true;
+                }
+                ui.separator();
+                if ui.button(egui::RichText::new("↔ Resources converter").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("Resources converter").clicked() {
+                    res_conventer_window.show = true;
                 }
             });
             ui.add_space(7.0);
@@ -4419,6 +4424,11 @@ async fn main() {
         // YAML/JSON converter
         if yaml2json_window.show {
             show_yaml2json_window(ctx, &mut yaml2json_window);
+        }
+
+        // Resources converter
+        if res_conventer_window.show {
+            show_res_conventer_window(ctx, &mut res_conventer_window);
         }
 
         // YAML editor

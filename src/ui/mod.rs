@@ -33,6 +33,7 @@ pub mod rb_details;
 pub mod log_parser;
 pub mod ip_calculator;
 pub mod yaml2json;
+pub mod res_conventer;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -69,3 +70,4 @@ pub use rb_details::*;
 pub use log_parser::*;
 pub use ip_calculator::*;
 pub use yaml2json::*;
+pub use res_conventer::*;
