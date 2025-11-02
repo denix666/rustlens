@@ -163,6 +163,7 @@ async fn main() {
     let mut ipcalculator_window = ui::ip_calculator::IpCalculatorWindow::new();
     let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
     let mut res_conventer_window = ui::res_conventer::ResConverterWindow::default();
+    let mut uuid_gen_window = ui::uuid_generator::UUIDGenWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -593,6 +594,10 @@ async fn main() {
                 ui.separator();
                 if ui.button(egui::RichText::new("↔ Resources converter").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("Resources converter").clicked() {
                     res_conventer_window.show = true;
+                }
+                ui.separator();
+                if ui.button(egui::RichText::new("🕵 UUID Generator").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("UUID Generator").clicked() {
+                    uuid_gen_window.show = true;
                 }
             });
             ui.add_space(7.0);
@@ -4429,6 +4434,11 @@ async fn main() {
         // Resources converter
         if res_conventer_window.show {
             show_res_conventer_window(ctx, &mut res_conventer_window);
+        }
+
+        // UUID Generator
+        if uuid_gen_window.show {
+            show_uuid_gen_window(ctx, &mut uuid_gen_window);
         }
 
         // YAML editor

@@ -33,3 +33,4 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 toml = "0.9"
 walkdir = "2"
 ipnetwork = "0.21"
+uuid = { version = "1", features = ["v4", "fast-rng"] }
