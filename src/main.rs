@@ -164,6 +164,7 @@ async fn main() {
     let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
     let mut res_conventer_window = ui::res_conventer::ResConverterWindow::default();
     let mut uuid_gen_window = ui::uuid_generator::UUIDGenWindow::default();
+    let mut jwt_decoder_window = ui::jwt_decoder::JwtDecoderWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -598,6 +599,10 @@ async fn main() {
                 ui.separator();
                 if ui.button(egui::RichText::new("🕵 UUID Generator").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("UUID Generator").clicked() {
                     uuid_gen_window.show = true;
+                }
+                ui.separator();
+                if ui.button(egui::RichText::new("🔐 JWT decoder").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("JWT decoder").clicked() {
+                    jwt_decoder_window.show = true;
                 }
             });
             ui.add_space(7.0);
@@ -4419,6 +4424,11 @@ async fn main() {
         // Decoder window
         if decoder_window.show {
             show_decoder_window(ctx, &mut decoder_window);
+        }
+
+        // JWT Decoder
+        if jwt_decoder_window.show {
+            show_jwt_decoder_window(ctx, &mut jwt_decoder_window);
         }
 
         // IP Calculator window
