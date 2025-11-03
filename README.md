@@ -15,6 +15,8 @@ A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster. Thi
 * **Inspect Resources:** Get detailed descriptions of specific cluster resources (`describe`).
 * **Manage Pods:** View real-time logs from any running pod.
 * **Control Deployments:** Scale your deployments up or down.
+* **Inspect logs:** Log parser with your own plugins for search specific patterns.
+* **Converters and other DevOps tools:** Base64 decoder, JWT decoder, IP calculator, YAML to JSON converter and more...
 * And much more!
 
 ---
@@ -30,6 +32,39 @@ For a successful connection to your Kubernetes cluster, you must have a valid co
 Please ensure your cluster connection details are correctly specified in this file.
 
 There are plans in the future to implement multicluster connection.
+
+---
+
+## Log parser plugins
+* **Plugin structure:**
+```
+name: "plugin-name"
+description: "Plugin description"
+rules:
+  - id: "plugin-id"
+    title: "Plugin title"
+    patterns:
+      - "Some regexp"
+      - "some other pattern"
+      - "and more patterns"
+    level: "error"
+    message: "Found error in log"
+    recommendation: "Fix error and restart pod"
+    context_lines: 0
+    threshold: 1
+```
+* name - Should not contain spaces
+* description - Optional
+* id - Should be unique and not contain spaces
+* title - Optional
+* patterns - Patterns to search in the logs (it will search from the end to the head)
+* level - Can be "error" or "warn"
+* message - Message that will be displayed
+* recommendation - Recommendation of how to fix the issue
+* context_lines - How many matched lines you want to see in parser (0 will not show any)
+* threshold - How many patterns should be found in log to trigger message
+
+**Each plugin** should be stored in `~/.local/share/rustlens/plugins` directory as *.yaml file.
 
 ---
 
@@ -56,25 +91,10 @@ This application is designed to be cross-platform and should run on both Windows
 
 ---
 
-# Screenshots
-
-## Overview
-![screenshot](screenshots/overview.png)
-
-## Nodes
-![screenshot](screenshots/nodes.png)
-
-## Namespaces
-![screenshot](screenshots/namespaces.png)
-
-## Deployment
-![screenshot](screenshots/deployments.png)
-
-## Deployment details
-![screenshot](screenshots/deployment_details.png)
-
 ## Contributing
 Contributions are welcome! Please feel free to open an issue or submit a pull request.
+
+---
 
 ## License
 [MIT License](https://opensource.org/licenses/MIT)

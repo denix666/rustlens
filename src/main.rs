@@ -171,7 +171,14 @@ async fn main() {
     //####################################################//
     let mut selected_cr = String::new();
 
-    let ctx_info = get_current_context_info().unwrap();
+    let ctx_info = match get_current_context_info() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Error getting kubernetes config: {:?}", e);
+            std::process::exit(1);
+        },
+    };
+
     let cluster_name = ctx_info.context.unwrap().cluster;
     let user_name = ctx_info.name;
 
