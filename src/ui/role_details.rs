@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use egui::{Context, Key};
+use log::error;
 use crate::functions::item_color;
 use crate::{ui::YamlEditorWindow};
 use crate::theme::*;
@@ -40,7 +41,7 @@ pub fn show_role_details_window(
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO
-                println!("TODO");
+                log::warn!("TODO! Not implemented yet");
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
@@ -63,7 +64,7 @@ pub fn show_role_details_window(
                             ns.as_deref(),
                             Arc::clone(&client),
                         ).await {
-                            eprintln!("Failed to delete role: {}", err);
+                            error!("Failed to delete role: {}", err);
                         }
                     });
                 });

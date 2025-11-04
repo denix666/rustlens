@@ -123,7 +123,7 @@ pub async fn watch_ingresses(client: Arc<Client>, ingresses_list: Arc<Mutex<Vec<
                     }
                 }
             },
-            Err(e) => eprintln!("Ingress watch error: {:?}", e),
+            Err(e) => log::error!("Ingress watch error: {:?}", e),
         }
     }
 }

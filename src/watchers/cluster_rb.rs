@@ -74,7 +74,7 @@ pub async fn watch_cluster_rbs(client: Arc<Client>, cluster_rbs_list: Arc<Mutex<
                     }
                 }
             },
-            Err(e) => eprintln!("ClusterRoleBinding watch error: {:?}", e),
+            Err(e) => log::error!("ClusterRoleBinding watch error: {:?}", e),
         }
     }
 }

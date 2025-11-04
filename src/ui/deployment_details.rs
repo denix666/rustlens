@@ -60,7 +60,7 @@ pub fn show_deployment_details_window(
                             ns.as_deref(),
                             Arc::clone(&client),
                         ).await {
-                            eprintln!("Failed to delete deployment: {}", err);
+                            log::error!("Failed to delete deployment: {}", err);
                         }
                     });
                 });

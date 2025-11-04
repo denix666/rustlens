@@ -163,7 +163,7 @@ pub fn show_node_details_window(
                                 tokio::spawn({
                                     async move {
                                         if let Err(e) = get_pod_details(client_clone, &name, ns, details).await {
-                                            eprintln!("Details fetch failed: {:?}", e);
+                                            log::error!("Details fetch failed: {:?}", e);
                                         }
                                     }
                                 });

@@ -39,7 +39,7 @@ pub fn show_pv_details_window(
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO
-                println!("TODO");
+                log::warn!("TODO! Not implemented yet");
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
@@ -56,7 +56,7 @@ pub fn show_pv_details_window(
                 delete_confirm.request(name.clone(), None, move || {
                     tokio::spawn(async move {
                         if let Err(err) = crate::delete_cluster_pv(Arc::clone(&client), &name).await {
-                            eprintln!("Failed to delete pv: {}", err);
+                            log::error!("Failed to delete pv: {}", err);
                         }
                     });
                 });

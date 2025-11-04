@@ -49,7 +49,7 @@ pub fn show_crd_details_window(
                 delete_confirm.request(name.clone(), None, move || {
                     tokio::spawn(async move {
                         if let Err(err) = crate::delete_cluster_crd(Arc::clone(&client), &name).await {
-                            eprintln!("Failed to delete crd: {}", err);
+                            log::error!("Failed to delete crd: {}", err);
                         }
                     });
                 });

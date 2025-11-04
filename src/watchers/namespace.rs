@@ -69,7 +69,7 @@ pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<Namesp
                 }
             },
             Err(e) => {
-                eprintln!("Namespace watch error: {:?}", e);
+                log::error!("Namespace watch error: {:?}", e);
             }
         }
     }

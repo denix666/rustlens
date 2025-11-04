@@ -11,9 +11,11 @@ use kube::discovery;
 use k8s_openapi::api::core::v1::{ConfigMap, Event, Node, Namespace, PersistentVolume, PersistentVolumeClaim, Pod, Secret, Service, ServiceAccount};
 use kube::api::EvictParams;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
+use log::{error, info, Record};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -321,7 +323,7 @@ pub fn edit_yaml_for<K>(name: String, namespace: String, yaml_editor_window: Arc
                 editor.show = true;
             }
             Err(e) => {
-                eprintln!("Failed to get YAML: {}", e);
+                error!("Failed to get YAML: {}", e);
             }
         }
     });
@@ -344,7 +346,7 @@ pub fn edit_cluster_yaml_for<K>(name: String, yaml_editor_window: Arc<Mutex<crat
                 editor.show = true;
             }
             Err(e) => {
-                eprintln!("Failed to get YAML: {}", e);
+                error!("Failed to get YAML: {}", e);
             }
         }
     });
@@ -605,7 +607,7 @@ pub async fn cordon_node(client: Arc<Client>, node_name: &str, cordoned: bool) -
 pub async fn delete_node(client: Arc<Client>, node_name: &str) -> Result<(), kube::Error> {
     let nodes: Api<Node> = Api::all(client.as_ref().clone());
     nodes.delete(node_name, &Default::default()).await?;
-    eprintln!("Node {} deletion requested", node_name);
+    info!("Node {} deletion requested", node_name);
     Ok(())
 }
 
@@ -652,7 +654,7 @@ pub async fn delete_cluster_pv(client: Arc<Client>, pv_name: &str) -> Result<(),
 pub async fn delete_cluster_crd(client: Arc<Client>, crd_name: &str) -> Result<(), kube::Error> {
     let crds: Api<k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition> = Api::all(client.as_ref().clone());
     crds.delete(crd_name, &DeleteParams::default()).await?;
-    println!("{}", crd_name);
+    log::info!("Delete {}", crd_name);
     Ok(())
 }
 
@@ -676,12 +678,26 @@ pub async fn delete_namespaced_component_for<K>(name: String, namespace: Option<
     Ok(())
 }
 
+pub fn app_log_format(
+    w: &mut dyn Write,
+    now: &mut flexi_logger::DeferredNow,
+    record: &Record
+) -> Result<(), std::io::Error> {
+    write!(
+        w,
+        "[{}] {} - {}",
+        now.now().format("%Y.%m.%d %H:%M:%S"),
+        record.level(),
+        &record.args()
+    )
+}
+
 pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<()> {
     // 1. Cordon node
     let nodes: Api<Node> = Api::all(client.as_ref().clone());
     let patch = json!({ "spec": { "unschedulable": true } });
     nodes.patch(node_name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
-    println!("Node '{}' cordoned.", node_name);
+    log::info!("Node '{}' cordoned.", node_name);
 
     // 2. Get all pods on the node from all namespaces
     let pods: Api<Pod> = Api::all(client.as_ref().clone());
@@ -700,14 +716,14 @@ pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<
 
         if is_mirror || is_daemonset {
             if let Some(name) = &pod.metadata.name {
-                println!("Skipping DaemonSet or mirror pod: {}", name);
+                log::info!("Skipping DaemonSet or mirror pod: {}", name);
             }
             continue;
         }
 
         // 3. Evict pods
         if let (Some(name), Some(namespace)) = (pod.metadata.name.as_deref(), pod.metadata.namespace.as_deref()) {
-            println!("Attempting to evict pod '{}' in namespace '{}'", name, namespace);
+            log::info!("Attempting to evict pod '{}' in namespace '{}'", name, namespace);
 
             let pods_ns: Api<Pod> = Api::namespaced(client.as_ref().clone(), namespace);
 
@@ -725,12 +741,12 @@ pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<
             match pods_ns.evict(name, &params).await {
                 Ok(status) => {
                     if status.is_success() {
-                        println!("Successfully evicted pod '{}'", name);
+                        log::info!("Successfully evicted pod '{}'", name);
                     } else {
-                        eprintln!("Eviction of pod '{}' failed with status: {:?}", name, status.message);
+                        error!("Eviction of pod '{}' failed with status: {:?}", name, status.message);
                     }
                 },
-                Err(e) => eprintln!("Failed to evict pod '{}': {}", name, e),
+                Err(e) => error!("Failed to evict pod '{}': {}", name, e),
             }
         }
     }
@@ -812,7 +828,7 @@ pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, co
             *buf = initial;
             buf.push('\n');
         }
-        Err(e) => eprintln!("failed to get initial logs: {:?}", e),
+        Err(e) => error!("failed to get initial logs: {:?}", e),
     }
 
     let lp = &LogParams { follow: true, previous: previous_logs, container: Some(container_name.to_string()), since_seconds: Some(1), ..Default::default() };
@@ -834,7 +850,7 @@ pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, co
                 buf.push('\n');
             }
             Err(e) => {
-                eprintln!("log stream error: {:?}", e);
+                error!("log stream error: {:?}", e);
                 break;
             }
         }

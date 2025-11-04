@@ -70,7 +70,7 @@ pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<EventI
                 watcher::Event::Delete(_) => {} // Events should not be deleted
             },
             Err(e) => {
-                eprintln!("Event watch error: {:?}", e);
+                log::error!("Event watch error: {:?}", e);
             }
         }
     }

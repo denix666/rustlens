@@ -74,7 +74,7 @@ pub async fn watch_cluster_roles(client: Arc<Client>, cluster_roles_list: Arc<Mu
                     }
                 }
             },
-            Err(e) => eprintln!("ClusterRole watch error: {:?}", e),
+            Err(e) => log::error!("ClusterRole watch error: {:?}", e),
         }
     }
 }

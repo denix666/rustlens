@@ -53,7 +53,7 @@ impl KubernetesVersionFetcher {
                         }
                     }
                     Err(err) => {
-                        eprintln!("Error getting k8s version: {err}");
+                        log::error!("Error getting k8s version: {err}");
                     }
                 }
                 // Ждём 3 минуты перед повтором

@@ -34,7 +34,7 @@ pub struct AppConfig {
     pub sort_preferences: SortPreferences,
 }
 
-fn app_root_path() -> PathBuf {
+pub fn app_root_path() -> PathBuf {
     let mut app_root_path = match home::home_dir() {
         Some(path) => path,
         None => panic!("Impossible to get your home dir!"),

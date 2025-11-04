@@ -78,7 +78,7 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<Secr
                     }
                 }
             },
-            Err(e) => eprintln!("Secret watch error: {:?}", e),
+            Err(e) => log::error!("Secret watch error: {:?}", e),
         }
     }
 }

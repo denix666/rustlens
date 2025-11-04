@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use egui::{Context, Key};
 use kube::Client;
+use log::info;
 
 pub struct ScaleWindow {
     pub name: Option<String>,
@@ -43,7 +44,7 @@ pub fn show_scale_window(ctx: &Context, scale_window: &mut ScaleWindow, client: 
                 scale_window.show = false;
             }
             if ui.button(egui::RichText::new("↕ Scale").size(16.0).color(egui::Color32::ORANGE)).clicked() {
-                eprintln!("Scaling {} to {} replicas", scale_window.name.as_ref().unwrap(), scale_window.desired_replicas);
+                info!("Scaling {} to {} replicas", scale_window.name.as_ref().unwrap(), scale_window.desired_replicas);
                 let client_clone = Arc::clone(&client);
                 let name = scale_window.name.as_ref().unwrap().clone();
                 let namespace = scale_window.namespace.as_ref().unwrap().clone();
@@ -51,7 +52,7 @@ pub fn show_scale_window(ctx: &Context, scale_window: &mut ScaleWindow, client: 
                 let kind = scale_window.resource_kind.as_ref().unwrap().clone();
                 tokio::spawn(async move {
                     if let Err(e) = crate::scale_workload(client_clone, &name, &namespace, replicas, kind).await {
-                        eprintln!("Scale failed: {:?}", e);
+                        log::error!("Scale failed: {:?}", e);
                     }
                 });
                 scale_window.show = false;

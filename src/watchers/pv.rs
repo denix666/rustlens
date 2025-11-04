@@ -94,7 +94,7 @@ pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<PvItem>>>, lo
                     }
                 }
             },
-            Err(e) => eprintln!("PV watch error: {:?}", e),
+            Err(e) => log::error!("PV watch error: {:?}", e),
         }
     }
 }

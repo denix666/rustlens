@@ -146,7 +146,7 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
                 let resource_type = new_resource_window.resource_type.clone();
                 tokio::spawn(async move {
                     if let Err(e) = crate::apply_yaml(client_clone, &yaml, resource_type).await {
-                        println!("Error applying YAML: {:?}", e);
+                        log::error!("Error applying YAML: {:?}", e);
                     }
                 });
                 new_resource_window.show = false;

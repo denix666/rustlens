@@ -114,7 +114,7 @@ pub async fn watch_endpoints(client: Arc<Client>, endpoints_list: Arc<Mutex<Vec<
                     }
                 }
             },
-            Err(e) => eprintln!("Endpoint watch error: {:?}", e),
+            Err(e) => log::error!("Endpoint watch error: {:?}", e),
         }
     }
 }

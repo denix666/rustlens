@@ -93,7 +93,7 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
                 }
             },
             Err(e) => {
-                eprintln!("Deployment watch error: {:?}", e);
+                log::error!("Deployment watch error: {:?}", e);
             }
         }
     }

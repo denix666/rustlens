@@ -85,7 +85,7 @@ pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Ve
                     }
                 }
             },
-            Err(e) => eprintln!("DaemonSet watch error: {:?}", e),
+            Err(e) => log::error!("DaemonSet watch error: {:?}", e),
         }
     }
 }

@@ -93,7 +93,7 @@ pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<V
                     }
                 }
             },
-            Err(e) => eprintln!("PDB watch error: {:?}", e),
+            Err(e) => log::error!("PDB watch error: {:?}", e),
         }
     }
 }

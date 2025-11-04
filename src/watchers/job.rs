@@ -100,7 +100,7 @@ pub async fn watch_jobs(client: Arc<Client>, jobs_list: Arc<Mutex<Vec<JobItem>>>
                     }
                 }
             },
-            Err(e) => eprintln!("Job watch error: {:?}", e),
+            Err(e) => log::error!("Job watch error: {:?}", e),
         }
     }
 }

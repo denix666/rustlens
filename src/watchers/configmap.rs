@@ -80,7 +80,7 @@ pub async fn watch_configmaps(client: Arc<Client>, configmaps_list: Arc<Mutex<Ve
                     }
                 }
             },
-            Err(e) => eprintln!("ConfigMap watch error: {:?}", e),
+            Err(e) => log::error!("ConfigMap watch error: {:?}", e),
         }
     }
 }

@@ -77,7 +77,7 @@ pub async fn watch_roles(client: Arc<Client>, roles_list: Arc<Mutex<Vec<RoleItem
                     }
                 }
             },
-            Err(e) => eprintln!("Role watch error: {:?}", e),
+            Err(e) => log::error!("Role watch error: {:?}", e),
         }
     }
 }

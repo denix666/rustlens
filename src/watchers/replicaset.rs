@@ -80,7 +80,7 @@ pub async fn watch_replicasets(client: Arc<Client>, rs_list: Arc<Mutex<Vec<Repli
                     }
                 }
             },
-            Err(e) => eprintln!("ReplicaSet watch error: {:?}", e),
+            Err(e) => log::error!("ReplicaSet watch error: {:?}", e),
         }
     }
 }

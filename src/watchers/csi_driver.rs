@@ -78,7 +78,7 @@ pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<CSID
                     }
                 }
             },
-            Err(e) => eprintln!("CSIDriver watch error: {:?}", e),
+            Err(e) => log::error!("CSIDriver watch error: {:?}", e),
         }
     }
 }

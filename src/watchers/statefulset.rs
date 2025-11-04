@@ -84,7 +84,7 @@ pub async fn watch_statefulsets(client: Arc<Client>, ss_list: Arc<Mutex<Vec<Stat
                     }
                 }
             },
-            Err(e) => eprintln!("StatefulSet watch error: {:?}", e),
+            Err(e) => log::error!("StatefulSet watch error: {:?}", e),
         }
     }
 }

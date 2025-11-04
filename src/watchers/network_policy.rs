@@ -102,7 +102,7 @@ pub async fn watch_network_policies(client: Arc<Client>, np_list: Arc<Mutex<Vec<
                     }
                 }
             },
-            Err(e) => eprintln!("NetworkPolicy watch error: {:?}", e),
+            Err(e) => log::error!("NetworkPolicy watch error: {:?}", e),
         }
     }
 }

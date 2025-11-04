@@ -93,7 +93,7 @@ pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<S
                     }
                 }
             },
-            Err(e) => eprintln!("StorageClass watch error: {:?}", e),
+            Err(e) => log::error!("StorageClass watch error: {:?}", e),
         }
     }
 }

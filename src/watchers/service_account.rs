@@ -77,7 +77,7 @@ pub async fn watch_service_accounts(client: Arc<Client>, service_accounts_list: 
                     }
                 }
             },
-            Err(e) => eprintln!("ServiceAccount watch error: {:?}", e),
+            Err(e) => log::error!("ServiceAccount watch error: {:?}", e),
         }
     }
 }

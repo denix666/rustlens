@@ -96,7 +96,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                 match crate::ui::log_parser::load_plugins() {
                     Ok(plugins) => {
                         if plugins.is_empty() {
-                            eprintln!("{}: plugins not found in ~/.local/share/rustlens/plugins", "Warning");
+                            log::warn!("{}: plugins not found in ~/.local/share/rustlens/plugins", "Warning");
                         } else {
                             let mut compiled: Vec<(String, super::RuleSpec, Regex)> = Vec::new();
                             for (pname, plugin) in &plugins {
@@ -110,7 +110,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                                                 compiled.push((pname.clone(), rule.clone(), re));
                                             }
                                             Err(e) => {
-                                                eprintln!("Failed to compile regex from plugin '{}' (rule: {}): {:?}", pname, rule.id, e);
+                                                log::error!("Failed to compile regex from plugin '{}' (rule: {}): {:?}", pname, rule.id, e);
                                             }
                                         }
                                     }
@@ -160,7 +160,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to load plugins: {:?}", e);
+                        log::error!("Failed to load plugins: {:?}", e);
                     }
                 }
             }

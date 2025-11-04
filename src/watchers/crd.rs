@@ -102,7 +102,7 @@ pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<CRDItem>>>, loa
                     }
                 }
             },
-            Err(e) => eprintln!("CRDs watch error: {:?}", e),
+            Err(e) => log::error!("CRDs watch error: {:?}", e),
         }
     }
 }

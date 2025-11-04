@@ -130,7 +130,7 @@ pub async fn watch_services(client: Arc<Client>, services_list: Arc<Mutex<Vec<Se
                     }
                 }
             },
-            Err(e) => eprintln!("Service watch error: {:?}", e),
+            Err(e) => log::error!("Service watch error: {:?}", e),
         }
     }
 }

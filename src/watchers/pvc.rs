@@ -96,7 +96,7 @@ pub async fn watch_pvcs(client: Arc<Client>, pvc_list: Arc<Mutex<Vec<PvcItem>>>,
                     }
                 }
             },
-            Err(e) => eprintln!("PVC watch error: {:?}", e),
+            Err(e) => log::error!("PVC watch error: {:?}", e),
         }
     }
 }

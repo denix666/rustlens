@@ -165,7 +165,7 @@ pub async fn watch_pods(client: Arc<Client>, pods_list: Arc<Mutex<Vec<PodItem>>>
                     }
                 }
             },
-            Err(e) => eprintln!("Pod watch error: {:?}", e),
+            Err(e) => log::error!("Pod watch error: {:?}", e),
         }
     }
 }

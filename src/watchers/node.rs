@@ -114,11 +114,11 @@ pub async fn fetch_node_metrics(
     ).await {
         Ok(Ok(usage)) => usage,
         Ok(Err(e)) => {
-            eprintln!("Error getting CPU usage 1: {}", e);
+            log::error!("Error getting CPU usage 1: {}", e);
             0
         },
         Err(_) => {
-            eprintln!("Timeout getting CPU usage 1");
+            log::error!("Timeout getting CPU usage 1");
             0
         }
     };
@@ -131,11 +131,11 @@ pub async fn fetch_node_metrics(
     ).await {
         Ok(Ok(usage)) => usage,
         Ok(Err(e)) => {
-            eprintln!("Error getting CPU usage 2: {}", e);
+            log::error!("Error getting CPU usage 2: {}", e);
             usage1
         },
         Err(_) => {
-            eprintln!("Timeout getting CPU usage 2");
+            log::error!("Timeout getting CPU usage 2");
             usage1
         }
     };
@@ -147,7 +147,7 @@ pub async fn fetch_node_metrics(
     let node = match api.get(node_name).await {
         Ok(n) => n,
         Err(e) => {
-            eprintln!("Error getting node info: {}", e);
+            log::error!("Error getting node info: {}", e);
             return Ok((None, None, None, None, None, None, None, None, None));
         }
     };
@@ -433,7 +433,7 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<NodeItem>>>, l
             },
 
             Err(e) => {
-                eprintln!("Nodes watch error: {:?}", e);
+                log::error!("Nodes watch error: {:?}", e);
             }
         }
     }

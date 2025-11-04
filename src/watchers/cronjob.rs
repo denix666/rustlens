@@ -101,7 +101,7 @@ pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<Cro
                     }
                 }
             },
-            Err(e) => eprintln!("CronJob watch error: {:?}", e),
+            Err(e) => log::error!("CronJob watch error: {:?}", e),
         }
     }
 }

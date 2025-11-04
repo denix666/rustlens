@@ -72,7 +72,7 @@ pub fn show_pod_details_window(
                 delete_confirm.request(name.clone(), Some("dd".to_string()), move || {
                     tokio::spawn(async move {
                         if let Err(err) = crate::delete_pod(Arc::clone(&client), name.clone(), ns.as_deref(), true).await {
-                            eprintln!("Failed to delete secret: {}", err);
+                            log::error!("Failed to delete secret: {}", err);
                         }
                     });
                 });

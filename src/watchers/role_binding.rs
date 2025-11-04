@@ -77,7 +77,7 @@ pub async fn watch_rbs(client: Arc<Client>, rbs_list: Arc<Mutex<Vec<RoleBindingI
                     }
                 }
             },
-            Err(e) => eprintln!("RoleBinding watch error: {:?}", e),
+            Err(e) => log::error!("RoleBinding watch error: {:?}", e),
         }
     }
 }
