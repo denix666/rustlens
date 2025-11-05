@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ui;
-use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming};
+use flexi_logger::{Duplicate, FileSpec, Logger};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use ui::*;
@@ -74,6 +74,7 @@ enum Category {
     CustomResources,
     HelmReleases,
     About,
+    AppLogs,
     Roles,
     SeriviceAccounts,
     ClusterRoles,
@@ -127,22 +128,18 @@ async fn main() {
     let mut app_logs_path = app_root_path();
     app_logs_path.push("logs");
     let _logger = Logger::try_with_str("info")
-            .unwrap()
-            .log_to_file(
-                FileSpec::default()
-                    .directory(app_logs_path)
-                    .basename("rustlens")
-                    .suffix("log")
-            )
-            .format(app_log_format)
-            .duplicate_to_stderr(Duplicate::Error)
-            .rotate(
-                Criterion::Size(10 * 1024 * 1024), // Rotate when size is over 10Mb
-                Naming::Numbers,                   // Naming: rustlens_0.log, rustlens_1.log ...
-                Cleanup::KeepLogFiles(5)           // Clean: keep 5 log files
-            )
-            .start()
-            .expect("Logger error");
+        .unwrap()
+        .log_to_file(
+            FileSpec::default()
+                .directory(app_logs_path)
+                .basename("rustlens")
+                .suppress_timestamp()
+                .suffix("log")
+        )
+        .format(app_log_format)
+        .duplicate_to_stderr(Duplicate::Error)
+        .start()
+        .expect("Logger error");
 
     info!("Rustlens starting...");
 
@@ -272,6 +269,10 @@ async fn main() {
             };
         }
     });
+
+    // APP Logs viewer
+    let log_path = format!("{}/logs/rustlens.log", app_root_path().to_string_lossy());
+    let mut log_viewer = LogViewer::new(log_path.as_str());
 
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
@@ -834,6 +835,9 @@ async fn main() {
                     if ui.selectable_label(current == Category::About, "🐧 About author").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::About;
                     }
+                    if ui.selectable_label(current == Category::AppLogs, "📝 App logs").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::AppLogs;
+                    }
                 });
             });
         });
@@ -850,6 +854,9 @@ async fn main() {
             match *selected_category_ui.lock().unwrap() {
                 Category::About => {
                     show_about_info(ui);
+                },
+                Category::AppLogs => {
+                    log_viewer.ui(ui);
                 },
                 Category::CustomResources => {
                     let cr_instances_clone = Arc::clone(&cr_instances);

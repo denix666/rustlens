@@ -40,7 +40,7 @@ pub fn show_daemonset_details_window(
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
                 // TODO
-                log::warn!("TODO! Not implemented yet");
+                log::warn!("TODO! Not implemented yet for daemonset");
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {

@@ -10,7 +10,7 @@ pub struct IpCalculatorWindow {
 
 impl IpCalculatorWindow {
     pub fn new() -> Self {
-        let default_cidr = "10.10.10.10/27".to_string();
+        let default_cidr = "192.168.1.192/29".to_string();
         let initial_data = calculate_input(&default_cidr);
 
         Self {
@@ -45,34 +45,37 @@ pub fn show_ipcalculator_window(ctx: &Context, ipcalculator_window: &mut IpCalcu
         .open(&mut ipcalculator_window.show)
         .show(ctx, |ui| {
             ui.vertical(|ui| {
-                ui.add_space(10.0);
+                ui.group(|ui| {
+                    ui.set_width(400.0);
+                    ui.add_space(10.0);
 
-                let response = ui.text_edit_singleline(&mut ipcalculator_window.input_cidr);
+                    let response = ui.text_edit_singleline(&mut ipcalculator_window.input_cidr);
 
-                if response.changed() {
-                    ipcalculator_window.calculated_data =
-                        calculate_input(&ipcalculator_window.input_cidr);
-                }
-
-                ui.add_space(10.0);
-                ui.separator();
-                ui.add_space(10.0);
-
-                match &ipcalculator_window.calculated_data {
-                    Ok(res) => {
-                        ui.colored_label(egui::Color32::LIGHT_GREEN, format!("Range:  {} - {}", res.first_addr, res.last_addr));
-                        ui.colored_label(egui::Color32::LIGHT_BLUE, format!("Hosts count:  {}", res.host_count));
+                    if response.changed() {
+                        ipcalculator_window.calculated_data =
+                            calculate_input(&ipcalculator_window.input_cidr);
                     }
-                    Err(e) => {
-                        if e.to_string().len() > 50 {
-                            ui.colored_label(egui::Color32::RED, format!("Error in input"));
-                        } else {
-                            ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
+
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+
+                    match &ipcalculator_window.calculated_data {
+                        Ok(res) => {
+                            ui.colored_label(egui::Color32::LIGHT_GREEN, format!("Range:  {} - {}", res.first_addr, res.last_addr));
+                            ui.colored_label(egui::Color32::LIGHT_BLUE, format!("Hosts count:  {}", res.host_count));
+                        }
+                        Err(e) => {
+                            if e.to_string().len() > 50 {
+                                ui.colored_label(egui::Color32::RED, format!("Error in input"));
+                            } else {
+                                ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
+                            }
                         }
                     }
-                }
 
-                ui.add_space(10.0);
+                    ui.add_space(10.0);
+                });
             });
         });
 
