@@ -19,6 +19,7 @@ pub const ITEM_NAME_COLOR: Color32 = Color32::WHITE;
 pub const WARNING_COLOR: Color32 = Color32::ORANGE;
 pub const NORMAL_COLOR: Color32 = Color32::DARK_GREEN;
 pub const ERROR_COLOR: Color32 = Color32::RED;
+pub const ERROR_MESSAGE_COLOR: Color32 = Color32::LIGHT_RED;
 
 pub const POD_NAME_COLUMN_COLOR: Color32 = Color32::from_rgb(197, 120, 255);
 pub const PODS_HEAD_GRID_COLOR: Color32 = Color32::GRAY;

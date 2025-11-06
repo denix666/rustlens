@@ -68,6 +68,7 @@ enum Category {
     StorageClasses,
     CSIDrivers,
     DaemonSets,
+    ProxyProcess,
     PodDisruptionBudgets,
     NetworkPolicies,
     CustomResourcesDefinitions,
@@ -191,6 +192,8 @@ async fn main() {
     let mut jwt_decoder_window = ui::jwt_decoder::JwtDecoderWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
+
+    let mut proxy_process = ui::kubectl_proxy::ProxyProcess::default();
 
     //####################################################//
     let mut selected_cr = String::new();
@@ -731,6 +734,10 @@ async fn main() {
                     if ui.selectable_label(current == Category::NetworkPolicies, "📋 Network Policies").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::NetworkPolicies;
                     }
+
+                    if ui.selectable_label(current == Category::ProxyProcess, "💨 Proxy").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ProxyProcess;
+                    }
                 });
 
                 egui::CollapsingHeader::new("🖴 Storage").default_open(false).show(ui, |ui| {
@@ -852,6 +859,9 @@ async fn main() {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::ProxyProcess => {
+                    show_kubectl_proxy_status(ui, &mut proxy_process);
+                },
                 Category::About => {
                     show_about_info(ui);
                 },

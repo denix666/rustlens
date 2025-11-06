@@ -36,6 +36,7 @@ pub mod yaml2json;
 pub mod res_conventer;
 pub mod uuid_generator;
 pub mod jwt_decoder;
+pub mod kubectl_proxy;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -75,3 +76,4 @@ pub use yaml2json::*;
 pub use res_conventer::*;
 pub use uuid_generator::*;
 pub use jwt_decoder::*;
+pub use kubectl_proxy::*;
