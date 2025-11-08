@@ -189,6 +189,7 @@ async fn main() {
     let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
     let mut res_conventer_window = ui::res_conventer::ResConverterWindow::default();
     let mut uuid_gen_window = ui::uuid_generator::UUIDGenWindow::default();
+    let mut ai_window = ui::ai_consultant::AiWindow::default();
     let mut jwt_decoder_window = ui::jwt_decoder::JwtDecoderWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
@@ -647,6 +648,10 @@ async fn main() {
                 ui.separator();
                 if ui.button(egui::RichText::new("🔐 JWT decoder").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("JWT decoder").clicked() {
                     jwt_decoder_window.show = true;
+                }
+                ui.separator();
+                if ui.button(egui::RichText::new("💬 AI Consultant").size(17.0).color(egui::Color32::LIGHT_BLUE)).on_hover_text("AI Consultant").clicked() {
+                    ai_window.show = true;
                 }
             });
             ui.add_space(7.0);
@@ -4487,6 +4492,11 @@ async fn main() {
         // Decoder window
         if decoder_window.show {
             show_decoder_window(ctx, &mut decoder_window);
+        }
+
+        // AI consultant window
+        if ai_window.show {
+            show_ai_window(ctx, &mut ai_window);
         }
 
         // JWT Decoder
