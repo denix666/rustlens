@@ -4436,12 +4436,13 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
-                                egui::Grid::new("events_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
+                                egui::Grid::new("events_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                                     ui.label("Time");
                                     ui.label("Type");
                                     ui.label("Age");
                                     ui.label("Namespace");
                                     ui.label("Reason");
+                                    ui.label("Count");
                                     ui.label("Object");
                                     ui.label("Message");
                                     ui.label("Actions");
@@ -4454,13 +4455,18 @@ async fn main() {
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(&item.namespace);
                                             ui.label(&item.reason);
+                                            if let Some(count) = &item.count {
+                                                ui.label(count.to_string());
+                                            } else {
+                                                ui.label("0");
+                                            }
                                             ui.label(&item.involved_object);
                                             ui.label(&item.message);
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     crate::edit_yaml_for::<k8s_openapi::api::core::v1::Event>(
-                                                        item.involved_object.clone(),
+                                                        item.name.clone(),
                                                         item.namespace.clone(),
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)

@@ -6,6 +6,7 @@ use kube::Client;
 
 #[derive(Clone)]
 pub struct EventItem {
+    pub name: String,
     pub message: String,
     pub reason: String,
     pub involved_object: String,
@@ -13,6 +14,7 @@ pub struct EventItem {
     pub timestamp: String,
     pub namespace: String,
     pub creation_timestamp: Option<Time>,
+    pub count: Option<i32>,
 }
 
 pub fn convert_event(ev: k8s_openapi::api::core::v1::Event) -> Option<EventItem> {
@@ -22,6 +24,7 @@ pub fn convert_event(ev: k8s_openapi::api::core::v1::Event) -> Option<EventItem>
         ev.involved_object.name.clone().unwrap_or_else(|| "Unknown".to_string())
     );
     Some(EventItem {
+        name: ev.metadata.name.unwrap_or_else(|| "Empty".to_string()),
         creation_timestamp: ev.metadata.creation_timestamp,
         message: ev.message.clone().unwrap_or_else(|| "Empty".to_string()),
         reason: ev.reason.clone().unwrap_or_else(|| "Unknown".to_string()),
@@ -30,6 +33,7 @@ pub fn convert_event(ev: k8s_openapi::api::core::v1::Event) -> Option<EventItem>
         timestamp: ev.event_time.as_ref().map(|t| t.0.to_rfc3339()).or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()))
             .unwrap_or_else(|| "N/A".to_string()),
         namespace: ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string()),
+        count: ev.count,
     })
 }
 
