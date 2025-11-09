@@ -1,4 +1,9 @@
+use eframe::egui;
 use egui::Key;
+use serde_json::Value;
+use std::process::{Command, Stdio};
+use std::io::{Write};
+use serde_json::json;
 
 pub struct AiWindow {
     pub show: bool,
@@ -6,6 +11,8 @@ pub struct AiWindow {
     response: String,
     api_key: String,
     loading: bool,
+    tools_json: serde_json::Value,
+    mcp_path: String,
     tx: std::sync::mpsc::Sender<String>,
     rx: std::sync::mpsc::Receiver<String>,
 }
@@ -13,38 +20,51 @@ pub struct AiWindow {
 impl Default for AiWindow {
     fn default() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
+        let mcp_path = std::env::var("MCP_BINARY_PATH").unwrap_or_else(|_| {
+            log::warn!("Warning: MCP_BINARY_PATH is not set.");
+            default_mcp_path() // default mcp binary path (will be used if not provided environment variable)
+        });
+
+        let tools_json = load_tools_blocking(&mcp_path).unwrap_or_else(|e| {
+            log::error!("Failed to load MCP tools: {}", e);
+            log::warn!("AI will not use the tools.");
+            json!([]) // Return empty list (and do not crash the app)
+        });
         Self {
             show: false,
             input: String::new(),
             response: String::new(),
             api_key: std::env::var("GEMINI_API_KEY").unwrap_or_default(),
             loading: false,
+            tools_json,
             tx,
             rx,
+            mcp_path,
         }
     }
 }
 
-// #### chat structures ####
-#[derive(serde::Serialize)]
-struct Part {
-    text: String,
-}
-
-#[derive(serde::Serialize)]
-struct Content {
-    role: String,
-    parts: Vec<Part>,
-}
-
-#[derive(serde::Serialize)]
-struct Request {
-    contents: Vec<Content>,
+fn default_mcp_path() -> String {
+    let home = home::home_dir();
+    let path: String = match home {
+        Some(mut p) => {
+            p.push(".local");
+            p.push("share");
+            p.push("rustlens");
+            p.push("mcp");
+            p.push("rustlens_mcp");
+            p.to_string_lossy().to_string()
+        }
+        None => "/usr/bin/rustlens_mcp".to_string(),
+    };
+    return path
 }
 
 #[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct PartResp {
     text: Option<String>,
+    function_call: Option<FunctionCall>,
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -61,7 +81,55 @@ struct Candidate {
 struct Response {
     candidates: Option<Vec<Candidate>>,
 }
-// #### end of chat structures ####
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct FunctionCall {
+    name: String,
+    args: Value,
+}
+
+
+fn load_tools_blocking(mcp_path: &str) -> Result<Value, Box<dyn std::error::Error>> {
+    let mcp_request = json!({
+        "jsonrpc": "2.0",
+        "method": "get_tool_definitions",
+        "params": {},
+        "id": "init" // id может быть любым
+    });
+
+    let mut child = Command::new(mcp_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(mcp_request.to_string().as_bytes())?;
+        drop(stdin);
+    } else {
+        return Err("Error getting stdin".into());
+    }
+
+    let output = child.wait_with_output()?;
+
+    if output.status.success() {
+        let response_str = String::from_utf8(output.stdout)?;
+        let mcp_response: Value = serde_json::from_str(&response_str)?;
+
+        if let Some(result) = mcp_response.get("result") {
+            Ok(result.clone()) // <--- Возвращаем 'Value' с описанием
+        } else if let Some(error) = mcp_response.get("error") {
+            Err(format!("MCP error while loading: {}", error).into())
+        } else {
+            Err("Wrong JSON-RPC answer from MCP".into())
+        }
+    } else {
+        let error_msg = String::from_utf8(output.stderr)?;
+        Err(format!("Error running MCP: {}", error_msg).into())
+    }
+}
+
 
 pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow,) {
     if let Ok(resp_text) = ai.rx.try_recv() {
@@ -82,18 +150,18 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow,) {
 
                 ui.add_space(5.0);
                 ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(!ai.loading, egui::Button::new("Send"))
-                        .clicked()
-                    {
+                    if ui.add_enabled(!ai.loading, egui::Button::new("Send")).clicked() {
                         let prompt = ai.input.clone();
                         let api_key = ai.api_key.clone();
+                        let mcp_path = ai.mcp_path.clone();
+                        let tools_json = ai.tools_json.clone();
                         let sender = ai.tx.clone();
                         ai.loading = true;
                         ai.response.clear();
 
                         std::thread::spawn(move || {
-                            let result = ask_ai_blocking(&api_key, &prompt).unwrap_or_else(|e| format!("Error: {}", e));
+                            let result = ask_ai_blocking(&api_key, &mcp_path, &prompt, &tools_json)
+                                .unwrap_or_else(|e| format!("Error: {}", e));
                             let _ = sender.send(result);
                         });
                     }
@@ -124,31 +192,131 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow,) {
     }
 }
 
-fn ask_ai_blocking(api_key: &str, prompt: &str) -> Result<String, reqwest::Error> {
-    let client = reqwest::blocking::Client::new();
-    let url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent";
-    let req_body = Request {
-        contents: vec![Content {
-            role: "user".into(),
-            parts: vec![Part {
-                text: prompt.to_string(),
-            }],
-        }],
-    };
-    let res = client.post(format!("{url}?key={api_key}")).json(&req_body).send()?;
-    let json: Response = res.json()?;
-    let text = json
-        .candidates
-        .and_then(|mut c| c.pop())
-        .and_then(|c| c.content)
-        .and_then(|mut content| {
-            content
-                .parts
-                .as_mut()
-                .and_then(|parts| parts.pop())
-                .and_then(|p| p.text)
-        })
-        .unwrap_or_else(|| "No answer".to_string());
+fn call_mcp_tool(mcp_path: &str, func_call: &FunctionCall) -> Result<Value, Box<dyn std::error::Error>> {
 
-    Ok(text)
+    let mcp_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": func_call.name,
+        "params": func_call.args,
+        "id": 1
+    });
+
+    // Start mcp process
+    let mut child = Command::new(mcp_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Send JSON-RPC request to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(mcp_request.to_string().as_bytes())?;
+        stdin.write_all(b"\n")?; // Important for line-delimited JSON
+        drop(stdin);
+    } else {
+        return Err("Error getting stdin".into());
+    }
+
+    // Wait and get answer
+    let output = child.wait_with_output()?;
+
+    if output.status.success() {
+        let response_str = String::from_utf8(output.stdout)?;
+        let mcp_response: Value = serde_json::from_str(&response_str)?;
+
+        if let Some(result) = mcp_response.get("result") {
+            Ok(result.clone())
+        } else if let Some(error) = mcp_response.get("error") {
+             Err(format!("MCP error: {}", error).into())
+        } else {
+            Err("Wrong JSON-RPC answer from MCP".into())
+        }
+    } else {
+        let error_msg = String::from_utf8(output.stderr)?;
+        Err(format!("Error executing MCP: {}", error_msg).into())
+    }
+}
+
+fn ask_ai_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: &Value) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::blocking::Client::new();
+    let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"; // <--- be sure that model supports tools
+
+
+    // contents history
+    let mut contents: Vec<Value> = vec![json!({
+        "role": "user",
+        "parts": [{"text": prompt}]
+    })];
+
+    // request-response-tool loop
+    loop {
+        let req_body = json!({
+            "contents": contents,
+            "tools": tools_json
+        });
+
+        // Call AI API
+        let res = client
+            .post(format!("{url}?key={api_key}"))
+            .json(&req_body)
+            .send()?;
+
+        if !res.status().is_success() {
+             return Err(format!("API Error: {}", res.text()?).into());
+        }
+
+        let json: Response = res.json()?;
+
+        // Analyze answer
+        let part = json
+            .candidates
+            .and_then(|mut c| c.pop())
+            .and_then(|c| c.content)
+            .and_then(|content| content.parts.and_then(|mut p| p.pop()));
+
+        if let Some(part) = part {
+            // If AI return final text
+            if let Some(text) = part.text {
+                return Ok(text); // loop completed
+            }
+
+            // AI asking to call tool
+            if let Some(func_call) = part.function_call {
+
+                // Add tool call to history
+                contents.push(json!({
+                    "role": "model",
+                    "parts": [{"functionCall": func_call}]
+                }));
+
+                // Call mcp binary
+                let tool_result = match call_mcp_tool(mcp_path, &func_call) {
+                    Ok(result) => result,
+                    Err(e) => {
+                        log::error!("Error calling tool: {:?}", &e);
+                        json!({"error": e.to_string()})
+                    },
+                };
+
+                // Add answer from the tool to the history
+                contents.push(json!({
+                    "role": "tool",
+                    "parts": [{
+                        "functionResponse": {
+                            "name": func_call.name,
+                            "response": {
+                                "output": tool_result
+                            }
+                        }
+                    }]
+                }));
+
+                // 'continue' recall loop, sending 'contents' (with results) back to AI.
+                continue;
+            }
+        }
+
+        // If something goes wrong
+        return Ok("No answer or invalid response part".to_string());
+    }
 }

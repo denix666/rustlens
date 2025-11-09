@@ -189,7 +189,6 @@ async fn main() {
     let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
     let mut res_conventer_window = ui::res_conventer::ResConverterWindow::default();
     let mut uuid_gen_window = ui::uuid_generator::UUIDGenWindow::default();
-    let mut ai_window = ui::ai_consultant::AiWindow::default();
     let mut jwt_decoder_window = ui::jwt_decoder::JwtDecoderWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
     let cr_instances: Arc<Mutex<Vec<CrdInstance>>> = Arc::new(Mutex::new(Vec::new()));
@@ -277,6 +276,10 @@ async fn main() {
     // APP Logs viewer
     let log_path = format!("{}/logs/rustlens.log", app_root_path().to_string_lossy());
     let mut log_viewer = LogViewer::new(log_path.as_str());
+
+    // AI window
+    // Must be defined after app-logs definition
+    let mut ai_window = ui::ai_consultant::AiWindow::default();
 
     // PODS
     let pods = Arc::new(Mutex::new(Vec::<PodItem>::new()));
