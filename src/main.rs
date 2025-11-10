@@ -75,6 +75,7 @@ enum Category {
     CustomResources,
     HelmReleases,
     About,
+    Configuration,
     AppLogs,
     Roles,
     SeriviceAccounts,
@@ -846,12 +847,15 @@ async fn main() {
                     }
                 });
 
-                egui::CollapsingHeader::new("🏷 About").default_open(false).show(ui, |ui| {
+                egui::CollapsingHeader::new("⚙ App settings").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::About, "🐧 About author").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::About;
                     }
-                    if ui.selectable_label(current == Category::AppLogs, "📝 App logs").clicked() {
+                    if ui.selectable_label(current == Category::AppLogs, "📝 Logs").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::AppLogs;
+                    }
+                    if ui.selectable_label(current == Category::Configuration, "🔧 Configuration").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Configuration;
                     }
                 });
             });
@@ -869,6 +873,9 @@ async fn main() {
             match *selected_category_ui.lock().unwrap() {
                 Category::ProxyProcess => {
                     show_kubectl_proxy_status(ui, &mut proxy_process);
+                },
+                Category::Configuration => {
+                    show_configuration(ui, &mut app_config);
                 },
                 Category::About => {
                     show_about_info(ui);
@@ -4499,7 +4506,7 @@ async fn main() {
 
         // AI consultant window
         if ai_window.show {
-            show_ai_window(ctx, &mut ai_window);
+            show_ai_window(ctx, &mut ai_window, &app_config);
         }
 
         // JWT Decoder
@@ -4772,6 +4779,8 @@ async fn main() {
                 app_config.sort_preferences.pvcs_sort_asc,
                 app_config.sort_preferences.namespace_sort_by,
                 app_config.sort_preferences.namespace_sort_asc,
+                app_config.ai_settings.api_url.clone(),
+                app_config.ai_settings.api_key.clone(),
             );
             config_should_be_saved = false;
         }

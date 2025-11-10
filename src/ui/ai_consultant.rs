@@ -9,7 +9,7 @@ pub struct AiWindow {
     pub show: bool,
     input: String,
     response: String,
-    api_key: String,
+    //api_key: String,
     loading: bool,
     tools_json: serde_json::Value,
     mcp_path: String,
@@ -25,6 +25,11 @@ impl Default for AiWindow {
             default_mcp_path() // default mcp binary path (will be used if not provided environment variable)
         });
 
+        // let api_key = std::env::var("AI_API_KEY").unwrap_or_else(|_| {
+        //     log::warn!("Warning: AI_API_KEY is not set.");
+        //     "".to_string() // AI consultant will not work
+        // });
+
         let tools_json = load_tools_blocking(&mcp_path).unwrap_or_else(|e| {
             log::error!("Failed to load MCP tools: {}", e);
             log::warn!("AI will not use the tools.");
@@ -34,7 +39,7 @@ impl Default for AiWindow {
             show: false,
             input: String::new(),
             response: String::new(),
-            api_key: std::env::var("GEMINI_API_KEY").unwrap_or_default(),
+            //api_key,
             loading: false,
             tools_json,
             tx,
@@ -53,9 +58,15 @@ fn default_mcp_path() -> String {
             p.push("rustlens");
             p.push("mcp");
             p.push("rustlens_mcp");
-            p.to_string_lossy().to_string()
+            let return_path = p.to_string_lossy().to_string();
+            log::info!("MCP will be used from {}", return_path);
+            return_path
         }
-        None => "/usr/bin/rustlens_mcp".to_string(),
+        None => {
+            let return_path = "/usr/bin/rustlens_mcp".to_string();
+            log::info!("MCP will be used from {}", return_path);
+            return_path
+        },
     };
     return path
 }
@@ -95,7 +106,7 @@ fn load_tools_blocking(mcp_path: &str) -> Result<Value, Box<dyn std::error::Erro
         "jsonrpc": "2.0",
         "method": "get_tool_definitions",
         "params": {},
-        "id": "init" // id может быть любым
+        "id": "init"
     });
 
     let mut child = Command::new(mcp_path)
@@ -118,7 +129,7 @@ fn load_tools_blocking(mcp_path: &str) -> Result<Value, Box<dyn std::error::Erro
         let mcp_response: Value = serde_json::from_str(&response_str)?;
 
         if let Some(result) = mcp_response.get("result") {
-            Ok(result.clone()) // <--- Возвращаем 'Value' с описанием
+            Ok(result.clone())
         } else if let Some(error) = mcp_response.get("error") {
             Err(format!("MCP error while loading: {}", error).into())
         } else {
@@ -131,7 +142,7 @@ fn load_tools_blocking(mcp_path: &str) -> Result<Value, Box<dyn std::error::Erro
 }
 
 
-pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow,) {
+pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate::config::AppConfig) {
     if let Ok(resp_text) = ai.rx.try_recv() {
         ai.response = resp_text;
         ai.loading = false;
@@ -152,15 +163,16 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow,) {
                 ui.horizontal(|ui| {
                     if ui.add_enabled(!ai.loading, egui::Button::new("Send")).clicked() {
                         let prompt = ai.input.clone();
-                        let api_key = ai.api_key.clone();
+                        let api_key = app_config.ai_settings.api_key.clone();
                         let mcp_path = ai.mcp_path.clone();
                         let tools_json = ai.tools_json.clone();
                         let sender = ai.tx.clone();
                         ai.loading = true;
                         ai.response.clear();
+                        let api_url = app_config.ai_settings.api_url.clone();
 
                         std::thread::spawn(move || {
-                            let result = ask_ai_blocking(&api_key, &mcp_path, &prompt, &tools_json)
+                            let result = ask_ai_blocking(&api_key, &mcp_path, &prompt, &tools_json, &api_url)
                                 .unwrap_or_else(|e| format!("Error: {}", e));
                             let _ = sender.send(result);
                         });
@@ -237,10 +249,8 @@ fn call_mcp_tool(mcp_path: &str, func_call: &FunctionCall) -> Result<Value, Box<
     }
 }
 
-fn ask_ai_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: &Value) -> Result<String, Box<dyn std::error::Error>> {
+fn ask_ai_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: &Value, api_url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::blocking::Client::new();
-    let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"; // <--- be sure that model supports tools
-
 
     // contents history
     let mut contents: Vec<Value> = vec![json!({
@@ -257,7 +267,7 @@ fn ask_ai_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: &Val
 
         // Call AI API
         let res = client
-            .post(format!("{url}?key={api_key}"))
+            .post(format!("{api_url}?key={api_key}"))
             .json(&req_body)
             .send()?;
 

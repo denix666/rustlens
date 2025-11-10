@@ -38,6 +38,7 @@ pub mod uuid_generator;
 pub mod jwt_decoder;
 pub mod kubectl_proxy;
 pub mod ai_consultant;
+pub mod configuration;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -79,3 +80,4 @@ pub use uuid_generator::*;
 pub use jwt_decoder::*;
 pub use kubectl_proxy::*;
 pub use ai_consultant::*;
+pub use configuration::*;

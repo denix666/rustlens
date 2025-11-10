@@ -6,7 +6,7 @@ use std::io::Write;
 
 use crate::SortBy;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct AppOptions {
     pub last_window_pos_x: f32,
     pub last_window_pos_y: f32,
@@ -28,10 +28,17 @@ pub struct SortPreferences {
     pub namespace_sort_asc: bool,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
+pub struct AiSettings {
+    pub api_url: String,
+    pub api_key: String,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
 pub struct AppConfig {
     pub options: AppOptions,
     pub sort_preferences: SortPreferences,
+    pub ai_settings: AiSettings,
 }
 
 pub fn app_root_path() -> PathBuf {
@@ -58,6 +65,8 @@ pub fn write_config_to_file(
     pvcs_sort_asc: bool,
     namespace_sort_by: SortBy,
     namespace_sort_asc: bool,
+    api_url: String,
+    api_key: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_file_path = app_root_path();
     config_file_path.push(crate::MAIN_CONFIG_FILE_NAME);
@@ -84,6 +93,10 @@ pub fn write_config_to_file(
             pvcs_sort_asc,
             namespace_sort_by,
             namespace_sort_asc,
+        },
+        ai_settings: AiSettings {
+            api_url,
+            api_key,
         }
     };
 
@@ -125,6 +138,10 @@ pub fn read_app_config_from_file() -> AppConfig {
             namespace_sort_by: SortBy::Name,
             namespace_sort_asc: false,
         },
+        ai_settings: AiSettings {
+            api_url: "".to_string(),
+            api_key: "".to_string(),
+        },
     };
 
     let toml_str = match std::fs::read_to_string(config_file_path) {
@@ -145,6 +162,8 @@ pub fn read_app_config_from_file() -> AppConfig {
                 false,
                 SortBy::Name,
                 true,
+                "".to_string(),
+                "".to_string(),
             ).unwrap();
             to_string(&new_config).unwrap()
         }
@@ -169,6 +188,8 @@ pub fn read_app_config_from_file() -> AppConfig {
                 false,
                 SortBy::Name,
                 true,
+                "".to_string(),
+                "".to_string(),
             ).unwrap();
             new_config
         }
