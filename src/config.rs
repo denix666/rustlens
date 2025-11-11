@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{fs::{self, OpenOptions}, path::PathBuf};
 use toml::to_string;
 use std::io::Write;
-
-use crate::SortBy;
+use crate::{ui::AiProvider, SortBy};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct AppOptions {
@@ -30,8 +29,10 @@ pub struct SortPreferences {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct AiSettings {
-    pub api_url: String,
-    pub api_key: String,
+    pub selected_ai_provider: AiProvider,
+    pub gemini_api_url: String,
+    pub gemini_api_key: String,
+    pub gemini_mcp_path: String,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -65,8 +66,10 @@ pub fn write_config_to_file(
     pvcs_sort_asc: bool,
     namespace_sort_by: SortBy,
     namespace_sort_asc: bool,
-    api_url: String,
-    api_key: String,
+    selected_ai_provider: AiProvider,
+    gemini_api_url: String,
+    gemini_api_key: String,
+    gemini_mcp_path: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_file_path = app_root_path();
     config_file_path.push(crate::MAIN_CONFIG_FILE_NAME);
@@ -95,8 +98,10 @@ pub fn write_config_to_file(
             namespace_sort_asc,
         },
         ai_settings: AiSettings {
-            api_url,
-            api_key,
+            selected_ai_provider,
+            gemini_api_url,
+            gemini_api_key,
+            gemini_mcp_path,
         }
     };
 
@@ -139,8 +144,10 @@ pub fn read_app_config_from_file() -> AppConfig {
             namespace_sort_asc: false,
         },
         ai_settings: AiSettings {
-            api_url: "".to_string(),
-            api_key: "".to_string(),
+            selected_ai_provider: AiProvider::Gemini,
+            gemini_api_url: "".to_string(),
+            gemini_api_key: "".to_string(),
+            gemini_mcp_path: "".to_string(),
         },
     };
 
@@ -162,6 +169,8 @@ pub fn read_app_config_from_file() -> AppConfig {
                 false,
                 SortBy::Name,
                 true,
+                AiProvider::Gemini,
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent".to_string(),
                 "".to_string(),
                 "".to_string(),
             ).unwrap();
@@ -188,6 +197,8 @@ pub fn read_app_config_from_file() -> AppConfig {
                 false,
                 SortBy::Name,
                 true,
+                AiProvider::Gemini,
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent".to_string(),
                 "".to_string(),
                 "".to_string(),
             ).unwrap();

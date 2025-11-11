@@ -14,6 +14,8 @@ pub const SELECTOR_NAME_COLUMN_COLOR: Color32 = Color32::BROWN;
 
 pub const SEARCH_MATCH_COLOR: Color32 = Color32::from_rgb(160, 220, 67); // yellow-green
 
+pub const SETTINGS_FRAME_COLOR: Color32 = Color32::from_rgb(40, 38, 38); // dark grey
+
 pub const ITEM_NAME_COLOR: Color32 = Color32::WHITE;
 
 pub const WARNING_COLOR: Color32 = Color32::ORANGE;

@@ -4779,8 +4779,10 @@ async fn main() {
                 app_config.sort_preferences.pvcs_sort_asc,
                 app_config.sort_preferences.namespace_sort_by,
                 app_config.sort_preferences.namespace_sort_asc,
-                app_config.ai_settings.api_url.clone(),
-                app_config.ai_settings.api_key.clone(),
+                app_config.ai_settings.selected_ai_provider.clone(),
+                app_config.ai_settings.gemini_api_url.clone(),
+                app_config.ai_settings.gemini_api_key.clone(),
+                app_config.ai_settings.gemini_mcp_path.clone(),
             );
             config_should_be_saved = false;
         }
