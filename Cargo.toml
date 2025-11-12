@@ -39,5 +39,4 @@ sha2 = "0.10"
 log = "0.4"
 flexi_logger = "0.31"
 aws-config = { version = "1", default-features = false, features = ["rt-tokio", "sso"] }
-aws-sdk-bedrockruntime = { version = "1", default-features = false, features = ["rustls", "rt-tokio"] }
-# aws-smithy-runtime = { version = "1", default-features = false, features = ["tls-rustls"] }
+aws-sdk-bedrockruntime = { version = "1.113", default-features = false, features = [ "rustls", "rt-tokio" ] }

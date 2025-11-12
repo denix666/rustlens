@@ -42,7 +42,7 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                 ui.set_min_width(ui.available_width());
 
                 ui.heading("Gemini:");
-                egui::Grid::new("ai_settings_grid")
+                egui::Grid::new("gemeni_settings_grid")
                     .num_columns(2)
                     .spacing([16.0, 8.0])
                     .striped(true)
@@ -86,6 +86,44 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                         ui.end_row();
                     });
             });
+
+        ui.add_space(20.0);
+
+        egui::Frame::group(ui.style())
+            .fill(crate::theme::SETTINGS_FRAME_COLOR)
+            .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(12, 10))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+
+                ui.heading("Amazon Bedrock:");
+                egui::Grid::new("amazon_bedrock_settings_grid")
+                    .num_columns(2)
+                    .spacing([16.0, 8.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.set_row_height(24.0);
+                        ui.label("Model ID (anthropic.claude-3-haiku-20240307-v1:0):");
+                        let amazon_bedrock_model_res = ui.add_sized([ui.available_width(), 24.0],
+                            egui::TextEdit::singleline(&mut app_config.ai_settings.amazon_bedrock_model_id)
+                        );
+                        if amazon_bedrock_model_res.changed() {
+                            config_should_be_saved = true;
+                        }
+                        ui.end_row();
+
+                        ui.set_row_height(24.0);
+                        ui.label("Claude region (us-west-2):");
+                        let amazon_bedrock_region_res = ui.add_sized([ui.available_width(), 24.0],
+                            egui::TextEdit::singleline(&mut app_config.ai_settings.amazon_bedrock_region)
+                        );
+                        if amazon_bedrock_region_res.changed() {
+                            config_should_be_saved = true;
+                        }
+                        ui.end_row();
+                    });
+            });
     });
 
     if config_should_be_saved {
@@ -108,6 +146,8 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
             app_config.ai_settings.gemini_api_url.clone(),
             app_config.ai_settings.gemini_api_key.clone(),
             app_config.ai_settings.gemini_mcp_path.clone(),
+            app_config.ai_settings.amazon_bedrock_model_id.clone(),
+            app_config.ai_settings.amazon_bedrock_region.clone(),
         );
     }
 }
