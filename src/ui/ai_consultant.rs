@@ -8,8 +8,8 @@ use aws_sdk_bedrockruntime::types::{
 use std::time::Duration;
 use std::io;
 use serde_json::Error as SerdeError;
-use aws_smithy_types::{Document, Number as AwsNumber}; // <-- Псевдоним
-use serde_json::{json, Value, Map, Number as SerdeNumber}; // <-- Псевдоним
+use aws_smithy_types::{Document, Number as AwsNumber};
+use serde_json::{json, Value, Map, Number as SerdeNumber};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug , Eq, Clone, Copy)]
 pub enum AiProvider {
@@ -87,7 +87,6 @@ fn convert_value_to_doc(value: &Value) -> Document {
         Value::String(s) => Document::String(s.clone()),
 
         Value::Number(serde_num) => {
-            // Конвертируем serde_json::Number в aws_smithy_types::Number
             if let Some(f) = serde_num.as_f64() {
                 Document::Number(AwsNumber::Float(f))
             } else if let Some(i) = serde_num.as_i64() {
@@ -95,7 +94,7 @@ fn convert_value_to_doc(value: &Value) -> Document {
             } else if let Some(u) = serde_num.as_u64() {
                 Document::Number(AwsNumber::PosInt(u))
             } else {
-                Document::Null // Не удалось конвертировать
+                Document::Null
             }
         },
         Value::Array(arr) => {
@@ -116,31 +115,21 @@ fn convert_doc_to_value(doc: &Document) -> Value {
         Document::Null => Value::Null,
         Document::Bool(b) => Value::Bool(*b),
         Document::String(s) => Value::String(s.clone()),
-
-        // --- ВОТ ИСПРАВЛЕННЫЙ БЛОК ---
         Document::Number(aws_num) => {
-            // 'aws_num' имеет тип &AwsNumber. Делаем match по его вариантам.
             match aws_num {
                 AwsNumber::PosInt(u) => {
-                    // u - это u64
                     Value::from(*u)
                 },
                 AwsNumber::NegInt(i) => {
-                    // i - это i64
                     Value::from(*i)
                 },
                 AwsNumber::Float(f) => {
-                    // f - это f64
-                    // Конвертируем f64 -> SerdeNumber -> Value
                     SerdeNumber::from_f64(*f)
                         .map(Value::Number)
-                        .unwrap_or(Value::Null) // Обработка NaN/Infinity
+                        .unwrap_or(Value::Null)
                 },
-                // _ => Value::Null, // Закомментировано, т.к. enum может быть non_exhaustive
             }
         },
-        // --- Конец исправленного блока ---
-
         Document::Array(arr) => {
             let vec: Vec<Value> = arr.iter().map(convert_doc_to_value).collect();
             Value::Array(vec)
@@ -156,8 +145,6 @@ fn convert_doc_to_value(doc: &Document) -> Value {
 }
 
 fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
-
-    // --- 1. Создаем Value как и раньше ---
     let kubectl_schema_value = serde_json::json!({
         "type": "object",
         "properties": {
@@ -169,11 +156,8 @@ fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
         },
         "required": ["args"]
     });
-    // --- 2. Конвертируем Value в Document::Object ИСПОЛЬЗУЯ НАШ КОНВЕРТЕР ---
     let kubectl_schema_doc: Document = convert_value_to_doc(&kubectl_schema_value);
 
-
-    // Повторяем для ping
     let ping_schema_value = serde_json::json!({
         "type": "object",
         "properties": {
@@ -184,7 +168,6 @@ fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
         },
         "required": ["host"]
     });
-    // --- 2. Конвертируем Value в Document::Object ---
     let ping_schema_doc: Document = convert_value_to_doc(&ping_schema_value);
 
 
@@ -193,7 +176,6 @@ fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
             ToolSpecification::builder()
                 .name("get_kubectl_info")
                 .description("Gets read-only information from Kubernetes using kubectl. Only safe commands.")
-                // --- 3. Передаем Document::Object ---
                 .input_schema(ToolInputSchema::Json(kubectl_schema_doc))
                 .build()
                 .map_err(|e| <SerdeError as serde::de::Error>::custom(e.to_string()))?
@@ -202,7 +184,6 @@ fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
             ToolSpecification::builder()
                 .name("ping_host")
                 .description("Pings a specified host to check network connectivity.")
-                 // --- 3. Передаем Document::Object ---
                 .input_schema(ToolInputSchema::Json(ping_schema_doc))
                 .build()
                 .map_err(|e| <SerdeError as serde::de::Error>::custom(e.to_string()))?
@@ -425,12 +406,10 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
         let client = aws_sdk_bedrockruntime::Client::new(&config);
         log::info!("Bedrock client created.");
 
-        // --- 1. Настраиваем инструменты ---
         let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
-            .set_tools(Some(get_bedrock_tools()?)) // Вызываем нашу новую функцию
+            .set_tools(Some(get_bedrock_tools()?))
             .build()?;
 
-        // --- 2. Настраиваем историю ---
         let mut messages: Vec<Message> = vec![
             Message::builder()
                 .role(ConversationRole::User)
@@ -439,51 +418,40 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                 .map_err(|e| e.to_string())?
         ];
 
-        // --- 3. Запускаем цикл Запрос-Инструмент-Ответ ---
         loop {
             let mut converse_builder = client.converse()
                 .model_id(model_id.clone())
-                .tool_config(tool_config.clone()); // <-- Передаем инструменты
+                .tool_config(tool_config.clone());
 
-            // Добавляем все сообщения из истории в запрос
             for msg in &messages {
                 converse_builder = converse_builder.messages(msg.clone());
             }
 
             log::info!("Sending request to model ({} messages)...", messages.len());
             let send_future = converse_builder.send();
-
-            // Оборачиваем вызов в `match`, чтобы поймать конкретную ошибку
             let send_result = tokio::time::timeout(Duration::from_secs(30), send_future).await;
-
             let res = match send_result {
                 Ok(Ok(output)) => {
-                    // Успех!
                     output
                 },
                 Ok(Err(sdk_error)) => {
-                    // Ошибка от AWS (НЕ таймаут)
-                    log::error!("🔥 AWS SDK Error: {:?}", sdk_error); // <--- ВАЖНОЕ ЛОГИРОВАНИЕ
-                    return Err(sdk_error.into()); // Пробрасываем ошибку
+                    log::error!("🔥 AWS SDK Error: {:?}", sdk_error);
+                    return Err(sdk_error.into());
                 },
                 Err(timeout_error) => {
-                    // Ошибка таймаута
                     log::error!("⏰ Bedrock .send() took > 30s: {:?}", timeout_error);
                     return Err("Timeout: Bedrock .send() took > 30s".into());
                 }
             };
 
-            // Получаем ответное сообщение от модели
             let output_message = res.output().ok_or("No output from model")?
                 .as_message().map_err(|_| "Output was not a message")?.clone();
 
-            // Сразу добавляем ответ ИИ в историю
             messages.push(output_message.clone());
 
             let mut tool_calls_to_make: Vec<ToolUseBlock> = Vec::new();
             let mut final_text_response = String::new();
 
-            // Проверяем, что нам прислал ИИ
             for content in output_message.content() {
                 match content {
                     ContentBlock::Text(text) => {
@@ -493,33 +461,27 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                         log::info!("Model requested tool: {}", tool_use_block.name());
                         tool_calls_to_make.push(tool_use_block.clone());
                     }
-                    _ => {} // Пропускаем ToolResult и т.д.
+                    _ => {}
                 }
             }
 
             if !tool_calls_to_make.is_empty() {
-                // --- 4. ИИ просит вызвать инструменты ---
                 let mut tool_results: Vec<ContentBlock> = Vec::new();
 
                 for tool_call in tool_calls_to_make {
                     let name = tool_call.name().to_string();
                     let tool_use_id = tool_call.tool_use_id().to_string();
-
                     let doc = tool_call.input();
-
                     let args_value: serde_json::Value = convert_doc_to_value(doc);
-
-                    // Bedrock присылает 'input' как serde_json::Value
                     let function_call = FunctionCall {
                         name: name,
-                        args: args_value, // <-- Теперь здесь правильный тип serde_json::Value
+                        args: args_value,
                     };
-                    // Вызываем наш общий "маршрутизатор"
+
                     log::info!("🤖 Calling tool with: {:?}", function_call);
                     let tool_result_value = match call_gemini_mcp_tool(&function_call) {
                         Ok(result) => {
                             log::info!("Tool {} success", function_call.name);
-                            // Claude ожидает JSON-объект в ответе
                             json!({ "output": result })
                         },
                         Err(e) => {
@@ -527,11 +489,9 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                             json!({ "error": e.to_string() })
                         },
                     };
-                    // --- END REUSE ---
 
                     log::info!("📦 Sending tool result back to model: {}", tool_result_value.to_string());
                     let tool_result_doc: Document = convert_value_to_doc(&tool_result_value);
-                    // --- 5. Адаптируем ответ обратно для Bedrock ---
                     tool_results.push(
                         ContentBlock::ToolResult(
                             ToolResultBlock::builder()
@@ -545,21 +505,18 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                     );
                 }
 
-                // Добавляем новое сообщение (от User) с результатами инструментов
                 messages.push(
                     Message::builder()
                         .role(ConversationRole::User)
-                        .set_content(Some(tool_results)) // <-- Помещаем сюда все ToolResultBlock
+                        .set_content(Some(tool_results))
                         .build()
                         .map_err(|e| e.to_string())?
                 );
 
-                // Продолжаем цикл, чтобы ИИ мог обработать результаты
                 log::info!("Tool results sent back to model. Continuing loop...");
                 continue;
 
             } else {
-                // --- 6. Инструменты не нужны, получен финальный текст ---
                 log::info!("No tool calls. Final response received.");
                 return Ok(final_text_response);
             }
@@ -653,7 +610,6 @@ fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str) -> Result<Str
 }
 
 fn call_gemini_mcp_tool(func_call: &FunctionCall) -> Result<Value, Box<dyn std::error::Error>> {
-
     if func_call.name == "get_tool_definitions" {
         let tools_json = get_gemini_tools_definitions_json();
         Ok(tools_json)
