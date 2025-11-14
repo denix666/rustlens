@@ -1,19 +1,15 @@
 use eframe::egui;
 use egui::{Key};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::process::{Command, Stdio};
-use std::io::{Write};
-use serde_json::json;
-use aws_sdk_bedrockruntime::{
-    types::{
-        ContentBlock,
-        ConversationRole,
-        ConverseStreamOutput as ConverseStreamOutputType,
-        Message,
-    },
-};
+use aws_sdk_bedrockruntime::types::{
+        ContentBlock, ConversationRole, Message, Tool, ToolInputSchema, ToolResultBlock, ToolResultContentBlock, ToolSpecification, ToolUseBlock
+    };
 use std::time::Duration;
+use std::io;
+use serde_json::Error as SerdeError;
+use aws_smithy_types::{Document, Number as AwsNumber}; // <-- Псевдоним
+use serde_json::{json, Value, Map, Number as SerdeNumber}; // <-- Псевдоним
 
 #[derive(Deserialize, Serialize, PartialEq, Debug , Eq, Clone, Copy)]
 pub enum AiProvider {
@@ -84,47 +80,212 @@ struct FunctionCall {
     args: Value,
 }
 
+fn convert_value_to_doc(value: &Value) -> Document {
+    match value {
+        Value::Null => Document::Null,
+        Value::Bool(b) => Document::Bool(*b),
+        Value::String(s) => Document::String(s.clone()),
 
-fn load_tools_blocking(mcp_path: &str) -> Result<Value, Box<dyn std::error::Error>> {
-    let mcp_request = json!({
-        "jsonrpc": "2.0",
-        "method": "get_tool_definitions",
-        "params": {},
-        "id": "init"
-    });
-
-    let mut child = Command::new(mcp_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(mcp_request.to_string().as_bytes())?;
-        drop(stdin);
-    } else {
-        return Err("Error getting stdin".into());
-    }
-
-    let output = child.wait_with_output()?;
-
-    if output.status.success() {
-        let response_str = String::from_utf8(output.stdout)?;
-        let mcp_response: Value = serde_json::from_str(&response_str)?;
-
-        if let Some(result) = mcp_response.get("result") {
-            Ok(result.clone())
-        } else if let Some(error) = mcp_response.get("error") {
-            Err(format!("MCP error while loading: {}", error).into())
-        } else {
-            Err("Wrong JSON-RPC answer from MCP".into())
-        }
-    } else {
-        let error_msg = String::from_utf8(output.stderr)?;
-        Err(format!("Error running MCP: {}", error_msg).into())
+        Value::Number(serde_num) => {
+            // Конвертируем serde_json::Number в aws_smithy_types::Number
+            if let Some(f) = serde_num.as_f64() {
+                Document::Number(AwsNumber::Float(f))
+            } else if let Some(i) = serde_num.as_i64() {
+                Document::Number(AwsNumber::NegInt(i))
+            } else if let Some(u) = serde_num.as_u64() {
+                Document::Number(AwsNumber::PosInt(u))
+            } else {
+                Document::Null // Не удалось конвертировать
+            }
+        },
+        Value::Array(arr) => {
+            let vec: Vec<Document> = arr.iter().map(convert_value_to_doc).collect();
+            Document::Array(vec)
+        },
+        Value::Object(obj) => {
+            let map: std::collections::HashMap<String, Document> = obj.iter()
+                .map(|(k, v)| (k.clone(), convert_value_to_doc(v)))
+                .collect();
+            Document::Object(map)
+        },
     }
 }
 
+fn convert_doc_to_value(doc: &Document) -> Value {
+    match doc {
+        Document::Null => Value::Null,
+        Document::Bool(b) => Value::Bool(*b),
+        Document::String(s) => Value::String(s.clone()),
+
+        // --- ВОТ ИСПРАВЛЕННЫЙ БЛОК ---
+        Document::Number(aws_num) => {
+            // 'aws_num' имеет тип &AwsNumber. Делаем match по его вариантам.
+            match aws_num {
+                AwsNumber::PosInt(u) => {
+                    // u - это u64
+                    Value::from(*u)
+                },
+                AwsNumber::NegInt(i) => {
+                    // i - это i64
+                    Value::from(*i)
+                },
+                AwsNumber::Float(f) => {
+                    // f - это f64
+                    // Конвертируем f64 -> SerdeNumber -> Value
+                    SerdeNumber::from_f64(*f)
+                        .map(Value::Number)
+                        .unwrap_or(Value::Null) // Обработка NaN/Infinity
+                },
+                // _ => Value::Null, // Закомментировано, т.к. enum может быть non_exhaustive
+            }
+        },
+        // --- Конец исправленного блока ---
+
+        Document::Array(arr) => {
+            let vec: Vec<Value> = arr.iter().map(convert_doc_to_value).collect();
+            Value::Array(vec)
+        },
+        Document::Object(obj) => {
+            let mut map = Map::new();
+            for (k, v) in obj {
+                map.insert(k.clone(), convert_doc_to_value(v));
+            }
+            Value::Object(map)
+        },
+    }
+}
+
+fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
+
+    // --- 1. Создаем Value как и раньше ---
+    let kubectl_schema_value = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "args": {
+                "type": "array",
+                "description": "A list of arguments for kubectl (e.g., ['get', 'pods', '-n', 'default']).",
+                "items": { "type": "string" }
+            }
+        },
+        "required": ["args"]
+    });
+    // --- 2. Конвертируем Value в Document::Object ИСПОЛЬЗУЯ НАШ КОНВЕРТЕР ---
+    let kubectl_schema_doc: Document = convert_value_to_doc(&kubectl_schema_value);
+
+
+    // Повторяем для ping
+    let ping_schema_value = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "host": {
+                "type": "string",
+                "description": "The hostname or IP address to ping"
+            }
+        },
+        "required": ["host"]
+    });
+    // --- 2. Конвертируем Value в Document::Object ---
+    let ping_schema_doc: Document = convert_value_to_doc(&ping_schema_value);
+
+
+    Ok(vec![
+        Tool::ToolSpec(
+            ToolSpecification::builder()
+                .name("get_kubectl_info")
+                .description("Gets read-only information from Kubernetes using kubectl. Only safe commands.")
+                // --- 3. Передаем Document::Object ---
+                .input_schema(ToolInputSchema::Json(kubectl_schema_doc))
+                .build()
+                .map_err(|e| <SerdeError as serde::de::Error>::custom(e.to_string()))?
+        ),
+        Tool::ToolSpec(
+            ToolSpecification::builder()
+                .name("ping_host")
+                .description("Pings a specified host to check network connectivity.")
+                 // --- 3. Передаем Document::Object ---
+                .input_schema(ToolInputSchema::Json(ping_schema_doc))
+                .build()
+                .map_err(|e| <SerdeError as serde::de::Error>::custom(e.to_string()))?
+        ),
+    ])
+}
+
+fn get_gemini_tools_definitions_json() -> Value {
+    json!([
+        {
+            "functionDeclarations": [
+                {
+                    "name": "get_kubectl_info",
+                    "description": "Gets read-only information from Kubernetes using kubectl. Only safe, read-only commands (like 'get', 'describe', 'logs') are allowed.",
+                    "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "args": {
+                                "type": "ARRAY",
+                                "description": "A list of arguments for kubectl (e.g., ['get', 'pods', '-n', 'default']).",
+                                "items": {
+                                    "type": "STRING"
+                                }
+                            }
+                        },
+                        "required": ["args"]
+                    }
+                },
+                {
+                    "name": "ping_host",
+                    "description": "Pings a specified host to check network connectivity. Uses 4 packets.",
+                    "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "host": {
+                                "type": "STRING",
+                                "description": "The hostname or IP address to ping (e.g., 'google.com' or '8.8.8.8')"
+                            }
+                        },
+                        "required": ["host"]
+                    }
+                }
+                // --- new tools here ---
+            ]
+        }
+    ])
+}
+
+fn execute_kubectl(args: &[String]) -> Result<String, io::Error> {
+    let output = Command::new("kubectl")
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()?;
+
+    if output.status.success() {
+        let result = String::from_utf8_lossy(&output.stdout).into_owned();
+        Ok(result)
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr).into_owned();
+        let stdout_msg = String::from_utf8_lossy(&output.stdout).into_owned();
+        let full_error = format!("Stderr:\n{}\n\nStdout:\n{}", error_msg, stdout_msg);
+        Err(io::Error::new(io::ErrorKind::Other, full_error))
+    }
+}
+
+fn ping_host(host: &str) -> Result<String, io::Error> {
+    let output = Command::new("ping")
+        .arg("-c")
+        .arg("4")
+        .arg(host)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()?;
+
+    if output.status.success() {
+        let result = String::from_utf8_lossy(&output.stdout).into_owned();
+        Ok(result)
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr).into_owned();
+        Err(io::Error::new(io::ErrorKind::Other, error_msg))
+    }
+}
 
 pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate::config::AppConfig) {
     let response = egui::Window::new("💬 AI Consultant").open(&mut ai.show).collapsible(false).resizable(true).show(ctx, |ui| {
@@ -148,12 +309,6 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
                         ui.add_space(5.0);
                         ui.horizontal(|ui| {
                             if ui.add_enabled(!ai.loading, egui::Button::new("Send")).clicked() {
-                                let mcp_path = app_config.ai_settings.gemini_mcp_path.clone();
-                                let tools_json = load_tools_blocking(&mcp_path).unwrap_or_else(|e| {
-                                    log::error!("Failed to load MCP tools: {}", e);
-                                    log::warn!("AI will not use the tools.");
-                                    json!([]) // Return empty list (and do not crash the app)
-                                });
                                 let prompt = ai.input.clone();
                                 let api_key = app_config.ai_settings.gemini_api_key.clone();
                                 let sender = ai.tx.clone();
@@ -162,7 +317,7 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
                                 let api_url = app_config.ai_settings.gemini_api_url.clone();
 
                                 std::thread::spawn(move || {
-                                    let result = ask_gemeni_blocking(&api_key, &mcp_path, &prompt, &tools_json, &api_url)
+                                    let result = ask_gemeni_blocking(&api_key, &prompt, &api_url)
                                         .unwrap_or_else(|e| format!("Error: {}", e));
                                     let _ = sender.send(result);
                                 });
@@ -240,7 +395,7 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
                                 .desired_width(850.0)
                                 .desired_rows(11)
                                 .code_editor()
-                                .interactive(false));
+                                .interactive(true));
                         });
                     });
                 });
@@ -270,49 +425,153 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
         let client = aws_sdk_bedrockruntime::Client::new(&config);
         log::info!("Bedrock client created.");
 
-        log::info!("Request to model created.");
-        let msg = Message::builder()
-            .role(ConversationRole::User)
-            .content(ContentBlock::Text(prompt.to_string()))
-            .build()
-            .map_err(|e| e.to_string())?;
+        // --- 1. Настраиваем инструменты ---
+        let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
+            .set_tools(Some(get_bedrock_tools()?)) // Вызываем нашу новую функцию
+            .build()?;
 
-        log::info!("Sending request to model: {} (30s timeout)", model_id);
-        let send_future = client.converse_stream().model_id(model_id).messages(msg).send();
-        let res = tokio::time::timeout(Duration::from_secs(30), send_future).await.map_err(|_| "Timeout: Bedrock .send() took > 30s")??;
-        log::info!("Request sent, response stream received.");
+        // --- 2. Настраиваем историю ---
+        let mut messages: Vec<Message> = vec![
+            Message::builder()
+                .role(ConversationRole::User)
+                .content(ContentBlock::Text(prompt.to_string()))
+                .build()
+                .map_err(|e| e.to_string())?
+        ];
 
-        let mut stream = res.stream;
-        let mut full_response = String::new();
+        // --- 3. Запускаем цикл Запрос-Инструмент-Ответ ---
+        loop {
+            let mut converse_builder = client.converse()
+                .model_id(model_id.clone())
+                .tool_config(tool_config.clone()); // <-- Передаем инструменты
 
-        log::info!("Waiting for first stream event...");
-        while let Some(event) = stream.recv().await? {
-            match event {
-                ConverseStreamOutputType::ContentBlockDelta(event) => {
-                        let text_chunk = match event.delta() {
-                            Some(delta) => delta.as_text().cloned().unwrap_or_else(|_| "".into()),
-                            None => "".into(),
-                        };
-                        full_response.push_str(&text_chunk);
-                    }
-                ConverseStreamOutputType::MessageStop(_) => {
-                    break;
-                }
-                _ => {}
+            // Добавляем все сообщения из истории в запрос
+            for msg in &messages {
+                converse_builder = converse_builder.messages(msg.clone());
             }
-        }
-        log::info!("Stream finished.");
 
-        if full_response.is_empty() {
-            Err("No text answer or invalid response".into())
-        } else {
-            Ok(full_response)
+            log::info!("Sending request to model ({} messages)...", messages.len());
+            let send_future = converse_builder.send();
+
+            // Оборачиваем вызов в `match`, чтобы поймать конкретную ошибку
+            let send_result = tokio::time::timeout(Duration::from_secs(30), send_future).await;
+
+            let res = match send_result {
+                Ok(Ok(output)) => {
+                    // Успех!
+                    output
+                },
+                Ok(Err(sdk_error)) => {
+                    // Ошибка от AWS (НЕ таймаут)
+                    log::error!("🔥 AWS SDK Error: {:?}", sdk_error); // <--- ВАЖНОЕ ЛОГИРОВАНИЕ
+                    return Err(sdk_error.into()); // Пробрасываем ошибку
+                },
+                Err(timeout_error) => {
+                    // Ошибка таймаута
+                    log::error!("⏰ Bedrock .send() took > 30s: {:?}", timeout_error);
+                    return Err("Timeout: Bedrock .send() took > 30s".into());
+                }
+            };
+
+            // Получаем ответное сообщение от модели
+            let output_message = res.output().ok_or("No output from model")?
+                .as_message().map_err(|_| "Output was not a message")?.clone();
+
+            // Сразу добавляем ответ ИИ в историю
+            messages.push(output_message.clone());
+
+            let mut tool_calls_to_make: Vec<ToolUseBlock> = Vec::new();
+            let mut final_text_response = String::new();
+
+            // Проверяем, что нам прислал ИИ
+            for content in output_message.content() {
+                match content {
+                    ContentBlock::Text(text) => {
+                        final_text_response.push_str(text);
+                    }
+                    ContentBlock::ToolUse(tool_use_block) => {
+                        log::info!("Model requested tool: {}", tool_use_block.name());
+                        tool_calls_to_make.push(tool_use_block.clone());
+                    }
+                    _ => {} // Пропускаем ToolResult и т.д.
+                }
+            }
+
+            if !tool_calls_to_make.is_empty() {
+                // --- 4. ИИ просит вызвать инструменты ---
+                let mut tool_results: Vec<ContentBlock> = Vec::new();
+
+                for tool_call in tool_calls_to_make {
+                    let name = tool_call.name().to_string();
+                    let tool_use_id = tool_call.tool_use_id().to_string();
+
+                    let doc = tool_call.input();
+
+                    let args_value: serde_json::Value = convert_doc_to_value(doc);
+
+                    // Bedrock присылает 'input' как serde_json::Value
+                    let function_call = FunctionCall {
+                        name: name,
+                        args: args_value, // <-- Теперь здесь правильный тип serde_json::Value
+                    };
+                    // Вызываем наш общий "маршрутизатор"
+                    log::info!("🤖 Calling tool with: {:?}", function_call);
+                    let tool_result_value = match call_gemini_mcp_tool(&function_call) {
+                        Ok(result) => {
+                            log::info!("Tool {} success", function_call.name);
+                            // Claude ожидает JSON-объект в ответе
+                            json!({ "output": result })
+                        },
+                        Err(e) => {
+                            log::error!("Tool {} error: {}", function_call.name, e);
+                            json!({ "error": e.to_string() })
+                        },
+                    };
+                    // --- END REUSE ---
+
+                    log::info!("📦 Sending tool result back to model: {}", tool_result_value.to_string());
+                    let tool_result_doc: Document = convert_value_to_doc(&tool_result_value);
+                    // --- 5. Адаптируем ответ обратно для Bedrock ---
+                    tool_results.push(
+                        ContentBlock::ToolResult(
+                            ToolResultBlock::builder()
+                                .tool_use_id(tool_use_id)
+                                .content(ToolResultContentBlock::Json(
+                                    tool_result_doc
+                                ))
+                                .build()
+                                .map_err(|e| e.to_string())?
+                        )
+                    );
+                }
+
+                // Добавляем новое сообщение (от User) с результатами инструментов
+                messages.push(
+                    Message::builder()
+                        .role(ConversationRole::User)
+                        .set_content(Some(tool_results)) // <-- Помещаем сюда все ToolResultBlock
+                        .build()
+                        .map_err(|e| e.to_string())?
+                );
+
+                // Продолжаем цикл, чтобы ИИ мог обработать результаты
+                log::info!("Tool results sent back to model. Continuing loop...");
+                continue;
+
+            } else {
+                // --- 6. Инструменты не нужны, получен финальный текст ---
+                log::info!("No tool calls. Final response received.");
+                return Ok(final_text_response);
+            }
         }
     })
 }
 
-fn ask_gemeni_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: &Value, api_url: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::blocking::Client::new();
+    log::info!("Gemini client created.");
+
+    let tools_json = get_gemini_tools_definitions_json();
 
     // contents history
     let mut contents: Vec<Value> = vec![json!({
@@ -362,7 +621,7 @@ fn ask_gemeni_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: 
                 }));
 
                 // Call mcp binary
-                let tool_result = match call_gemini_mcp_tool(mcp_path, &func_call) {
+                let tool_result = match call_gemini_mcp_tool(&func_call) {
                     Ok(result) => result,
                     Err(e) => {
                         log::error!("Error calling tool: {:?}", &e);
@@ -393,47 +652,78 @@ fn ask_gemeni_blocking(api_key: &str, mcp_path: &str, prompt: &str, tools_json: 
     }
 }
 
-fn call_gemini_mcp_tool(mcp_path: &str, func_call: &FunctionCall) -> Result<Value, Box<dyn std::error::Error>> {
+fn call_gemini_mcp_tool(func_call: &FunctionCall) -> Result<Value, Box<dyn std::error::Error>> {
 
-    let mcp_request = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": func_call.name,
-        "params": func_call.args,
-        "id": 1
-    });
+    if func_call.name == "get_tool_definitions" {
+        let tools_json = get_gemini_tools_definitions_json();
+        Ok(tools_json)
+    } else if func_call.name == "get_kubectl_info" {
+        let args_vec: Vec<String> = match func_call.args.get("args").and_then(|v| v.as_array()) {
+            Some(args_array) => {
+                args_array.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            }
+            None => {
+                return Err("No args or it not an array".into());
+            }
+        };
 
-    // Start mcp process
-    let mut child = Command::new(mcp_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+        if let Some(command) = args_vec.get(0) {
+            let allowed_commands = [
+                "get",
+                "describe",
+                "logs",
+                "top",
+                "version",
+                "api-resources",
+                "cluster-info"
+            ];
 
-    // Send JSON-RPC request to stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(mcp_request.to_string().as_bytes())?;
-        stdin.write_all(b"\n")?; // Important for line-delimited JSON
-        drop(stdin);
-    } else {
-        return Err("Error getting stdin".into());
-    }
+            if !allowed_commands.contains(&command.as_str()) {
+                return Err(
+                    format!(
+                        "Command 'kubectl {}...' not allowed. Only read-only commands allowed: {:?}",
+                        command, allowed_commands
+                    ).into()
+                );
+            }
 
-    // Wait and get answer
-    let output = child.wait_with_output()?;
+            // Additional paranoic check
+            if args_vec.iter().any(|arg| arg == "-f" || arg == "--filename") {
+                return Err("Flags '-f' or '--filename' not allowed.".into());
+            }
 
-    if output.status.success() {
-        let response_str = String::from_utf8(output.stdout)?;
-        let mcp_response: Value = serde_json::from_str(&response_str)?;
-
-        if let Some(result) = mcp_response.get("result") {
-            Ok(result.clone())
-        } else if let Some(error) = mcp_response.get("error") {
-             Err(format!("MCP error: {}", error).into())
         } else {
-            Err("Wrong JSON-RPC answer from MCP".into())
+            return Err("'args' can't be empty.".into());
         }
+
+        match execute_kubectl(&args_vec) {
+            Ok(result_str) => {
+                Ok(serde_json::to_value(result_str)?)
+            }
+            Err(e) => {
+                Err(e.into())
+            }
+        }
+    } else if func_call.name == "ping_host" {
+        match func_call.args.get("host").and_then(|v| v.as_str()) {
+            Some(host_str) => {
+                match ping_host(host_str) {
+                    Ok(ping_result) => {
+                        Ok(serde_json::to_value(ping_result)?)
+                    }
+                    Err(e) => {
+                        Err(e.into())
+                    }
+                }
+            }
+            None => {
+                Err("Required parameter 'host' not found or it is not string".into())
+            }
+        }
+
     } else {
-        let error_msg = String::from_utf8(output.stderr)?;
-        Err(format!("Error executing MCP: {}", error_msg).into())
+        Err(format!("Unknown method: {}", func_call.name).into())
     }
 }

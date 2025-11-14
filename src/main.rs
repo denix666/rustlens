@@ -4782,7 +4782,6 @@ async fn main() {
                 app_config.ai_settings.selected_ai_provider.clone(),
                 app_config.ai_settings.gemini_api_url.clone(),
                 app_config.ai_settings.gemini_api_key.clone(),
-                app_config.ai_settings.gemini_mcp_path.clone(),
                 app_config.ai_settings.amazon_bedrock_model_id.clone(),
                 app_config.ai_settings.amazon_bedrock_region.clone(),
             );

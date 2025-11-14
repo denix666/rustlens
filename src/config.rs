@@ -32,7 +32,6 @@ pub struct AiSettings {
     pub selected_ai_provider: AiProvider,
     pub gemini_api_url: String,
     pub gemini_api_key: String,
-    pub gemini_mcp_path: String,
     pub amazon_bedrock_model_id: String,
     pub amazon_bedrock_region: String,
 }
@@ -71,7 +70,6 @@ pub fn write_config_to_file(
     selected_ai_provider: AiProvider,
     gemini_api_url: String,
     gemini_api_key: String,
-    gemini_mcp_path: String,
     amazon_bedrock_model_id: String,
     amazon_bedrock_region: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -105,7 +103,6 @@ pub fn write_config_to_file(
             selected_ai_provider,
             gemini_api_url,
             gemini_api_key,
-            gemini_mcp_path,
             amazon_bedrock_model_id,
             amazon_bedrock_region,
         }
@@ -153,7 +150,6 @@ pub fn read_app_config_from_file() -> AppConfig {
             selected_ai_provider: AiProvider::Gemini,
             gemini_api_url: "".to_string(),
             gemini_api_key: "".to_string(),
-            gemini_mcp_path: "".to_string(),
             amazon_bedrock_model_id: "".to_string(),
             amazon_bedrock_region: "".to_string(),
         },
@@ -179,7 +175,6 @@ pub fn read_app_config_from_file() -> AppConfig {
                 true,
                 AiProvider::Gemini,
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent".to_string(),
-                "".to_string(),
                 "".to_string(),
                 "".to_string(),
                 "".to_string(),
@@ -209,7 +204,6 @@ pub fn read_app_config_from_file() -> AppConfig {
                 true,
                 AiProvider::Gemini,
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent".to_string(),
-                "".to_string(),
                 "".to_string(),
                 "".to_string(),
                 "".to_string(),

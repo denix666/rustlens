@@ -48,7 +48,7 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                     .striped(true)
                     .show(ui, |ui| {
                         ui.set_row_height(24.0);
-                        ui.label("Gemini API URL (model must support tools):");
+                        ui.label("Gemini API URL (model must support tools):").on_hover_text("Make sure that model supports tools!");
                         let gemini_url_res = ui.add_sized([ui.available_width(), 24.0],
                             egui::TextEdit::singleline(&mut app_config.ai_settings.gemini_api_url)
                         );
@@ -64,24 +64,6 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                         );
                         if gemini_key_res.changed() {
                             config_should_be_saved = true;
-                        }
-                        ui.end_row();
-
-                        ui.set_row_height(24.0);
-                        ui.label("Gemini mcp server binary path:");
-                        ui.add_sized([ui.available_width(), 24.0],
-                            egui::TextEdit::singleline(&mut app_config.ai_settings.gemini_mcp_path).interactive(false)
-                        );
-                        ui.end_row();
-
-                        let gemini_mcp_path_res = ui.add_sized([80.0, 24.0],
-                            egui::Button::new("Search")
-                        );
-                        if gemini_mcp_path_res.clicked() {
-                            if let Some(path) = rfd::FileDialog::new().set_directory("~/").pick_file() {
-                                app_config.ai_settings.gemini_mcp_path = path.to_string_lossy().to_string();
-                                config_should_be_saved = true;
-                            }
                         }
                         ui.end_row();
                     });
@@ -104,7 +86,7 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                     .striped(true)
                     .show(ui, |ui| {
                         ui.set_row_height(24.0);
-                        ui.label("Model ID (anthropic.claude-3-haiku-20240307-v1:0):");
+                        ui.label("Model ID (anthropic.claude-3-sonnet-20240229-v1:0):").on_hover_text("Make sure that model supports tools!");
                         let amazon_bedrock_model_res = ui.add_sized([ui.available_width(), 24.0],
                             egui::TextEdit::singleline(&mut app_config.ai_settings.amazon_bedrock_model_id)
                         );
@@ -145,7 +127,6 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
             app_config.ai_settings.selected_ai_provider.clone(),
             app_config.ai_settings.gemini_api_url.clone(),
             app_config.ai_settings.gemini_api_key.clone(),
-            app_config.ai_settings.gemini_mcp_path.clone(),
             app_config.ai_settings.amazon_bedrock_model_id.clone(),
             app_config.ai_settings.amazon_bedrock_region.clone(),
         );
