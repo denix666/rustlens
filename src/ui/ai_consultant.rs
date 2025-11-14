@@ -3,7 +3,8 @@ use egui::{Key};
 use serde::{Deserialize, Serialize};
 use std::process::{Command, Stdio};
 use aws_sdk_bedrockruntime::types::{
-        ContentBlock, ConversationRole, Message, Tool, ToolInputSchema, ToolResultBlock, ToolResultContentBlock, ToolSpecification, ToolUseBlock
+        ContentBlock, ConversationRole, Message, Tool, ToolInputSchema,
+        ToolResultBlock, ToolResultContentBlock, ToolSpecification, ToolUseBlock
     };
 use std::time::Duration;
 use std::io;
