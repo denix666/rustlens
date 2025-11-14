@@ -5,7 +5,7 @@ Project in a progress!
 [![Latest Release](https://img.shields.io/github/v/release/denix666/rustlens?style=plastic)](https://github.com/denix666/rustlens/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=plastic)](https://opensource.org/licenses/MIT)
 
-A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster. This program allows you to seamlessly interact with your cluster resources, streamlining your development and deployment workflows.
+A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster. This program allows you to seamlessly interact with your cluster resources, streamlining your development and deployment workflows. It have buildin AI agent supporting Gemini and Amazon Bedrock, connected with buildin MCP tools that can execute almost all kubectl commands.
 
 ---
 
