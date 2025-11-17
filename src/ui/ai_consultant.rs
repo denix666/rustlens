@@ -3,14 +3,15 @@ use egui::{Key};
 use serde::{Deserialize, Serialize};
 use std::process::{Command, Stdio};
 use aws_sdk_bedrockruntime::types::{
-        ContentBlock, ConversationRole, Message, Tool, ToolInputSchema,
-        ToolResultBlock, ToolResultContentBlock, ToolSpecification, ToolUseBlock
-    };
+    ContentBlock, ConversationRole, Message, Tool, ToolInputSchema,
+    ToolResultBlock, ToolResultContentBlock, ToolSpecification, ToolUseBlock
+};
 use std::time::Duration;
 use std::io;
 use serde_json::Error as SerdeError;
 use aws_smithy_types::{Document, Number as AwsNumber};
 use serde_json::{json, Value, Map, Number as SerdeNumber};
+use anyhow::Result;
 
 #[derive(Deserialize, Serialize, PartialEq, Debug , Eq, Clone, Copy)]
 pub enum AiProvider {
@@ -145,7 +146,7 @@ fn convert_doc_to_value(doc: &Document) -> Value {
     }
 }
 
-fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
+fn get_bedrock_tools(mcp_server_url: &String) -> Result<Vec<Tool>, SerdeError> {
     let kubectl_schema_value = serde_json::json!({
         "type": "object",
         "properties": {
@@ -171,8 +172,7 @@ fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
     });
     let ping_schema_doc: Document = convert_value_to_doc(&ping_schema_value);
 
-
-    Ok(vec![
+    let mut tools = vec![
         Tool::ToolSpec(
             ToolSpecification::builder()
                 .name("get_kubectl_info")
@@ -189,48 +189,117 @@ fn get_bedrock_tools() -> Result<Vec<Tool>, SerdeError> {
                 .build()
                 .map_err(|e| <SerdeError as serde::de::Error>::custom(e.to_string()))?
         ),
-    ])
-}
+    ];
 
-fn get_gemini_tools_definitions_json() -> Value {
-    json!([
-        {
-            "functionDeclarations": [
-                {
-                    "name": "get_kubectl_info",
-                    "description": "Gets read-only information from Kubernetes using kubectl. Only safe, read-only commands (like 'get', 'describe', 'logs') are allowed.",
-                    "parameters": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "args": {
-                                "type": "ARRAY",
-                                "description": "A list of arguments for kubectl (e.g., ['get', 'pods', '-n', 'default']).",
-                                "items": {
-                                    "type": "STRING"
-                                }
-                            }
-                        },
-                        "required": ["args"]
-                    }
-                },
-                {
-                    "name": "ping_host",
-                    "description": "Pings a specified host to check network connectivity. Uses 4 packets.",
-                    "parameters": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "host": {
-                                "type": "STRING",
-                                "description": "The hostname or IP address to ping (e.g., 'google.com' or '8.8.8.8')"
-                            }
-                        },
-                        "required": ["host"]
+    // --- 2. Добавляем внешние инструменты ---
+    match fetch_external_tools_sync(&mcp_server_url) {
+        Ok(ext_tools) => {
+            log::info!("Fetched {} external tools for Bedrock", ext_tools.len());
+            for t in ext_tools {
+                match convert_external_tool_to_bedrock_spec(&t) {
+                    Ok(bedrock_tool) => tools.push(bedrock_tool),
+                    Err(e) => {
+                        log::warn!("Failed to convert external tool '{}' for Bedrock: {}", t.name, e);
                     }
                 }
-                // --- new tools here ---
-            ]
+            }
         }
-    ])
+        Err(e) => {
+            log::warn!("Failed to fetch external tools for Bedrock (using local only): {}", e);
+            // Продолжаем только с локальными
+        }
+    }
+
+    Ok(tools)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalTool {
+    name: String,
+    description: String,
+    input_schema: Option<serde_json::Value>,
+}
+
+fn convert_json_schema_to_gemini(schema: &Value) -> Value {
+    schema.clone()
+}
+
+fn convert_to_gemini_tool(t: &ExternalTool) -> Value {
+    let parameters = t.input_schema.as_ref()
+        .map(|schema| convert_json_schema_to_gemini(schema))
+        .unwrap_or_else(|| json!({ "type": "OBJECT", "properties": {} }));
+
+    json!({
+        "name": t.name,
+        "description": t.description,
+        "parameters": parameters
+    })
+}
+
+fn fetch_external_tools_sync(mcp_server_url: &String) -> anyhow::Result<Vec<ExternalTool>> {
+    let client = reqwest::blocking::Client::new();
+    let url = format!("{}/api/v1/tools", mcp_server_url.trim_end_matches('/'));
+    let resp = client.get(&url).send()?;
+    if !resp.status().is_success() {
+        return Err(anyhow::anyhow!("Failed to fetch external tools: {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp.json()?;
+    if let Some(tools_v) = body.get("data").and_then(|d| d.get("tools")) {
+        let tools: Vec<ExternalTool> = serde_json::from_value(tools_v.clone())?;
+        return Ok(tools);
+    }
+
+    if body.is_array() {
+        let tools: Vec<ExternalTool> = serde_json::from_value(body)?;
+        return Ok(tools);
+    }
+
+    Ok(Vec::new())
+}
+
+fn get_gemini_tools_definitions_json_sync(mcp_server_url: &String) -> Value {
+    let mut tools = vec![
+        json!({
+            "name": "get_kubectl_info",
+            "description": "Gets read-only information from Kubernetes using kubectl.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "args": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"}
+                    }
+                },
+                "required": ["args"]
+            }
+        }),
+        json!({
+            "name": "ping_host",
+            "description": "Pings a specified host.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "host": {"type": "STRING"}
+                },
+                "required": ["host"]
+            }
+        }),
+    ];
+
+    match fetch_external_tools_sync(mcp_server_url) {
+        Ok(ext_tools) => {
+            for t in ext_tools {
+                tools.push(convert_to_gemini_tool(&t));
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to fetch external tools synchronously: {}", e);
+        }
+    }
+
+    json!([ { "functionDeclarations": tools } ])
 }
 
 fn execute_kubectl(args: &[String]) -> Result<String, io::Error> {
@@ -293,13 +362,14 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
                             if ui.add_enabled(!ai.loading, egui::Button::new("Send")).clicked() {
                                 let prompt = ai.input.clone();
                                 let api_key = app_config.ai_settings.gemini_api_key.clone();
+                                let mcp_server_url = app_config.ai_settings.mcp_server_url.clone();
                                 let sender = ai.tx.clone();
                                 ai.loading = true;
                                 ai.response.clear();
                                 let api_url = app_config.ai_settings.gemini_api_url.clone();
 
                                 std::thread::spawn(move || {
-                                    let result = ask_gemeni_blocking(&api_key, &prompt, &api_url)
+                                    let result = ask_gemeni_blocking(&api_key, &prompt, &api_url, mcp_server_url)
                                         .unwrap_or_else(|e| format!("Error: {}", e));
                                     let _ = sender.send(result);
                                 });
@@ -348,13 +418,14 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
                             if ui.add_enabled(!ai.loading, egui::Button::new("Send")).clicked() {
                                 let prompt = ai.input.clone();
                                 let model_id = app_config.ai_settings.amazon_bedrock_model_id.clone();
+                                let mcp_server_url = app_config.ai_settings.mcp_server_url.clone();
                                 let region = app_config.ai_settings.amazon_bedrock_region.clone();
                                 let sender = ai.tx.clone();
                                 ai.loading = true;
                                 ai.response.clear();
 
                                 std::thread::spawn(move || {
-                                    let result = ask_amazon_bedrock_blocking(&prompt, model_id, region)
+                                    let result = ask_amazon_bedrock_blocking(&prompt, model_id, region, mcp_server_url)
                                         .unwrap_or_else(|e| format!("Error: {}", e));
                                     let _ = sender.send(result);
                                 });
@@ -392,7 +463,11 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
     }
 }
 
-fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -> Result<String, Box<dyn std::error::Error>> {
+fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String, mcp_server_url: String) -> anyhow::Result<String> {
+    log::info!("Fetching Bedrock tools synchronously...");
+    let bedrock_tools = get_bedrock_tools(&mcp_server_url)?;
+    log::info!("Successfully fetched {} tools for Bedrock.", bedrock_tools.len());
+
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
     log::info!("Runtime created. Entering block_on...");
 
@@ -401,22 +476,23 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
         let config_future = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region))
             .load();
-        let config = tokio::time::timeout(Duration::from_secs(10), config_future).await.map_err(|_| "Timeout: AWS config load took > 10s")?;
+        let config = tokio::time::timeout(Duration::from_secs(10), config_future)
+            .await
+            .map_err(|_| anyhow::anyhow!("Timeout: AWS config load took > 10s"))?;
         log::info!("AWS config loaded.");
 
         let client = aws_sdk_bedrockruntime::Client::new(&config);
         log::info!("Bedrock client created.");
 
         let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
-            .set_tools(Some(get_bedrock_tools()?))
+            .set_tools(Some(bedrock_tools))
             .build()?;
 
         let mut messages: Vec<Message> = vec![
             Message::builder()
                 .role(ConversationRole::User)
                 .content(ContentBlock::Text(prompt.to_string()))
-                .build()
-                .map_err(|e| e.to_string())?
+                .build()?
         ];
 
         loop {
@@ -441,12 +517,15 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                 },
                 Err(timeout_error) => {
                     log::error!("⏰ Bedrock .send() took > 30s: {:?}", timeout_error);
-                    return Err("Timeout: Bedrock .send() took > 30s".into());
+                    return Err(anyhow::anyhow!("Timeout: Bedrock .send() took > 30s"));
                 }
             };
 
-            let output_message = res.output().ok_or("No output from model")?
-                .as_message().map_err(|_| "Output was not a message")?.clone();
+            let output_message = res.output()
+                .ok_or_else(|| anyhow::anyhow!("No output from model"))?
+                .as_message()
+                .map_err(|_| anyhow::anyhow!("Output was not a message"))?
+                .clone();
 
             messages.push(output_message.clone());
 
@@ -480,15 +559,24 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                     };
 
                     log::info!("🤖 Calling tool with: {:?}", function_call);
-                    let tool_result_value = match call_gemini_mcp_tool(&function_call) {
-                        Ok(result) => {
-                            log::info!("Tool {} success", function_call.name);
+
+                    let tool_name_for_logs = function_call.name.clone();
+                    let mcp_server_url = mcp_server_url.clone();
+
+                    let tool_result_value = match tokio::task::spawn_blocking(move || call_gemini_mcp_tool(&function_call, &mcp_server_url)).await {
+                        Ok(Ok(result)) => {
+                            log::info!("Tool {} success", tool_name_for_logs);
                             json!({ "output": result })
                         },
-                        Err(e) => {
-                            log::error!("Tool {} error: {}", function_call.name, e);
+                        Ok(Err(e)) => {
+                            log::error!("Tool {} error: {}", tool_name_for_logs, e);
                             json!({ "error": e.to_string() })
                         },
+                        Err(join_err) => {
+                            let err_msg = format!("Tool execution panicked: {}", join_err);
+                            log::error!("{}", err_msg);
+                            json!({ "error": err_msg })
+                        }
                     };
 
                     log::info!("📦 Sending tool result back to model: {}", tool_result_value.to_string());
@@ -500,8 +588,7 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                                 .content(ToolResultContentBlock::Json(
                                     tool_result_doc
                                 ))
-                                .build()
-                                .map_err(|e| e.to_string())?
+                                .build()?
                         )
                     );
                 }
@@ -510,8 +597,7 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
                     Message::builder()
                         .role(ConversationRole::User)
                         .set_content(Some(tool_results))
-                        .build()
-                        .map_err(|e| e.to_string())?
+                        .build()?
                 );
 
                 log::info!("Tool results sent back to model. Continuing loop...");
@@ -525,38 +611,34 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String) -
     })
 }
 
-fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str, mcp_server_url: String) -> anyhow::Result<String> {
     let client = reqwest::blocking::Client::new();
     log::info!("Gemini client created.");
 
-    let tools_json = get_gemini_tools_definitions_json();
+    let tools_json = get_gemini_tools_definitions_json_sync(&mcp_server_url);
 
-    // contents history
     let mut contents: Vec<Value> = vec![json!({
         "role": "user",
         "parts": [{"text": prompt}]
     })];
 
-    // request-response-tool loop
     loop {
         let req_body = json!({
             "contents": contents,
             "tools": tools_json
         });
 
-        // Call AI API
         let res = client
             .post(format!("{api_url}?key={api_key}"))
             .json(&req_body)
             .send()?;
 
         if !res.status().is_success() {
-             return Err(format!("API Error: {}", res.text()?).into());
+             return Err(anyhow::anyhow!("API Error: {}", res.text()?));
         }
 
         let json: Response = res.json()?;
 
-        // Analyze answer
         let part = json
             .candidates
             .and_then(|mut c| c.pop())
@@ -564,22 +646,18 @@ fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str) -> Result<Str
             .and_then(|content| content.parts.and_then(|mut p| p.pop()));
 
         if let Some(part) = part {
-            // If AI return final text
             if let Some(text) = part.text {
-                return Ok(text); // loop completed
+                return Ok(text);
             }
 
-            // AI asking to call tool
             if let Some(func_call) = part.function_call {
 
-                // Add tool call to history
                 contents.push(json!({
                     "role": "model",
                     "parts": [{"functionCall": func_call}]
                 }));
 
-                // Call mcp binary
-                let tool_result = match call_gemini_mcp_tool(&func_call) {
+                let tool_result = match call_gemini_mcp_tool(&func_call, &mcp_server_url) {
                     Ok(result) => result,
                     Err(e) => {
                         log::error!("Error calling tool: {:?}", &e);
@@ -587,7 +665,6 @@ fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str) -> Result<Str
                     },
                 };
 
-                // Add answer from the tool to the history
                 contents.push(json!({
                     "role": "tool",
                     "parts": [{
@@ -600,19 +677,17 @@ fn ask_gemeni_blocking(api_key: &str, prompt: &str, api_url: &str) -> Result<Str
                     }]
                 }));
 
-                // 'continue' recall loop, sending 'contents' (with results) back to AI.
                 continue;
             }
         }
 
-        // If something goes wrong
-        return Ok("No answer or invalid response part".to_string());
+        return Err(anyhow::anyhow!("No answer or invalid response part"));
     }
 }
 
-fn call_gemini_mcp_tool(func_call: &FunctionCall) -> Result<Value, Box<dyn std::error::Error>> {
+fn call_gemini_mcp_tool(func_call: &FunctionCall, mcp_server_url: &String) -> anyhow::Result<Value> {
     if func_call.name == "get_tool_definitions" {
-        let tools_json = get_gemini_tools_definitions_json();
+        let tools_json = get_gemini_tools_definitions_json_sync(mcp_server_url);
         Ok(tools_json)
     } else if func_call.name == "get_kubectl_info" {
         let args_vec: Vec<String> = match func_call.args.get("args").and_then(|v| v.as_array()) {
@@ -622,37 +697,30 @@ fn call_gemini_mcp_tool(func_call: &FunctionCall) -> Result<Value, Box<dyn std::
                     .collect()
             }
             None => {
-                return Err("No args or it not an array".into());
+                return Err(anyhow::anyhow!("No args or it not an array"));
             }
         };
 
         if let Some(command) = args_vec.get(0) {
             let allowed_commands = [
-                "get",
-                "describe",
-                "logs",
-                "top",
-                "version",
-                "api-resources",
-                "cluster-info"
+                "get", "describe", "logs", "top", "version", "api-resources", "cluster-info"
             ];
 
             if !allowed_commands.contains(&command.as_str()) {
                 return Err(
-                    format!(
+                    anyhow::anyhow!(
                         "Command 'kubectl {}...' not allowed. Only read-only commands allowed: {:?}",
                         command, allowed_commands
-                    ).into()
+                    )
                 );
             }
 
-            // Additional paranoic check
             if args_vec.iter().any(|arg| arg == "-f" || arg == "--filename") {
-                return Err("Flags '-f' or '--filename' not allowed.".into());
+                return Err(anyhow::anyhow!("Flags '-f' or '--filename' not allowed."));
             }
 
         } else {
-            return Err("'args' can't be empty.".into());
+            return Err(anyhow::anyhow!("'args' can't be empty."));
         }
 
         match execute_kubectl(&args_vec) {
@@ -676,11 +744,57 @@ fn call_gemini_mcp_tool(func_call: &FunctionCall) -> Result<Value, Box<dyn std::
                 }
             }
             None => {
-                Err("Required parameter 'host' not found or it is not string".into())
+                Err(anyhow::anyhow!("Required parameter 'host' not found or it is not string"))
             }
         }
 
     } else {
-        Err(format!("Unknown method: {}", func_call.name).into())
+        log::info!("Attempting to call external tool: {}", func_call.name);
+        call_external_mcp_tool(func_call, mcp_server_url)
     }
+}
+
+fn call_external_mcp_tool(func_call: &FunctionCall, mcp_server_url: &String) -> anyhow::Result<Value> {
+    let client = reqwest::blocking::Client::new();
+
+    let url = format!("{}/api/v1/tools/{}", mcp_server_url.trim_end_matches('/'), func_call.name);
+
+    let payload = json!({
+        "args": func_call.args
+    });
+
+    log::info!("Sending to external MCP: {}", payload.to_string());
+
+    let resp = client.post(&url)
+        .json(&payload)
+        .send()?;
+
+    if !resp.status().is_success() {
+        let error_text = resp.text()?;
+        log::error!("External tool execution failed: {}", error_text);
+        return Err(anyhow::anyhow!("External tool execution failed: {}", error_text));
+    }
+
+    let result_json: Value = resp.json()?;
+    log::info!("Received from external MCP: {}", result_json.to_string());
+
+    Ok(result_json)
+}
+
+fn convert_external_tool_to_bedrock_spec(tool: &ExternalTool) -> Result<Tool, SerdeError> {
+    let schema_doc: Document = tool.input_schema.as_ref()
+        .map(|schema_val| convert_value_to_doc(schema_val))
+        .unwrap_or_else(|| convert_value_to_doc(&json!({
+            "type": "object",
+            "properties": {}
+        })));
+
+    let tool_spec = ToolSpecification::builder()
+        .name(tool.name.clone())
+        .description(tool.description.clone())
+        .input_schema(ToolInputSchema::Json(schema_doc))
+        .build()
+        .map_err(|e| <SerdeError as serde::de::Error>::custom(e.to_string()))?;
+
+    Ok(Tool::ToolSpec(tool_spec))
 }

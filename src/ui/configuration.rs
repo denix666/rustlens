@@ -1,4 +1,4 @@
-use egui::Ui;
+use egui::{Color32, Ui};
 use crate::{config::AppConfig, ui::ALL_AI_PROVIDERS};
 
 pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
@@ -48,10 +48,17 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                     .striped(true)
                     .show(ui, |ui| {
                         ui.set_row_height(24.0);
-                        ui.label("Gemini API URL (model must support tools):").on_hover_text("Make sure that model supports tools!");
+                        let gemini_model_tooltip = |ui: &mut egui::Ui| {
+                            ui.vertical(|ui| {
+                                ui.heading("Example:");
+                                ui.label("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent");
+                                ui.label(egui::RichText::new("⚠ Make sure that model supports tools!").size(12.0).color(Color32::YELLOW).italics());
+                            });
+                        };
+                        ui.label("Gemini API URL:").on_hover_ui(gemini_model_tooltip);
                         let gemini_url_res = ui.add_sized([ui.available_width(), 24.0],
                             egui::TextEdit::singleline(&mut app_config.ai_settings.gemini_api_url)
-                        );
+                        ).on_hover_ui(gemini_model_tooltip);
                         if gemini_url_res.changed() {
                             config_should_be_saved = true;
                         }
@@ -86,21 +93,68 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
                     .striped(true)
                     .show(ui, |ui| {
                         ui.set_row_height(24.0);
-                        ui.label("Model ID (anthropic.claude-3-sonnet-20240229-v1:0):").on_hover_text("Make sure that model supports tools!");
+                        let amazon_bedrock_model_tooltip = |ui: &mut egui::Ui| {
+                            ui.vertical(|ui| {
+                                ui.heading("Example:");
+                                ui.label("anthropic.claude-3-sonnet-20240229-v1:0");
+                                ui.label(egui::RichText::new("⚠ Make sure that model supports tools!").size(12.0).color(Color32::YELLOW).italics());
+                            });
+                        };
+                        ui.label("Model ID:").on_hover_ui(amazon_bedrock_model_tooltip);
                         let amazon_bedrock_model_res = ui.add_sized([ui.available_width(), 24.0],
                             egui::TextEdit::singleline(&mut app_config.ai_settings.amazon_bedrock_model_id)
-                        );
+                        ).on_hover_ui(amazon_bedrock_model_tooltip);
                         if amazon_bedrock_model_res.changed() {
                             config_should_be_saved = true;
                         }
                         ui.end_row();
 
                         ui.set_row_height(24.0);
-                        ui.label("Claude region (us-west-2):");
+                        let amazon_bedrock_region_tooltip = |ui: &mut egui::Ui| {
+                            ui.vertical(|ui| {
+                                ui.heading("Example:");
+                                ui.label("us-west-2");
+                            });
+                        };
+                        ui.label("Claude region:").on_hover_ui(amazon_bedrock_region_tooltip);
                         let amazon_bedrock_region_res = ui.add_sized([ui.available_width(), 24.0],
                             egui::TextEdit::singleline(&mut app_config.ai_settings.amazon_bedrock_region)
-                        );
+                        ).on_hover_ui(amazon_bedrock_region_tooltip);
                         if amazon_bedrock_region_res.changed() {
+                            config_should_be_saved = true;
+                        }
+                        ui.end_row();
+                    });
+            });
+
+        ui.add_space(20.0);
+
+        egui::Frame::group(ui.style())
+            .fill(crate::theme::SETTINGS_FRAME_COLOR)
+            .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(12, 10))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+
+                ui.heading("External MCP Server:");
+                let external_mcp_server_tooltip = |ui: &mut egui::Ui| {
+                    ui.vertical(|ui| {
+                        ui.heading("Example:");
+                        ui.label("https://some.public.mcp:8080");
+                    });
+                };
+                egui::Grid::new("external_mcp_server_settings_grid")
+                    .num_columns(2)
+                    .spacing([16.0, 8.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.set_row_height(24.0);
+                        ui.label("MCP Server URL:").on_hover_ui(external_mcp_server_tooltip);
+                        let mcp_server_url = ui.add_sized([ui.available_width(), 24.0],
+                            egui::TextEdit::singleline(&mut app_config.ai_settings.mcp_server_url)
+                        ).on_hover_ui(external_mcp_server_tooltip);
+                        if mcp_server_url.changed() {
                             config_should_be_saved = true;
                         }
                         ui.end_row();
@@ -129,6 +183,7 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
             app_config.ai_settings.gemini_api_key.clone(),
             app_config.ai_settings.amazon_bedrock_model_id.clone(),
             app_config.ai_settings.amazon_bedrock_region.clone(),
+            app_config.ai_settings.mcp_server_url.clone(),
         );
     }
 }
