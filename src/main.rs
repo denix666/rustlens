@@ -2,7 +2,6 @@
 
 mod ui;
 use flexi_logger::{Duplicate, FileSpec, Logger};
-use log::{error, info};
 use serde::{Deserialize, Serialize};
 use ui::*;
 
@@ -143,7 +142,7 @@ async fn main() {
         .start()
         .expect("Logger error");
 
-    info!("Rustlens starting...");
+    log::info!("Rustlens starting...");
 
     title.push_str(env!("CARGO_PKG_VERSION"));
     let mut options = eframe::NativeOptions {
@@ -199,10 +198,11 @@ async fn main() {
     //####################################################//
     let mut selected_cr = String::new();
 
+    log::info!("Loadinging kubernetes config...");
     let ctx_info = match get_current_context_info() {
         Ok(c) => c,
         Err(e) => {
-            error!("Error getting kubernetes config: {:?}", e);
+            log::error!("Error getting kubernetes config: {:?}", e);
             std::process::exit(1);
         },
     };
@@ -252,10 +252,11 @@ async fn main() {
     let k8s_released_version = KubernetesVersionFetcher::new();
 
     // Client connection
+    log::info!("Connecting to kubernetes cluster...");
     let client = match Client::try_default().await {
         Ok(c) => Arc::new(c),
         Err(e) => {
-            error!("Error connecting to kubernetes cluster: {:?}", e);
+            log::error!("Error connecting to kubernetes cluster: {:?}", e);
             std::process::exit(1);
         },
     };
@@ -840,7 +841,7 @@ async fn main() {
 
                             async move {
                                 if let Err(e) = get_helm_releases(client.clone(), list.clone(), helm_releases_loading).await {
-                                    error!("Helm release fetch failed: {:?}", e);
+                                    log::error!("Helm release fetch failed: {:?}", e);
                                 }
                             }
                         });
@@ -848,14 +849,14 @@ async fn main() {
                 });
 
                 egui::CollapsingHeader::new("⚙ App settings").default_open(false).show(ui, |ui| {
-                    if ui.selectable_label(current == Category::About, "🐧 About author").clicked() {
-                        *selected_category_ui.lock().unwrap() = Category::About;
+                    if ui.selectable_label(current == Category::Configuration, "🔧 Configuration").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Configuration;
                     }
                     if ui.selectable_label(current == Category::AppLogs, "📝 Logs").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::AppLogs;
                     }
-                    if ui.selectable_label(current == Category::Configuration, "🔧 Configuration").clicked() {
-                        *selected_category_ui.lock().unwrap() = Category::Configuration;
+                    if ui.selectable_label(current == Category::About, "🐧 About").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::About;
                     }
                 });
             });
@@ -1120,7 +1121,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_service_account_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Service account details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -1150,7 +1151,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete ServiceAccount: {}", err);
+                                                                log::error!("Failed to delete ServiceAccount: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1231,7 +1232,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_role_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Role details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -1261,7 +1262,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete Role: {}", err);
+                                                                log::error!("Failed to delete Role: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1317,7 +1318,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_cluster_role_details(client_clone, &name, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Cluster role details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -1338,7 +1339,7 @@ async fn main() {
                                                     confirmation_dialog.request(cur_item.clone(), None, move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = delete_cluster_role(client_clone, &cur_item.clone()).await {
-                                                                error!("Failed to delete cluster role: {}", err);
+                                                                log::error!("Failed to delete cluster role: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1419,7 +1420,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_rb_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Role binding details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -1449,7 +1450,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete RoleBinding: {}", err);
+                                                                log::error!("Failed to delete RoleBinding: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1505,7 +1506,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_cluster_rb_details(client_clone, &name, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Cluster RB details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -1526,7 +1527,7 @@ async fn main() {
                                                     confirmation_dialog.request(cur_item.clone(), None, move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = delete_cluster_role_binding(client_clone, &cur_item.clone()).await {
-                                                                error!("Failed to delete cluster role binding: {}", err);
+                                                                log::error!("Failed to delete cluster role binding: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1653,7 +1654,7 @@ async fn main() {
                                             tokio::spawn({
                                                 async move {
                                                     if let Err(e) = get_crd_details(client_clone, &name, details).await {
-                                                        error!("Details fetch failed: {:?}", e);
+                                                        log::error!("CRD details fetch failed: {:?}", e);
                                                     }
                                                 }
                                             });
@@ -1678,7 +1679,7 @@ async fn main() {
                                                             editor.show = true;
                                                         }
                                                         Err(e) => {
-                                                            error!("Failed to get YAML: {}", e);
+                                                            log::error!("Failed to get YAML: {}", e);
                                                         }
                                                     }
                                                 });
@@ -1689,7 +1690,7 @@ async fn main() {
                                                 confirmation_dialog.request(cur_item.clone(), None, move || {
                                                     tokio::spawn(async move {
                                                         if let Err(err) = crate::delete_cluster_crd(Arc::clone(&client_clone), &cur_item).await {
-                                                            error!("Failed to delete crd: {}", err);
+                                                            log::error!("Failed to delete crd: {}", err);
                                                         }
                                                     });
                                                 });
@@ -1783,7 +1784,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete NetworkPolicy: {}", err);
+                                                                log::error!("Failed to delete NetworkPolicy: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1882,7 +1883,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete pdb: {}", err);
+                                                                log::error!("Failed to delete pdb: {}", err);
                                                             }
                                                         });
                                                     });
@@ -1966,7 +1967,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_daemonset_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Daemonset details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -1999,7 +2000,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete daemonSet: {}", err);
+                                                                log::error!("Failed to delete daemonSet: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2127,7 +2128,7 @@ async fn main() {
                             confirmation_dialog.request("Empty replicasets".to_string(), cur_ns.clone(), move || {
                                 tokio::spawn(async {
                                     if let Err(e) = delete_zero_replicasets(client_clone, cur_ns).await {
-                                        error!("Error removing empty replicasets: {:?}", e);
+                                        log::error!("Error removing empty replicasets: {:?}", e);
                                     }
                                 });
                             });
@@ -2171,7 +2172,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_replicaset_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Replicaset details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -2213,7 +2214,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete replicaSet: {}", err);
+                                                                log::error!("Failed to delete replicaSet: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2298,7 +2299,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_ingress_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Ingress details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -2332,7 +2333,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete ingress: {}", err);
+                                                                log::error!("Failed to delete ingress: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2398,7 +2399,7 @@ async fn main() {
                                                                 editor.show = true;
                                                             }
                                                             Err(e) => {
-                                                                error!("Failed to get YAML: {}", e);
+                                                                log::error!("Failed to get YAML: {}", e);
                                                             }
                                                         }
                                                     });
@@ -2469,7 +2470,7 @@ async fn main() {
                                                                 editor.show = true;
                                                             }
                                                             Err(e) => {
-                                                                error!("Failed to get YAML: {}", e);
+                                                                log::error!("Failed to get YAML: {}", e);
                                                             }
                                                         }
                                                     });
@@ -2480,7 +2481,7 @@ async fn main() {
                                                     confirmation_dialog.request(cur_item.clone(), None, move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = crate::delete_storage_class(Arc::clone(&client_clone), &cur_item).await {
-                                                                error!("Failed to delete storage class: {}", err);
+                                                                log::error!("Failed to delete storage class: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2564,7 +2565,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_pv_details(client_clone, &name, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("PV details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -2589,7 +2590,7 @@ async fn main() {
                                                                 editor.show = true;
                                                             }
                                                             Err(e) => {
-                                                                error!("Failed to get YAML: {}", e);
+                                                                log::error!("Failed to get PV YAML: {}", e);
                                                             }
                                                         }
                                                     });
@@ -2600,7 +2601,7 @@ async fn main() {
                                                     confirmation_dialog.request(cur_item.clone(), None, move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = crate::delete_cluster_pv(Arc::clone(&client_clone), &cur_item).await {
-                                                                error!("Failed to delete pv: {}", err);
+                                                                log::error!("Failed to delete pv: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2713,7 +2714,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_pvc_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("PVC details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -2748,7 +2749,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete pvc: {}", err);
+                                                                log::error!("Failed to delete pvc: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2824,7 +2825,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_endpoint_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Endpoint details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -2858,7 +2859,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete endpoints: {}", err);
+                                                                log::error!("Failed to delete endpoints: {}", err);
                                                             }
                                                         });
                                                     });
@@ -2934,7 +2935,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_job_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Job details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -2967,7 +2968,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete job: {}", err);
+                                                                log::error!("Failed to delete job: {}", err);
                                                             }
                                                         });
                                                     });
@@ -3053,7 +3054,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_service_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Service details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -3089,7 +3090,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete service: {}", err);
+                                                                log::error!("Failed to delete service: {}", err);
                                                             }
                                                         });
                                                     });
@@ -3167,7 +3168,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_cronjob_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Cronjob details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -3202,7 +3203,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete cronJob: {}", err);
+                                                                log::error!("Failed to delete cronJob: {}", err);
                                                             }
                                                         });
                                                     });
@@ -3278,7 +3279,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_statefulset_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Statefulset details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -3327,7 +3328,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete statefulSet: {}", err);
+                                                                log::error!("Failed to delete statefulSet: {}", err);
                                                             }
                                                         });
                                                     });
@@ -3455,7 +3456,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_node_details(client_clone, &name, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Node details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -3575,7 +3576,7 @@ async fn main() {
                                                                 editor.show = true;
                                                             }
                                                             Err(e) => {
-                                                                error!("Failed to get YAML: {}", e);
+                                                                log::error!("Failed to get YAML: {}", e);
                                                             }
                                                         }
                                                     });
@@ -3588,7 +3589,7 @@ async fn main() {
                                                         let client_clone = Arc::clone(&client);
                                                         tokio::spawn(async move {
                                                             if let Err(err) = cordon_node(client_clone, &node_name, false).await {
-                                                                error!("Failed to uncordon node: {}", err);
+                                                                log::error!("Failed to uncordon node: {}", err);
                                                             }
                                                         });
                                                         ui.close_kind(egui::UiKind::Menu);
@@ -3598,7 +3599,7 @@ async fn main() {
                                                         let client_clone = Arc::clone(&client);
                                                         tokio::spawn(async move {
                                                             if let Err(err) = cordon_node(client_clone, &node_name, true).await {
-                                                                error!("Failed to cordon node: {}", err);
+                                                                log::error!("Failed to cordon node: {}", err);
                                                             }
                                                         });
                                                         ui.close_kind(egui::UiKind::Menu);
@@ -3609,7 +3610,7 @@ async fn main() {
                                                     let client_clone = Arc::clone(&client);
                                                     tokio::spawn(async move {
                                                         if let Err(err) = drain_node(client_clone, &node_name).await {
-                                                            error!("Failed to drain node: {}", err);
+                                                            log::error!("Failed to drain node: {}", err);
                                                         }
                                                     });
                                                     ui.close_kind(egui::UiKind::Menu);
@@ -3620,7 +3621,7 @@ async fn main() {
                                                     confirmation_dialog.request(node_name.clone(), None, move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = delete_node(client_clone, &node_name).await {
-                                                                error!("Failed to delete node: {}", err);
+                                                                log::error!("Failed to delete node: {}", err);
                                                             }
                                                         });
                                                     });
@@ -3746,7 +3747,7 @@ async fn main() {
                                                                 editor.show = true;
                                                             }
                                                             Err(e) => {
-                                                                error!("Failed to get YAML: {}", e);
+                                                                log::error!("Failed to get YAML: {}", e);
                                                             }
                                                         }
                                                     });
@@ -3758,7 +3759,7 @@ async fn main() {
                                                     confirmation_dialog.request(cur_item.clone(), None, move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = delete_namespace(client_clone, &cur_item.clone()).await {
-                                                                error!("Failed to delete namespace: {}", err);
+                                                                log::error!("Failed to delete namespace: {}", err);
                                                             }
                                                         });
                                                     });
@@ -3891,7 +3892,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_pod_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Pod details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -4003,7 +4004,7 @@ async fn main() {
                                                     confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
                                                         tokio::spawn(async move {
                                                             if let Err(err) = delete_pod(client_clone, cur_item.clone(), cur_ns.as_deref(), true).await {
-                                                                error!("Failed to delete pod: {}", err);
+                                                                log::error!("Failed to delete pod: {}", err);
                                                             }
                                                         });
                                                     });
@@ -4046,7 +4047,7 @@ async fn main() {
                                                     tokio::spawn({
                                                         async move {
                                                             if let Err(e) = get_pod_details(client_clone, &name, ns, details).await {
-                                                                error!("Details fetch failed: {:?}", e);
+                                                                log::error!("Pod details fetch failed: {:?}", e);
                                                             }
                                                         }
                                                     });
@@ -4136,7 +4137,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_deployment_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Deployment details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -4176,7 +4177,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete deployment: {}", err);
+                                                                log::error!("Failed to delete deployment: {}", err);
                                                             }
                                                         });
                                                     });
@@ -4267,7 +4268,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_secret_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Secret details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -4298,7 +4299,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete secret: {}", err);
+                                                                log::error!("Failed to delete secret: {}", err);
                                                             }
                                                         });
                                                     });
@@ -4382,7 +4383,7 @@ async fn main() {
                                                 tokio::spawn({
                                                     async move {
                                                         if let Err(e) = get_configmap_details(client_clone, &name, ns, details).await {
-                                                            error!("Details fetch failed: {:?}", e);
+                                                            log::error!("Configmap details fetch failed: {:?}", e);
                                                         }
                                                     }
                                                 });
@@ -4417,7 +4418,7 @@ async fn main() {
                                                                 cur_ns.as_deref(),
                                                                 client_clone,
                                                             ).await {
-                                                                error!("Failed to delete configmap: {}", err);
+                                                                log::error!("Failed to delete configmap: {}", err);
                                                             }
                                                         });
                                                     });
