@@ -1,0 +1,21 @@
+pkgname=rustlens
+pkgver=0.4.0
+pkgrel=1
+pkgdesc="A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster."
+arch=('x86_64')
+url='https://github.com/denix666/rustlens'
+license=('MIT')
+
+source=('https://github.com/denix666/rustlens/releases/download/v0.4.0/rustlens_linux_x86_64.tar.gz'
+	'rustlens.png'
+	'rustlens.desktop')
+
+package() {
+    cd ${srcdir}
+    install -D -m755 rustlens ${pkgdir}/usr/bin/rustlens
+    install -D -m644 rustlens.png ${pkgdir}/usr/share/pixmaps/rustlens.png
+    install -D -m644 rustlens.desktop ${pkgdir}/usr/share/applications/rustlens.desktop
+}
+sha256sums=('68afe958846284943d6b480ba88fd7ed3059cc9c620b98a5dd46c97d0fe4b9e1'
+            'a617640eb2d3407407d6f50a9d58f6e9977de9b5f4a76cc2f38ac8a5d6197962'
+            'dd6f94ac91911c31a6a7faba68b74baf6b25ff0987770d79b0348ef685185e4a')

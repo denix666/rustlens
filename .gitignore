@@ -3,3 +3,8 @@
 debug/
 **/*.rs.bk
 *.pdb
+pkg/*
+!pkg/Makefile
+!pkg/PKGBUILD
+!pkg/rustlens.png
+!pkg/rustlens.desktop

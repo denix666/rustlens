@@ -1,0 +1,9 @@
+[Desktop Entry]
+Exec=/usr/bin/rustlens
+Icon=/usr/share/pixmaps/rustlens.png
+Name=Rustlens
+Terminal=false
+Type=Application
+Categories=Utility;System;
+Encoding=UTF-8
+Comment=A powerful and intuitive ui tool for managing your Kubernetes cluster.
