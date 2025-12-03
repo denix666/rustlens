@@ -60,6 +60,7 @@ enum Category {
     Jobs,
     CronJobs,
     Services,
+    Leases,
     Endpoints,
     Ingresses,
     PersistentVolumeClaims,
@@ -168,6 +169,7 @@ async fn main() {
     let mut statefulset_details_window = ui::statefulset_details::StatefulSetDetailsWindow::new();
     let mut configmap_details_window = ui::configmap_details::ConfigMapDetailsWindow::new();
     let mut job_details_window = ui::job_details::JobDetailsWindow::new();
+    let mut lease_details_window = ui::lease_details::LeaseDetailsWindow::new();
     let mut pvc_details_window = ui::pvc_details::PvcDetailsWindow::new();
     let mut pv_details_window = ui::pv_details::PvDetailsWindow::new();
     let mut cronjob_details_window = ui::cronjob_details::CronJobDetailsWindow::new();
@@ -227,6 +229,7 @@ async fn main() {
     let mut filter_secrets = String::new();
     let mut filter_roles = String::new();
     let mut filter_rbs = String::new();
+    let mut filter_leases = String::new();
     let mut filter_cluster_roles = String::new();
     let mut filter_cluster_rb = String::new();
     let mut filter_statefulsets = String::new();
@@ -293,6 +296,18 @@ async fn main() {
         Arc::clone(&pods_loading),
         |c, s, l| {
         Box::pin(watch_pods(c, s, l))
+    });
+
+    // LEASES
+    let leases = Arc::new(Mutex::new(Vec::<LeaseItem>::new()));
+    let lease_details = Arc::new(Mutex::new(LeaseDetails::default()));
+    let leases_loading = Arc::new(AtomicBool::new(true));
+    spawn_watcher(
+        Arc::clone(&client),
+        Arc::clone(&leases),
+        Arc::clone(&leases_loading),
+        |c, s, l| {
+        Box::pin(watch_leases(c, s, l))
     });
 
     // ENDPOINTS
@@ -726,6 +741,10 @@ async fn main() {
                     if ui.selectable_label(current == Category::PodDisruptionBudgets, "📌 Pod Disruption Budgets").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::PodDisruptionBudgets;
                     }
+
+                    if ui.selectable_label(current == Category::Leases, "📂 Leases").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::Leases;
+                    }
                 });
 
                 egui::CollapsingHeader::new("🖧 Network").default_open(false).show(ui, |ui| {
@@ -872,6 +891,117 @@ async fn main() {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match *selected_category_ui.lock().unwrap() {
+                Category::Leases => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_leases: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        leases.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        leases.lock().unwrap().iter().cloned().collect()
+                    };
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("Leases - {}", visible_leases.len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut filter_leases).hint_text("Filter leases...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
+                        filter_leases = filter_leases.to_lowercase();
+                        if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
+                            filter_leases.clear();
+                        }
+                    });
+                    ui.separator();
+                    if leases_loading.load(Ordering::Relaxed) {
+                        show_loading(ui);
+                    } else {
+                        if visible_leases.len() == 0 {
+                            show_empty(ui);
+                        } else {
+                            egui::ScrollArea::vertical().id_salt("leases_scroll").show(ui, |ui| {
+                                egui::Grid::new("leases_grid").striped(true).min_col_width(20.0).max_col_width(630.0).show(ui, |ui| {
+                                    ui.label("Name");
+                                    ui.label("Namespace");
+                                    ui.label("Holder");
+                                    ui.label("Age");
+                                    ui.label("Actions");
+                                    ui.end_row();
+                                    for item in visible_leases.iter().rev().take(200) {
+                                        let cur_item_object = &item.name;
+                                        if filter_leases.is_empty() || cur_item_object.contains(&filter_leases) {
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&lease_details);
+                                                let ns = item.namespace.clone();
+                                                lease_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_lease_details(client_clone, &name, ns, details).await {
+                                                            log::error!("Lease details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
+                                            if let Some(holder) = &item.holder {
+                                                ui.label(holder);
+                                            } else {
+                                                ui.label("-");
+                                            }
+                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    crate::edit_yaml_for::<k8s_openapi::api::coordination::v1::Lease>(
+                                                        item.name.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
+                                                        Arc::clone(&yaml_editor_window),
+                                                        Arc::clone(&client)
+                                                    );
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let cur_item = item.name.clone();
+                                                    let cur_ns = item.namespace.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(cur_item.clone(), cur_ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::delete_namespaced_component_for::<k8s_openapi::api::coordination::v1::Lease>(
+                                                                cur_item.clone(),
+                                                                cur_ns.as_deref(),
+                                                                client_clone,
+                                                            ).await {
+                                                                log::error!("Failed to delete lease: {}", err);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    }
+                },
                 Category::ProxyProcess => {
                     show_kubectl_proxy_status(ui, &mut proxy_process);
                 },
@@ -4618,6 +4748,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_service_details_window(ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+        }
+
+        // Lease details window
+        if lease_details_window.show {
+            let lease_details_clone = Arc::clone(&lease_details);
+            let leases_clone = Arc::clone(&leases);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_lease_details_window(ctx, &mut lease_details_window, lease_details_clone, leases_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Endpoint details window

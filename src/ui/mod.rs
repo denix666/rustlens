@@ -39,6 +39,7 @@ pub mod jwt_decoder;
 pub mod kubectl_proxy;
 pub mod ai_consultant;
 pub mod configuration;
+pub mod lease_details;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -81,3 +82,4 @@ pub use jwt_decoder::*;
 pub use kubectl_proxy::*;
 pub use ai_consultant::*;
 pub use configuration::*;
+pub use lease_details::*;

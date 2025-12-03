@@ -26,6 +26,7 @@ pub mod cluster_role;
 pub mod cluster_rb;
 pub mod role_binding;
 pub mod app_log_viewer;
+pub mod lease;
 
 pub use pvc::*;
 pub use pv::*;
@@ -55,3 +56,4 @@ pub use cluster_role::*;
 pub use cluster_rb::*;
 pub use role_binding::*;
 pub use app_log_viewer::*;
+pub use lease::*;

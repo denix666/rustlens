@@ -31,6 +31,9 @@ pub use get_statefulset_details::*;
 pub mod get_role_details;
 pub use get_role_details::*;
 
+pub mod get_leases_details;
+pub use get_leases_details::*;
+
 pub mod get_cluster_role_details;
 pub use get_cluster_role_details::*;
 
