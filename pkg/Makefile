@@ -1,3 +1,5 @@
+BINARY_NAME = rustlens
+
 .SILENT:
 .PHONY: default clean package build
 
@@ -5,13 +7,13 @@ default: build
 
 clean:
 	@echo "Cleaning up build artifacts..."
-	@rm -f rustlens *.pkg.tar.zst *.tar.gz
+	@rm -f $(BINARY_NAME) *.pkg.tar.zst
 	@rm -rf pkg src
 	@echo "Cleanup complete."
 
 package:
 	@echo "Copying binary..."
-	@cp ../target/release/rustlens .
+	@cp ../target/release/$(BINARY_NAME) .
 	@echo "Updating version..."
 	$(eval NEW_VERSION = $(shell cat ../Cargo.toml | grep '^version' | head -1 | awk -F'"' '{print $$2}'))
 	@echo "Old version: $$(grep pkgver PKGBUILD | cut -d'=' -f2)"
