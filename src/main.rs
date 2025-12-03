@@ -249,6 +249,7 @@ async fn main() {
     let mut filter_network_policies = String::new();
     let mut filter_crds = String::new();
     let mut filter_helm_releases = String::new();
+    let mut filter_warnings: bool = false;
     let mut hl_item = String::new();
 
     // Fetched latest released Kubernetes version
@@ -4564,21 +4565,46 @@ async fn main() {
                     }
                 },
                 Category::Events => {
+                    let ns = namespaces.lock().unwrap();
+                    let mut selected_ns = selected_namespace_clone.lock().unwrap();
+                    let visible_events: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
+                        events.lock().unwrap()
+                            .iter()
+                            .filter(|p| p.namespace.as_deref() == Some(ns))
+                            .cloned()
+                            .collect()
+                    } else {
+                        events.lock().unwrap().iter().cloned().collect()
+                    };
                     ui.horizontal(|ui| {
-                        ui.heading(format!("Events - {}", events.lock().unwrap().len()));
+                        ui.heading(format!("Events - {}", visible_events.len()));
+                        ui.separator();
+                        ui.heading(format!("Namespace - "));
+                        egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut *selected_ns, None, "all");
+                            for item in ns.iter() {
+                                let ns_name = &item.name;
+                                ui.selectable_value(
+                                    &mut *selected_ns,
+                                    Some(ns_name.clone()),
+                                    ns_name,
+                                );
+                            }
+                        });
                         ui.separator();
                         ui.add(egui::TextEdit::singleline(&mut filter_events).hint_text("Filter events...").text_color(FILTER_TEXT_COLOR).desired_width(200.0));
                         filter_events = filter_events.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_events.clear();
                         }
+                        ui.separator();
+                        ui.checkbox(&mut filter_warnings, "Warnings only");
                     });
                     ui.separator();
-                    let events_list = events.lock().unwrap();
                     if events_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if events_list.len() == 0 {
+                        if visible_events.len() == 0 {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
@@ -4593,13 +4619,25 @@ async fn main() {
                                     ui.label("Message");
                                     ui.label("Actions");
                                     ui.end_row();
-                                    for item in events_list.iter().rev().take(200) {
+                                    let take_num: usize = match selected_ns.as_deref() {
+                                        Some("all") => 1000,
+                                        Some(_) => 6000,
+                                        None => 500,
+                                    };
+                                    for item in visible_events.iter().rev().take(take_num) {
                                         let cur_item_object = &item.involved_object;
-                                        if filter_events.is_empty() || cur_item_object.contains(&filter_events) {
+                                        let cur_item_message = &item.message;
+
+                                        let passes_text_filter = filter_events.is_empty() || cur_item_object.contains(&filter_events) || cur_item_message.contains(&filter_events);
+                                        let passes_warning_filter = !filter_warnings || item.event_type == "Warning";
+
+                                        if passes_text_filter && passes_warning_filter {
                                             ui.label(&item.timestamp);
                                             ui.label(egui::RichText::new(&item.event_type).color(item_color(&item.event_type)));
                                             ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            ui.label(&item.namespace);
+                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                *selected_ns = item.namespace.clone();
+                                            }
                                             ui.label(&item.reason);
                                             if let Some(count) = &item.count {
                                                 ui.label(count.to_string());
@@ -4613,7 +4651,7 @@ async fn main() {
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
                                                     crate::edit_yaml_for::<k8s_openapi::api::core::v1::Event>(
                                                         item.name.clone(),
-                                                        item.namespace.clone(),
+                                                        item.namespace.clone().unwrap_or_else(|| "default".to_string()),
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );

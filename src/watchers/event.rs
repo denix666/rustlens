@@ -12,7 +12,7 @@ pub struct EventItem {
     pub involved_object: String,
     pub event_type: String,
     pub timestamp: String,
-    pub namespace: String,
+    pub namespace: Option<String>,
     pub creation_timestamp: Option<Time>,
     pub count: Option<i32>,
 }
@@ -32,7 +32,7 @@ pub fn convert_event(ev: k8s_openapi::api::core::v1::Event) -> Option<EventItem>
         event_type: ev.type_.clone().unwrap_or_else(|| "Normal".to_string()),
         timestamp: ev.event_time.as_ref().map(|t| t.0.to_rfc3339()).or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()))
             .unwrap_or_else(|| "N/A".to_string()),
-        namespace: ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string()),
+        namespace: Some(ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string())),
         count: ev.count,
     })
 }
