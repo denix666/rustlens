@@ -566,6 +566,38 @@ pub async fn get_cluster_name() -> Result<String, anyhow::Error> {
     Ok(config.cluster_url.host().unwrap_or("unknown").to_string())
 }
 
+pub async fn get_kubernetes_client() -> Result<Client, kube::Error> {
+    let mut config = Config::infer().await.unwrap();
+
+    let is_proxy = config.cluster_url.to_string().starts_with("http://127.0.0.1");
+
+    // You can start proxy on some specific (IAM VM) to make connection bridge for your EKS:
+    // Start proxy on that specific host: kubectl proxy --address='127.0.0.1' --port=8001 --accept-hosts='.*' --disable-filter=true
+    // And then you can make tunel for proxy: ssh -L 8001:127.0.0.1:8001 user@proxy_host
+    //
+    // Make sure you have ~/.kube/config file for proxy created like this:
+    //
+    // clusters:
+    // - cluster:
+    //     server: http://127.0.0.1:8001
+    //   name: proxy-cluster
+    // contexts:
+    // - context:
+    //     cluster: proxy-cluster
+    //     user: ""
+    //   name: proxy-context
+    // current-context: proxy-context
+
+    if is_proxy {
+        config.auth_info = kube::config::AuthInfo::default();
+        config.accept_invalid_certs = true;
+
+        log::info!("Detected kubectl proxy at {}, bypass authentication.", config.cluster_url);
+    }
+
+    Client::try_from(config)
+}
+
 #[derive(Debug, Clone)]
 pub enum ScaleTarget {
     Deployment,

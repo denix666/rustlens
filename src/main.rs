@@ -257,7 +257,7 @@ async fn main() {
 
     // Client connection
     log::info!("Connecting to kubernetes cluster...");
-    let client = match Client::try_default().await {
+    let client = match get_kubernetes_client().await {
         Ok(c) => Arc::new(c),
         Err(e) => {
             log::error!("Error connecting to kubernetes cluster: {:?}", e);
