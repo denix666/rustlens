@@ -78,7 +78,7 @@ enum Category {
     Configuration,
     AppLogs,
     Roles,
-    SeriviceAccounts,
+    ServiceAccounts,
     ClusterRoles,
     ClusterRoleBindings,
     RoleBindings,
@@ -189,7 +189,7 @@ async fn main() {
     let mut decoder_window = ui::decoder::DecoderWindow::new();
     let mut ipcalculator_window = ui::ip_calculator::IpCalculatorWindow::new();
     let mut yaml2json_window = ui::yaml2json::Yaml2JsonWindow::new();
-    let mut res_conventer_window = ui::res_conventer::ResConverterWindow::default();
+    let mut res_converter_window = ui::res_converter::ResConverterWindow::default();
     let mut uuid_gen_window = ui::uuid_generator::UUIDGenWindow::default();
     let mut jwt_decoder_window = ui::jwt_decoder::JwtDecoderWindow::default();
     let cr_grouped_list = Arc::new(Mutex::new(BTreeMap::<String, Vec<CRDItem>>::new()));
@@ -200,7 +200,7 @@ async fn main() {
     //####################################################//
     let mut selected_cr = String::new();
 
-    log::info!("Loadinging kubernetes config...");
+    log::info!("Loading kubernetes config...");
     let ctx_info = match get_current_context_info() {
         Ok(c) => c,
         Err(e) => {
@@ -635,7 +635,7 @@ async fn main() {
         // Increase font size for different TextStyle
         style.text_styles = [
             (TextStyle::Heading, FontId::new(20.0, egui::FontFamily::Proportional)),
-            (TextStyle::Body, FontId::new(14.0, egui::FontFamily::Monospace)),
+            (TextStyle::Body, FontId::new(14.0, egui::FontFamily::Proportional)),
             (TextStyle::Monospace, FontId::new(14.0, egui::FontFamily::Monospace)),
             (TextStyle::Button, FontId::new(16.0, egui::FontFamily::Proportional)),
             (TextStyle::Small, FontId::new(13.0, egui::FontFamily::Proportional)),
@@ -660,7 +660,7 @@ async fn main() {
                 }
                 ui.separator();
                 if ui.button(egui::RichText::new("↔ Resources converter").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("Resources converter").clicked() {
-                    res_conventer_window.show = true;
+                    res_converter_window.show = true;
                 }
                 ui.separator();
                 if ui.button(egui::RichText::new("🕵 UUID Generator").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("UUID Generator").clicked() {
@@ -789,8 +789,8 @@ async fn main() {
                 });
 
                 egui::CollapsingHeader::new("🛡 Access control").default_open(false).show(ui, |ui| {
-                    if ui.selectable_label(current == Category::SeriviceAccounts, "👤 Service accounts").clicked() {
-                        *selected_category_ui.lock().unwrap() = Category::SeriviceAccounts;
+                    if ui.selectable_label(current == Category::ServiceAccounts, "👤 Service accounts").clicked() {
+                        *selected_category_ui.lock().unwrap() = Category::ServiceAccounts;
                     }
 
                     if ui.selectable_label(current == Category::Roles, "📜 Roles").clicked() {
@@ -1186,7 +1186,7 @@ async fn main() {
                         };
                     }
                 },
-                Category::SeriviceAccounts => {
+                Category::ServiceAccounts => {
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_service_accounts: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -4694,8 +4694,8 @@ async fn main() {
         }
 
         // Resources converter
-        if res_conventer_window.show {
-            show_res_conventer_window(ctx, &mut res_conventer_window);
+        if res_converter_window.show {
+            show_res_converter_window(ctx, &mut res_converter_window);
         }
 
         // UUID Generator

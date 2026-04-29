@@ -303,7 +303,7 @@ pub fn item_color(item: &str) -> Color32 {
         }
     };
 
-    return ret_color
+    ret_color
 }
 
 pub fn edit_yaml_for<K>(name: String, namespace: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) where

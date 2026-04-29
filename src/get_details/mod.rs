@@ -52,8 +52,8 @@ pub use get_job_details::*;
 pub mod get_ingress_details;
 pub use get_ingress_details::*;
 
-pub mod get_confirmap_details;
-pub use get_confirmap_details::*;
+pub mod get_configmap_details;
+pub use get_configmap_details::*;
 
 pub mod get_secret_details;
 pub use get_secret_details::*;

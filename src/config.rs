@@ -50,7 +50,7 @@ pub fn app_root_path() -> PathBuf {
         None => panic!("Impossible to get your home dir!"),
     };
     app_root_path.push(crate::CONFIG_DIR);
-    return app_root_path
+    app_root_path
 }
 
 pub fn write_config_to_file(
@@ -254,5 +254,5 @@ pub fn window_moved_or_resized(ctx: &Context, app_config: &mut AppConfig) -> boo
         }
     });
 
-    return changed
+    changed
 }
