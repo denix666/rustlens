@@ -7,13 +7,15 @@ default: build
 
 clean:
 	@echo "Cleaning up build artifacts..."
-	@rm -f $(BINARY_NAME) *.pkg.tar.zst
+	@rm -f $(BINARY_NAME) *.pkg.tar.zst $(BINARY_NAME).png
 	@rm -rf pkg src
 	@echo "Cleanup complete."
 
 package:
 	@echo "Copying binary..."
 	@cp ../target/release/$(BINARY_NAME) .
+	@echo "Copying icon..."
+	@cp ../assets/icon.png ./$(BINARY_NAME).png
 	@echo "Updating version..."
 	$(eval NEW_VERSION = $(shell cat ../Cargo.toml | grep '^version' | head -1 | awk -F'"' '{print $$2}'))
 	@echo "Old version: $$(grep pkgver PKGBUILD | cut -d'=' -f2)"
