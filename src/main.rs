@@ -820,7 +820,7 @@ async fn main() {
                     for (group, items) in cr_grouped_list.lock().unwrap().iter() {
                         egui::CollapsingHeader::new(group).default_open(false).show(ui, |ui| {
                             for item in items {
-                                
+
                                 let seleted_item: bool = item.kind == selected_cr && *selected_category_ui.lock().unwrap() == Category::CustomResources;
                                 if ui.selectable_label(seleted_item, &item.kind).clicked() {
                                     *selected_category_ui.lock().unwrap() = Category::CustomResources;
@@ -1753,25 +1753,28 @@ async fn main() {
                         egui::ScrollArea::vertical().id_salt("helm_releases_scroll").show(ui, |ui| {
                             egui::Grid::new("helm_releases_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                 ui.label("Name");
-                                ui.label("Chart name");
+                                ui.label("Chart");
                                 ui.label("Version");
+                                ui.label("Revision");
                                 ui.label("Namespace");
                                 ui.label("Age");
+                                ui.label("Actions");
                                 ui.end_row();
                                 for item in visible_helm_releases.iter().rev().take(200) {
-                                    let cur_item_object = &item.name;
+                                    let cur_item_object = item.release_name.to_lowercase();
                                     if filter_helm_releases.is_empty() || cur_item_object.contains(&filter_helm_releases) {
-                                        ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                        ui.label(egui::RichText::new(&item.release_name).color(egui::Color32::WHITE));
                                         if let Some(chart) = &item.chart_name {
                                             ui.label(chart.to_string());
                                         } else {
                                             ui.label("");
                                         }
-                                        if let Some(ver) = &item.version {
+                                        if let Some(ver) = &item.chart_version {
                                             ui.label(ver.to_string());
                                         } else {
                                             ui.label("");
                                         }
+                                        ui.label(item.revision.to_string());
                                         if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or_default()).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                             *selected_ns = item.namespace.clone();
                                         }
@@ -1780,6 +1783,21 @@ async fn main() {
                                         } else {
                                             ui.label("");
                                         }
+                                        ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                            ui.set_width(200.0);
+                                            if ui.button(egui::RichText::new("🗑 Uninstall").size(16.0).color(RED_BUTTON)).clicked() {
+                                                let release_name = item.release_name.clone();
+                                                let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                confirmation_dialog.request(release_name.clone(), Some(ns.clone()), move || {
+                                                    tokio::spawn(async move {
+                                                        if let Err(e) = crate::helm_uninstall(&release_name, &ns).await {
+                                                            log::error!("Failed to uninstall helm release: {}", e);
+                                                        }
+                                                    });
+                                                });
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                        });
 
                                         ui.end_row();
                                     }

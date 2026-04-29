@@ -848,11 +848,24 @@ fn decompress_gzip(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 
 #[derive(Debug, Clone)]
 pub struct HelmReleaseItem {
-    pub name: String,
+    pub release_name: String,
     pub chart_name: Option<String>,
-    pub version:  Option<String>,
+    pub chart_version: Option<String>,
     pub namespace: Option<String>,
+    pub revision: u32,
     pub creation_timestamp: Option<Time>,
+}
+
+fn parse_helm_secret_name(secret_name: &str) -> (String, u32) {
+    let stripped = secret_name
+        .strip_prefix("sh.helm.release.v1.")
+        .unwrap_or(secret_name);
+    if let Some((name, rev_str)) = stripped.rsplit_once(".v") {
+        let rev = rev_str.parse::<u32>().unwrap_or(1);
+        (name.to_string(), rev)
+    } else {
+        (stripped.to_string(), 1)
+    }
 }
 
 pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmReleaseItem>>>, load_status: Arc<AtomicBool>) -> Result<(), anyhow::Error> {
@@ -860,19 +873,23 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
     let ns_list = namespaces.list(&ListParams::default()).await?;
     load_status.store(true, Ordering::Relaxed);
 
-    let mut result = vec![];
+    let mut all_revisions: BTreeMap<(String, String), HelmReleaseItem> = BTreeMap::new();
 
     for ns in ns_list {
         if let Some(ns_name) = ns.metadata.name {
             let secrets: Api<Secret> = Api::namespaced(client.as_ref().clone(), &ns_name);
 
             let lp = ListParams::default().labels("owner=helm").fields("type=helm.sh/release.v1");
-            let secret_list = secrets.list(&lp).await.unwrap();
+            let secret_list = match secrets.list(&lp).await {
+                Ok(list) => list,
+                Err(_) => continue,
+            };
 
             for s in secret_list {
-                if let Some(name) = s.metadata.name {
+                if let Some(secret_name) = s.metadata.name {
+                    let (release_name, revision) = parse_helm_secret_name(&secret_name);
                     let mut chart_name: Option<String> = None;
-                    let mut version: Option<String> = None;
+                    let mut chart_version: Option<String> = None;
 
                     if let Some(data) = &s.data
                         && let Some(release_bytes) = data.get("release")
@@ -884,7 +901,7 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
                                         && let Some(val) = line.split('"').nth(3) {
                                             let parts: Vec<&str> = val.rsplitn(2, '-').collect();
                                             if parts.len() == 2 {
-                                                version = Some(parts[0].to_string());
+                                                chart_version = Some(parts[0].to_string());
                                                 chart_name = Some(parts[1].to_string());
                                             } else {
                                                 chart_name = Some(val.to_string());
@@ -893,14 +910,24 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
                                 }
 
                     let created_at = s.metadata.creation_timestamp;
+                    let key = (release_name.clone(), ns_name.clone());
 
-                    result.push(HelmReleaseItem {
-                        name,
+                    let item = HelmReleaseItem {
+                        release_name: release_name.clone(),
                         chart_name,
-                        version,
+                        chart_version,
                         namespace: Some(ns_name.clone()),
+                        revision,
                         creation_timestamp: created_at,
-                    });
+                    };
+
+                    if let Some(existing) = all_revisions.get(&key) {
+                        if revision > existing.revision {
+                            all_revisions.insert(key, item);
+                        }
+                    } else {
+                        all_revisions.insert(key, item);
+                    }
                 }
             }
         }
@@ -908,7 +935,7 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
     load_status.store(false, Ordering::Relaxed);
 
     let mut list_guard = list.lock().unwrap();
-    *list_guard = result;
+    *list_guard = all_revisions.into_values().collect();
 
     Ok(())
 }
@@ -951,4 +978,26 @@ pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, co
             }
         }
     }
+}
+
+pub async fn helm_uninstall(release_name: &str, namespace: &str) -> Result<(), anyhow::Error> {
+    let name = release_name
+        .strip_prefix("sh.helm.release.v1.")
+        .unwrap_or(release_name)
+        .rsplit_once(".v")
+        .map(|(n, _)| n)
+        .unwrap_or(release_name);
+
+    let output = tokio::process::Command::new("helm")
+        .args(["uninstall", name, "-n", namespace])
+        .output()
+        .await?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("helm uninstall failed: {}", stderr);
+    }
+
+    log::info!("Helm release '{}' uninstalled from namespace '{}'", name, namespace);
+    Ok(())
 }
