@@ -39,7 +39,7 @@ pub async fn get_pv_details(client: Arc<Client>, name: &str, details: Arc<Mutex<
             reason: e.reason.clone(),
             message: e.message.clone(),
             event_type: e.type_.clone(),
-            timestamp: e.last_timestamp.as_ref().map(|ts| ts.0.to_rfc3339()),
+            timestamp: e.last_timestamp.as_ref().map(|ts| ts.0.to_string()),
         }
     }).collect();
 

@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use k8s_openapi::jiff::Timestamp;
 use serde_json::Value;
 use crate::{functions::item_color, theme::ITEM_NAME_COLOR};
 
@@ -61,8 +61,8 @@ pub fn show_cluster_secret_store_details(name: &String, data: &Value, ui: &mut e
         .and_then(|s| s.get("creationTimestamp"))
         .and_then(|v| v.as_str())
         .unwrap_or("-");
-    let datetime: DateTime<Utc> = creation_timestamp.parse().unwrap_or_default();
-    let creation_timestamp_k8s_time = Time(datetime);
+    let ts: Timestamp = creation_timestamp.parse().unwrap_or(Timestamp::UNIX_EPOCH);
+    let creation_timestamp_k8s_time = Time(ts);
 
     ui.label(egui::RichText::new(name).color(ITEM_NAME_COLOR));
     ui.label(message);
@@ -120,8 +120,8 @@ pub fn show_external_secret_details(name: &String, data: &Value, ui: &mut egui::
         .and_then(|s| s.get("creationTimestamp"))
         .and_then(|v| v.as_str())
         .unwrap_or("-");
-    let datetime: DateTime<Utc> = creation_timestamp.parse().unwrap_or_default();
-    let creation_timestamp_k8s_time = Time(datetime);
+    let ts: Timestamp = creation_timestamp.parse().unwrap_or(Timestamp::UNIX_EPOCH);
+    let creation_timestamp_k8s_time = Time(ts);
 
     let reason = status_obj
         .and_then(|s| s.get("conditions"))
@@ -166,8 +166,8 @@ pub fn show_virtual_service_details(name: &String, data: &Value, ui: &mut egui::
         .and_then(|s| s.get("creationTimestamp"))
         .and_then(|v| v.as_str())
         .unwrap_or("-");
-    let datetime: DateTime<Utc> = creation_timestamp.parse().unwrap_or_default();
-    let creation_timestamp_k8s_time = Time(datetime);
+    let ts: Timestamp = creation_timestamp.parse().unwrap_or(Timestamp::UNIX_EPOCH);
+    let creation_timestamp_k8s_time = Time(ts);
 
     let gateways = spec_obj
         .and_then(|s| s.get("gateways"))
@@ -212,8 +212,8 @@ pub fn show_cilium_load_balancer_ip_pool_details(name: &String, data: &Value, ui
         .and_then(|s| s.get("creationTimestamp"))
         .and_then(|v| v.as_str())
         .unwrap_or("-");
-    let datetime: DateTime<Utc> = creation_timestamp.parse().unwrap_or_default();
-    let creation_timestamp_k8s_time = Time(datetime);
+    let ts: Timestamp = creation_timestamp.parse().unwrap_or(Timestamp::UNIX_EPOCH);
+    let creation_timestamp_k8s_time = Time(ts);
 
     let allow_first_last_ips = spec_obj
         .and_then(|s| s.get("allowFirstLastIPs"))

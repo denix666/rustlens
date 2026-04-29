@@ -62,7 +62,7 @@ pub async fn get_deployment_details(client: Arc<Client>, name: &str, ns: Option<
                 // status: c.status,
                 // reason: c.reason,
                 // message: c.message,
-                // last_transition_time: c.last_transition_time.map(|t| t.0.to_rfc3339()),
+                // last_transition_time: c.last_transition_time.map(|t| t.0.to_string()),
             }
         }).collect();
     }
@@ -72,7 +72,7 @@ pub async fn get_deployment_details(client: Arc<Client>, name: &str, ns: Option<
             reason: e.reason.clone(),
             message: e.message.clone(),
             event_type: e.type_.clone(),
-            timestamp: e.last_timestamp.as_ref().map(|ts| ts.0.to_rfc3339()),
+            timestamp: e.last_timestamp.as_ref().map(|ts| ts.0.to_string()),
         }
     }).collect();
 

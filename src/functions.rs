@@ -24,7 +24,6 @@ use futures_util::StreamExt;
 use serde_json::{json};
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use chrono::{DateTime, Utc};
 use serde_yaml;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
@@ -202,11 +201,8 @@ pub fn spawn_watcher<T, F>(client: Arc<Client>, state: Arc<Mutex<Vec<T>>>, loadi
 }
 
 pub fn format_age(ts: &Time) -> String {
-    let now = Utc::now();
-    let created: DateTime<Utc> = ts.0;
-    let duration = now - created;
-
-    let total_seconds = duration.num_seconds();
+    let now = k8s_openapi::jiff::Timestamp::now();
+    let total_seconds = now.as_second() - ts.0.as_second();
 
     if total_seconds < 60 {
         format!("{}s", total_seconds)

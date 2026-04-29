@@ -10,21 +10,20 @@ license = "MIT"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-kube = { version = "2.0.1", features = ["runtime", "derive", "client", "config", "ws"] }
-k8s-openapi = { version = "0.26", features = ["latest"] }
+kube = { version = "3.1", features = ["runtime", "derive", "client", "config", "ws"] }
+k8s-openapi = { version = "0.27", features = ["latest"] }
 kube-discovery = "0.4.2"
 futures = "0.3"
-eframe = "0.33"
+eframe = "0.34"
 futures-util = "0.3"
 image = "0.25"
 serde_json = "1.0"
 anyhow = "1.0"
 home = "0.5"
-chrono = "0.4"
 serde_yaml = "0.9"
 serde = "1.0"
 regex = "1.12"
-egui = "0.33"
+egui = "0.34"
 http = "1.4"
 rfd = "0.17"
 indexmap = "2"

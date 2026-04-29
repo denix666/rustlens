@@ -30,7 +30,7 @@ pub fn convert_event(ev: k8s_openapi::api::core::v1::Event) -> Option<EventItem>
         reason: ev.reason.clone().unwrap_or_else(|| "Unknown".to_string()),
         involved_object,
         event_type: ev.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        timestamp: ev.event_time.as_ref().map(|t| t.0.to_rfc3339()).or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()))
+        timestamp: ev.event_time.as_ref().map(|t| t.0.to_string()).or_else(|| ev.last_timestamp.as_ref().map(|t| t.0.to_string()))
             .unwrap_or_else(|| "N/A".to_string()),
         namespace: Some(ev.involved_object.namespace.clone().unwrap_or_else(|| "default".to_string())),
         count: ev.count,

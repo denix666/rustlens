@@ -32,7 +32,7 @@ pub fn convert_cronjob(cj: CronJob) -> Option<CronJobItem> {
     let last_schedule = cj.status
         .as_ref()
         .and_then(|s| s.last_schedule_time.as_ref())
-        .map(|t| t.0.to_rfc3339())
+        .map(|t| t.0.to_string())
         .unwrap_or_else(|| "-".to_string());
 
     Some(CronJobItem {

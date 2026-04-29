@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(deprecated)]
 
 mod ui;
 use flexi_logger::{Duplicate, FileSpec, Logger};
@@ -621,6 +622,7 @@ async fn main() {
     let helm_releases = Arc::new(Mutex::new(Vec::<HelmReleaseItem>::new()));
     let helm_releases_loading = Arc::new(AtomicBool::new(true));
 
+    #[allow(deprecated)]
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
         ctx.set_visuals(egui::Visuals::dark());
 
@@ -630,7 +632,7 @@ async fn main() {
         }
 
         // Setup style
-        let mut style: egui::Style = (*ctx.style()).clone();
+        let mut style: egui::Style = (*ctx.global_style()).clone();
 
         // Increase font size for different TextStyle
         style.text_styles = [
@@ -642,7 +644,7 @@ async fn main() {
         ]
         .into();
 
-        ctx.set_style(style);
+        ctx.set_global_style(style);
 
         egui::TopBottomPanel::top("top panel").show(ctx, |ui| {
             ui.add_space(7.0);
