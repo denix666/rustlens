@@ -15,7 +15,7 @@ use log::{error, info, Record};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::io::{Read as IoRead, Write};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,6 +25,7 @@ use serde_json::{json};
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use serde_yml;
+use base64::Engine;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
 
@@ -599,6 +600,7 @@ pub enum ScaleTarget {
     Deployment,
     StatefulSet,
     ReplicaSet,
+    DaemonSet,
 }
 
 pub async fn scale_workload(client: Arc<Client>, name: &str, namespace: &str, replicas: i32, kind: ScaleTarget) -> Result<(), kube::Error> {
@@ -621,6 +623,39 @@ pub async fn scale_workload(client: Arc<Client>, name: &str, namespace: &str, re
             let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), namespace);
             api.patch(name, &PatchParams::apply("scaler"), &Patch::Merge(&patch)).await?;
         }
+        ScaleTarget::DaemonSet => {}
+    }
+    Ok(())
+}
+
+pub async fn restart_workload(client: Arc<Client>, name: &str, namespace: &str, kind: ScaleTarget) -> Result<(), kube::Error> {
+    let now = k8s_openapi::jiff::Timestamp::now().to_string();
+    let patch = serde_json::json!({
+        "spec": {
+            "template": {
+                "metadata": {
+                    "annotations": {
+                        "kubectl.kubernetes.io/restartedAt": now
+                    }
+                }
+            }
+        }
+    });
+
+    match kind {
+        ScaleTarget::Deployment => {
+            let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), namespace);
+            api.patch(name, &PatchParams::apply("rustlens-restart").force(), &Patch::Merge(&patch)).await?;
+        }
+        ScaleTarget::StatefulSet => {
+            let api: Api<StatefulSet> = Api::namespaced(client.as_ref().clone(), namespace);
+            api.patch(name, &PatchParams::apply("rustlens-restart").force(), &Patch::Merge(&patch)).await?;
+        }
+        ScaleTarget::DaemonSet => {
+            let api: Api<DaemonSet> = Api::namespaced(client.as_ref().clone(), namespace);
+            api.patch(name, &PatchParams::apply("rustlens-restart").force(), &Patch::Merge(&patch)).await?;
+        }
+        ScaleTarget::ReplicaSet => {}
     }
     Ok(())
 }
@@ -684,6 +719,31 @@ pub async fn delete_cluster_crd(client: Arc<Client>, crd_name: &str) -> Result<(
     crds.delete(crd_name, &DeleteParams::default()).await?;
     log::info!("Delete {}", crd_name);
     Ok(())
+}
+
+pub async fn delete_cr_instance(client: Arc<Client>, name: &str, namespace: Option<&str>, group: &str, version: &str, kind: &str, plural: &str) -> Result<(), kube::Error> {
+    use kube::api::{ApiResource, DynamicObject, GroupVersionKind};
+    let ar = ApiResource::from_gvk_with_plural(&GroupVersionKind::gvk(group, version, kind), plural);
+    let api: Api<DynamicObject> = if let Some(ns) = namespace {
+        Api::namespaced_with(client.as_ref().clone(), ns, &ar)
+    } else {
+        Api::all_with(client.as_ref().clone(), &ar)
+    };
+    api.delete(name, &DeleteParams::default()).await?;
+    log::info!("Deleted CR instance: {}", name);
+    Ok(())
+}
+
+pub async fn get_cr_instance_yaml(client: Arc<Client>, name: &str, namespace: Option<&str>, group: &str, version: &str, kind: &str, plural: &str) -> Result<String, kube::Error> {
+    use kube::api::{ApiResource, DynamicObject, GroupVersionKind};
+    let ar = ApiResource::from_gvk_with_plural(&GroupVersionKind::gvk(group, version, kind), plural);
+    let api: Api<DynamicObject> = if let Some(ns) = namespace {
+        Api::namespaced_with(client.as_ref().clone(), ns, &ar)
+    } else {
+        Api::all_with(client.as_ref().clone(), &ar)
+    };
+    let obj = api.get(name).await?;
+    Ok(serde_yml::to_string(&obj).unwrap_or_default())
 }
 
 pub async fn delete_namespace(client: Arc<Client>, name: &str) -> Result<(), kube::Error> {
@@ -782,6 +842,14 @@ pub async fn drain_node(client: Arc<Client>, node_name: &str) -> anyhow::Result<
     Ok(())
 }
 
+fn decompress_gzip(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    use flate2::read::GzDecoder;
+    let mut decoder = GzDecoder::new(data);
+    let mut result = Vec::new();
+    decoder.read_to_end(&mut result)?;
+    Ok(result)
+}
+
 #[derive(Debug, Clone)]
 pub struct HelmReleaseItem {
     pub name: String,
@@ -807,22 +875,30 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
 
             for s in secret_list {
                 if let Some(name) = s.metadata.name {
-                    let unzipped = Vec::new();
-                    let as_str = String::from_utf8_lossy(&unzipped);
-                    let chart_line = as_str.lines().find(|l| l.contains("chart"));
-                    let chart = chart_line
-                        .and_then(|line| line.split('"').nth(1))
-                        .map(|s| s.to_string());
+                    let mut chart_name: Option<String> = None;
+                    let mut version: Option<String> = None;
 
-                    let chart_name = chart
-                        .as_ref()
-                        .and_then(|c| c.split('-').next())
-                        .map(|s| s.to_string());
-
-                    let version = chart
-                        .as_ref()
-                        .and_then(|c| c.split('-').last())
-                        .map(|s| s.to_string());
+                    if let Some(data) = &s.data {
+                        if let Some(release_bytes) = data.get("release") {
+                            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&release_bytes.0) {
+                                if let Ok(decompressed) = decompress_gzip(&decoded) {
+                                    let as_str = String::from_utf8_lossy(&decompressed);
+                                    let chart_line = as_str.lines().find(|l| l.contains("\"chart\""));
+                                    if let Some(line) = chart_line {
+                                        if let Some(val) = line.split('"').nth(3) {
+                                            let parts: Vec<&str> = val.rsplitn(2, '-').collect();
+                                            if parts.len() == 2 {
+                                                version = Some(parts[0].to_string());
+                                                chart_name = Some(parts[1].to_string());
+                                            } else {
+                                                chart_name = Some(val.to_string());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     let created_at = s.metadata.creation_timestamp;
 

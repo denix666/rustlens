@@ -1166,6 +1166,9 @@ async fn main() {
                                                 }
                                                 ui.end_row();
 
+                                                ui.label("Actions");
+                                                ui.end_row();
+
                                                 // rows
                                                 for cr in cr_items.iter() {
                                                     ui.label(cr.name.clone());
@@ -1177,6 +1180,48 @@ async fn main() {
                                                             ui.label("-");
                                                         }
                                                     }
+
+                                                    ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                        ui.set_width(200.0);
+                                                        if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                            let name = cr.name.clone();
+                                                            let ns = cr.namespace.clone();
+                                                            let group = cr.group.clone();
+                                                            let version = cr.version.clone();
+                                                            let plural = cr.plural.clone();
+                                                            let kind = cr.kind.clone();
+                                                            let client_clone = Arc::clone(&client);
+                                                            let yaml_editor_clone = Arc::clone(&yaml_editor_window);
+                                                            tokio::spawn(async move {
+                                                                match crate::get_cr_instance_yaml(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                                    Ok(yaml) => {
+                                                                        let mut editor = yaml_editor_clone.lock().unwrap();
+                                                                        editor.content = yaml;
+                                                                        editor.show = true;
+                                                                    }
+                                                                    Err(e) => log::error!("Failed to get CR YAML: {}", e),
+                                                                }
+                                                            });
+                                                            ui.close_kind(egui::UiKind::Menu);
+                                                        }
+                                                        if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                            let name = cr.name.clone();
+                                                            let ns = cr.namespace.clone();
+                                                            let group = cr.group.clone();
+                                                            let version = cr.version.clone();
+                                                            let plural = cr.plural.clone();
+                                                            let kind = cr.kind.clone();
+                                                            let client_clone = Arc::clone(&client);
+                                                            confirmation_dialog.request(name.clone(), ns.clone(), move || {
+                                                                tokio::spawn(async move {
+                                                                    if let Err(e) = crate::delete_cr_instance(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                                        log::error!("Failed to delete CR instance: {}", e);
+                                                                    }
+                                                                });
+                                                            });
+                                                            ui.close_kind(egui::UiKind::Menu);
+                                                        }
+                                                    });
 
                                                     ui.end_row();
                                                 }
@@ -2121,6 +2166,17 @@ async fn main() {
                                                         Arc::clone(&yaml_editor_window),
                                                         Arc::clone(&client)
                                                     );
+                                                }
+                                                if ui.button(egui::RichText::new("🔄 Restart").size(16.0).color(BLUE_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(e) = crate::restart_workload(client_clone, &name, &ns, ScaleTarget::DaemonSet).await {
+                                                            log::error!("Failed to restart daemonset: {}", e);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
@@ -3450,6 +3506,17 @@ async fn main() {
                                                     );
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
+                                                if ui.button(egui::RichText::new("🔄 Restart").size(16.0).color(BLUE_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(e) = crate::restart_workload(client_clone, &name, &ns, ScaleTarget::StatefulSet).await {
+                                                            log::error!("Failed to restart statefulset: {}", e);
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();
                                                     let cur_ns = item.namespace.clone();
@@ -4323,6 +4390,17 @@ async fn main() {
                                                     scale_window.cur_replicas = item.replicas;
                                                     scale_window.desired_replicas = item.replicas;
                                                     scale_window.resource_kind = Some(ScaleTarget::Deployment);
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🔄 Restart").size(16.0).color(BLUE_BUTTON)).clicked() {
+                                                    let name = item.name.clone();
+                                                    let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                    let client_clone = Arc::clone(&client);
+                                                    tokio::spawn(async move {
+                                                        if let Err(e) = crate::restart_workload(client_clone, &name, &ns, ScaleTarget::Deployment).await {
+                                                            log::error!("Failed to restart deployment: {}", e);
+                                                        }
+                                                    });
                                                     ui.close_kind(egui::UiKind::Menu);
                                                 }
                                             });

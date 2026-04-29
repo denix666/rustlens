@@ -9,6 +9,9 @@ pub struct CrdInstance {
     pub kind: String,
     pub namespace: Option<String>,
     pub data: Value,
+    pub group: String,
+    pub version: String,
+    pub plural: String,
 }
 
 pub async fn get_cr_instances(
@@ -46,6 +49,9 @@ pub async fn get_cr_instances(
                 kind: kind.clone(),
                 namespace: item.namespace(),
                 data: obj,
+                group: group.clone(),
+                version: version.clone(),
+                plural: plural.clone(),
             }
         })
         .collect();
