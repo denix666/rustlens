@@ -213,17 +213,16 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
     let creation_timestamp = metadata.creation_timestamp.clone();
     let version = node.status
         .as_ref()
-        .and_then(|status| status.node_info.as_ref())
-        .and_then(|info| Some(info.kubelet_version.clone()));
+        .and_then(|status| status.node_info.as_ref()).map(|info| info.kubelet_version.clone());
     let scheduling_disabled = node.spec.as_ref().and_then(|spec| spec.unschedulable).unwrap_or(false);
     let taints = node.spec.as_ref().and_then(|spec| spec.taints.clone());
     let labels: Vec<String> = node.metadata.labels.as_ref()
         .map(|labels_map| { // If labels_map == Some(BTreeMap), do:
             labels_map.iter()
                 .filter(|(k, _v)| !k.contains("kubernetes"))
-                .map(|(k, v)| format!("{}={}", k.to_string(), v.to_string()))
+                .map(|(k, v)| format!("{}={}", k, v))
                 .collect()
-        }).unwrap_or_else(Vec::new);
+        }).unwrap_or_default();
     let roles = node.metadata.labels.unwrap_or_default()
         .iter()
         .filter_map(|(key, value)| {
@@ -241,11 +240,11 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
         .as_ref()
         .and_then(|s| s.conditions.as_ref())
         .and_then(|conds| {
-            conds.iter().find(|c| c.type_ == "Ready").and_then(|c| {
+            conds.iter().find(|c| c.type_ == "Ready").map(|c| {
                 match c.status.as_str() {
-                    "True" => Some("Ready"),
-                    "False" => Some("NotReady"),
-                    _ => Some("Unknown"),
+                    "True" => "Ready",
+                    "False" => "NotReady",
+                    _ => "Unknown",
                 }
             })
         })

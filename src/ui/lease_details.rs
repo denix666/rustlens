@@ -115,9 +115,8 @@ pub fn show_lease_details_window(
     });
     crate::show_delete_confirmation(ctx, delete_confirm);
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             lease_details_window.show = false;
         }
-    }
 }

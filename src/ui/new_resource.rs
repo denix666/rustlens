@@ -158,9 +158,8 @@ pub fn show_new_resource_window(ctx: &Context, new_resource_window: &mut NewReso
         });
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             new_resource_window.show = false;
         }
-    }
 }

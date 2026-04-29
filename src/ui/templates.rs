@@ -1,10 +1,10 @@
-pub const NAMESPACE_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const NAMESPACE_TEMPLATE: &str = r#"apiVersion: v1
 kind: Namespace
 metadata:
   name: namespace-name
 "#;
 
-pub const CONFIGMAP_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const CONFIGMAP_TEMPLATE: &str = r#"apiVersion: v1
 kind: ConfigMap
 metadata:
   name: configmap-name
@@ -13,13 +13,13 @@ data:
   key: "value"
 "#;
 
-pub const STORAGE_CLASS_TEMPLATE: &'static str = r#"apiVersion: storage.k8s.io/v1
+pub const STORAGE_CLASS_TEMPLATE: &str = r#"apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: sc-name
 "#;
 
-pub const PVC_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const PVC_TEMPLATE: &str = r#"apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: pvc-name
@@ -33,7 +33,7 @@ spec:
   storageClassName: storage-class-name
 "#;
 
-pub const POD_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const POD_TEMPLATE: &str = r#"apiVersion: v1
 kind: Pod
 metadata:
   name: pod-name
@@ -44,7 +44,7 @@ spec:
       image: nginx
 "#;
 
-pub const POD_WITH_PVC_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const POD_WITH_PVC_TEMPLATE: &str = r#"apiVersion: v1
 kind: Pod
 metadata:
   name: pod-name
@@ -62,7 +62,7 @@ spec:
         claimName: pvc-name
 "#;
 
-pub const SECRET_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const SECRET_TEMPLATE: &str = r#"apiVersion: v1
 kind: Secret
 metadata:
   name: secret-name
@@ -72,40 +72,40 @@ data:
 type: Opaque
 "#;
 
-pub const SERVICE_ACCOUNT_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const SERVICE_ACCOUNT_TEMPLATE: &str = r#"apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: service-account-name
   namespace: namespace-name
 "#;
 
-pub const ROLE_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+pub const ROLE_TEMPLATE: &str = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: role-name
   namespace: namespace-name
 "#;
 
-pub const ROLE_BINDING_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+pub const ROLE_BINDING_TEMPLATE: &str = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: role-binding-name
   namespace: namespace-name
 "#;
 
-pub const CLUSTER_ROLE_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+pub const CLUSTER_ROLE_TEMPLATE: &str = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: cluster-role-name
 "#;
 
-pub const CLUSTER_ROLE_BINDING_TEMPLATE: &'static str = r#"apiVersion: rbac.authorization.k8s.io/v1
+pub const CLUSTER_ROLE_BINDING_TEMPLATE: &str = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: cluster-role-binding-name
 "#;
 
-pub const INGRESS_TEMPLATE: &'static str = r#"apiVersion: networking.k8s.io/v1
+pub const INGRESS_TEMPLATE: &str = r#"apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-name
@@ -126,7 +126,7 @@ spec:
               number: 80
 "#;
 
-pub const SERVICE_TEMPLATE: &'static str = r#"apiVersion: v1
+pub const SERVICE_TEMPLATE: &str = r#"apiVersion: v1
 kind: Service
 metadata:
   name: service-name
@@ -140,14 +140,14 @@ spec:
     - port: 80
 "#;
 
-pub const DAEMONSET_TEMPLATE: &'static str = r#"apiVersion: apps/v1
+pub const DAEMONSET_TEMPLATE: &str = r#"apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: daemonset-name
   namespace: namespace-name
 "#;
 
-pub const REPLICASET_TEMPLATE: &'static str = r#"apiVersion: apps/v1
+pub const REPLICASET_TEMPLATE: &str = r#"apiVersion: apps/v1
 kind: ReplicaSet
 metadata:
   name: replicaset-name
@@ -171,7 +171,7 @@ spec:
         - containerPort: 80
 "#;
 
-pub const DEPLOYMENT_TEMPLATE: &'static str = r#"apiVersion: apps/v1
+pub const DEPLOYMENT_TEMPLATE: &str = r#"apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: deployment-name
@@ -195,7 +195,7 @@ spec:
         - containerPort: 80
 "#;
 
-pub const EXTERNAL_SECRET_TEMPLATE: &'static str = r#"apiVersion: external-secrets.io/v1beta1
+pub const EXTERNAL_SECRET_TEMPLATE: &str = r#"apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: secret-name

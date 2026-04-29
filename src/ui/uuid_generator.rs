@@ -33,9 +33,8 @@ pub fn show_uuid_gen_window(ctx: &Context, uuid_gen_window: &mut UUIDGenWindow,)
         ui.add_space(10.0);
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             uuid_gen_window.show = false;
         }
-    }
 }

@@ -52,7 +52,7 @@ pub fn show_node_details_window(
 
                     if let Some(creation_timestamp) = &item.creation_timestamp {
                         ui.label(egui::RichText::new("Creation time:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(format!("{}, {} ago", creation_timestamp.0.to_string(), crate::format_age(&creation_timestamp))).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(format!("{}, {} ago", creation_timestamp.0, crate::format_age(creation_timestamp))).color(DETAIL_COLOR));
                         ui.end_row();
                     }
 
@@ -99,7 +99,7 @@ pub fn show_node_details_window(
                     ui.end_row();
                 }
 
-                if guard_details.addresses.clone().len() > 0 {
+                if !guard_details.addresses.clone().is_empty() {
                     ui.label(egui::RichText::new("Adresses:").color(ROW_NAME_COLOR));
                     egui::Grid::new("node_details_addresses_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                         for (j, y) in guard_details.addresses.iter() {
@@ -135,7 +135,7 @@ pub fn show_node_details_window(
                     ui.end_row();
                 }
 
-                if guard_details.taints.clone().len() > 0 {
+                if !guard_details.taints.clone().is_empty() {
                     ui.label(egui::RichText::new("Taints:").color(ROW_NAME_COLOR));
                     egui::Grid::new("node_details_taints_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                         for i in guard_details.taints.iter() {
@@ -146,7 +146,7 @@ pub fn show_node_details_window(
                     ui.end_row();
                 }
 
-                if pods.len() > 0 {
+                if !pods.is_empty() {
                     ui.label(egui::RichText::new("Pods:").color(ROW_NAME_COLOR));
                     egui::Grid::new("pods_on_node_details_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                         ui.label(egui::RichText::new("Pod name").color(PODS_HEAD_GRID_COLOR));
@@ -168,8 +168,8 @@ pub fn show_node_details_window(
                                     }
                                 });
                             }
-                            ui.label(egui::RichText::new(&j.namespace.as_ref().unwrap().to_string()).color(NAMESPACE_COLUMN_COLOR));
-                            ui.label(egui::RichText::new(&j.phase.as_ref().unwrap().to_string()).color(item_color(&j.phase.as_ref().unwrap().to_string())));
+                            ui.label(egui::RichText::new(j.namespace.as_ref().unwrap().to_string()).color(NAMESPACE_COLUMN_COLOR));
+                            ui.label(egui::RichText::new(j.phase.as_ref().unwrap().to_string()).color(item_color(&j.phase.as_ref().unwrap().to_string())));
                             ui.end_row();
                         }
                     });
@@ -179,9 +179,8 @@ pub fn show_node_details_window(
         });
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             node_details_window.show = false;
         }
-    }
 }

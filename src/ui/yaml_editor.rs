@@ -133,11 +133,10 @@ pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &
         });
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             editor.show = false;
         }
-    }
 }
 
 pub fn make_yaml_layouter(
@@ -224,11 +223,10 @@ pub fn make_yaml_layouter(
                 (&number_re, number_fmt.clone()),
                 (&key_re, key_fmt.clone()),
             ] {
-                if let Some(m) = re.find(remaining) {
-                    if next_match.is_none() || m.start() < next_match.clone().unwrap().0 {
+                if let Some(m) = re.find(remaining)
+                    && (next_match.is_none() || m.start() < next_match.clone().unwrap().0) {
                         next_match = Some((m.start(), m.end(), fmt));
                     }
-                }
             }
 
             if let Some((s, e, fmt)) = next_match {

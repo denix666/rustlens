@@ -820,12 +820,8 @@ async fn main() {
                     for (group, items) in cr_grouped_list.lock().unwrap().iter() {
                         egui::CollapsingHeader::new(group).default_open(false).show(ui, |ui| {
                             for item in items {
-                                let seleted_item: bool;
-                                if item.kind == selected_cr && *selected_category_ui.lock().unwrap() == Category::CustomResources {
-                                    seleted_item = true;
-                                } else {
-                                    seleted_item = false;
-                                }
+                                
+                                let seleted_item: bool = item.kind == selected_cr && *selected_category_ui.lock().unwrap() == Category::CustomResources;
                                 if ui.selectable_label(seleted_item, &item.kind).clicked() {
                                     *selected_category_ui.lock().unwrap() = Category::CustomResources;
                                     selected_cr = item.kind.clone();
@@ -909,7 +905,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Leases - {}", visible_leases.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -932,7 +928,7 @@ async fn main() {
                     if leases_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_leases.len() == 0 {
+                        if visible_leases.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("leases_scroll").show(ui, |ui| {
@@ -960,7 +956,7 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             if let Some(holder) = &item.holder {
@@ -968,7 +964,7 @@ async fn main() {
                                             } else {
                                                 ui.label("-");
                                             }
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1086,7 +1082,7 @@ async fn main() {
                                         }
                                     }
 
-                                    fn pick_condition<'a>(status: &'a Value) -> Option<&'a Map<String, Value>> {
+                                    fn pick_condition(status: &Value) -> Option<&Map<String, Value>> {
                                         let arr = status.get("conditions")?.as_array()?;
                                         let mut first: Option<&Map<String, Value>> = None;
 
@@ -1105,19 +1101,16 @@ async fn main() {
                                     fn extract_col_value(data: &Value, key: &str) -> Option<String> {
                                         let status = data.get("status")?;
 
-                                        if let Some(v) = status.get(key) {
-                                            if let Some(s) = value_to_string(v) {
+                                        if let Some(v) = status.get(key)
+                                            && let Some(s) = value_to_string(v) {
                                                 return Some(s);
                                             }
-                                        }
 
-                                        if let Some(cond) = pick_condition(status) {
-                                            if let Some(v) = cond.get(key) {
-                                                if let Some(s) = value_to_string(v) {
+                                        if let Some(cond) = pick_condition(status)
+                                            && let Some(v) = cond.get(key)
+                                                && let Some(s) = value_to_string(v) {
                                                     return Some(s);
                                                 }
-                                            }
-                                        }
 
                                         None
                                     }
@@ -1248,7 +1241,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Service accounts - {}", visible_service_accounts.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -1277,7 +1270,7 @@ async fn main() {
                     if service_accounts_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_service_accounts.len() == 0 {
+                        if visible_service_accounts.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("sservice_accounts_scroll").show(ui, |ui| {
@@ -1304,10 +1297,10 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1359,7 +1352,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Roles - {}", visible_roles.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -1388,7 +1381,7 @@ async fn main() {
                     if roles_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_roles.len() == 0 {
+                        if visible_roles.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("roles_scroll").show(ui, |ui| {
@@ -1415,10 +1408,10 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1476,7 +1469,7 @@ async fn main() {
                     if cluster_roles_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_cluster_roles.len() == 0 {
+                        if visible_cluster_roles.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("cluster_roles_scroll").show(ui, |ui| {
@@ -1501,7 +1494,7 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1547,7 +1540,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Role Bindings - {}", visible_rbs.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -1576,7 +1569,7 @@ async fn main() {
                     if rb_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_rbs.len() == 0 {
+                        if visible_rbs.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("rbs_scroll").show(ui, |ui| {
@@ -1603,10 +1596,10 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1664,7 +1657,7 @@ async fn main() {
                     if cluster_rb_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_cluster_rbs.len() == 0 {
+                        if visible_cluster_rbs.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("cluster_rb_scroll").show(ui, |ui| {
@@ -1689,7 +1682,7 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1735,7 +1728,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Helm releases - {}", helm_releases.lock().unwrap().len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -1769,21 +1762,21 @@ async fn main() {
                                     let cur_item_object = &item.name;
                                     if filter_helm_releases.is_empty() || cur_item_object.contains(&filter_helm_releases) {
                                         ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                        if item.chart_name.is_some() {
-                                            ui.label(format!("{}", item.chart_name.as_ref().unwrap()));
+                                        if let Some(chart) = &item.chart_name {
+                                            ui.label(chart.to_string());
                                         } else {
                                             ui.label("");
                                         }
-                                        if item.version.is_some() {
-                                            ui.label(format!("{}", item.version.as_ref().unwrap()));
+                                        if let Some(ver) = &item.version {
+                                            ui.label(ver.to_string());
                                         } else {
                                             ui.label("");
                                         }
-                                        if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                        if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or_default()).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                             *selected_ns = item.namespace.clone();
                                         }
-                                        if item.creation_timestamp.is_some() {
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        if let Some(ts) = &item.creation_timestamp {
+                                            ui.label(format_age(ts));
                                         } else {
                                             ui.label("");
                                         }
@@ -1837,12 +1830,12 @@ async fn main() {
                                                 }
                                             });
                                         }
-                                        ui.label(format!("{}", &item.plural));
-                                        ui.label(format!("{}", &item.group));
-                                        ui.label(format!("{}", &item.version));
-                                        ui.label(format!("{}", &item.scope));
-                                        ui.label(format!("{}", &item.kind));
-                                        ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                        ui.label(item.plural.to_string());
+                                        ui.label(item.group.to_string());
+                                        ui.label(item.version.to_string());
+                                        ui.label(item.scope.to_string());
+                                        ui.label(item.kind.to_string());
+                                        ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                         ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                             ui.set_width(200.0);
                                             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1897,7 +1890,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("PodDisruptionBudgets - {}", visible_network_policies.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -1919,7 +1912,7 @@ async fn main() {
                     if network_policies_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_network_policies.len() == 0 {
+                        if visible_network_policies.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("network_policies_scroll").show(ui, |ui| {
@@ -1935,12 +1928,12 @@ async fn main() {
                                         let cur_item_object = &item.name;
                                         if filter_network_policies.is_empty() || cur_item_object.contains(&filter_network_policies) {
                                             ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(&item.pod_selector);
                                             ui.label(&item.policy_types);
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -1992,7 +1985,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("PodDisruptionBudgets - {}", visible_pdbs.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -2014,7 +2007,7 @@ async fn main() {
                     if pdbs_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_pdbs.len() == 0 {
+                        if visible_pdbs.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
@@ -2032,14 +2025,14 @@ async fn main() {
                                         let cur_item_object = &item.name;
                                         if filter_pdbs.is_empty() || cur_item_object.contains(&filter_pdbs) {
                                             ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR));
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(&item.min_available.clone().unwrap_or_else(|| "-".to_string()));
-                                            ui.label(&item.max_unavailable.clone().unwrap_or_else(|| "-".to_string()));
+                                            ui.label(item.min_available.clone().unwrap_or_else(|| "-".to_string()));
+                                            ui.label(item.max_unavailable.clone().unwrap_or_else(|| "-".to_string()));
                                             ui.label(format!("{} / {}", &item.current_healthy, &item.desired_healthy));
                                             ui.label(format!("{}", &item.allowed_disruptions));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2091,7 +2084,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("DaemonSets - {}", visible_daemonsets.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -2120,7 +2113,7 @@ async fn main() {
                     if daemonsets_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_daemonsets.len() == 0 {
+                        if visible_daemonsets.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
@@ -2150,13 +2143,13 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(format!("{}", &item.desired));
                                             ui.label(format!("{}", &item.current));
                                             ui.label(format!("{}", &item.ready));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2237,7 +2230,7 @@ async fn main() {
                     egui::Frame::group(ui.style()).show(ui, |ui| {
                         show_overview(ui, &stats);
 
-                        if stats.namespaces_with_pending_items.len() > 0 {
+                        if !stats.namespaces_with_pending_items.is_empty() {
                             ui.add_space(50.0);
                             ui.heading("List of namespaces with pending items:");
                             egui::ScrollArea::vertical().id_salt("ns_with_pending_items_scroll").show(ui, |ui| {
@@ -2279,7 +2272,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("ReplicaSets - {}", visible_replicasets.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -2327,7 +2320,7 @@ async fn main() {
                     if replicasets_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_replicasets.len() == 0 {
+                        if visible_replicasets.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("replicasets_scroll").show(ui, |ui| {
@@ -2366,13 +2359,13 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(egui::RichText::new(format!("{}", &item.desired)).color(item_color(status)));
                                             ui.label(egui::RichText::new(format!("{}", &item.current)).color(item_color(status)));
                                             ui.label(egui::RichText::new(format!("{}", &item.ready)).color(item_color(status)));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
@@ -2433,7 +2426,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Ingresses - {}", visible_ingresses.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -2462,7 +2455,7 @@ async fn main() {
                     if ingresses_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_ingresses.len() == 0 {
+                        if visible_ingresses.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("ingresses_scroll").show(ui, |ui| {
@@ -2493,14 +2486,14 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.host));
-                                            ui.label(format!("{}", &item.paths));
-                                            ui.label(format!("{}", &item.service));
-                                            ui.label(format!("{}", &item.tls));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(item.host.to_string());
+                                            ui.label(item.paths.to_string());
+                                            ui.label(item.service.to_string());
+                                            ui.label(item.tls.to_string());
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2551,7 +2544,7 @@ async fn main() {
                     if csi_drivers_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if csi_drivers.lock().unwrap().len() == 0 {
+                        if csi_drivers.lock().unwrap().is_empty() {
                             show_empty(ui);
                         } else {
                             let csi_drivers_list = csi_drivers.lock().unwrap();
@@ -2569,11 +2562,11 @@ async fn main() {
                                         let cur_item_object = &item.name;
                                         if filter_csi_drivers.is_empty() || cur_item_object.contains(&filter_csi_drivers) {
                                             ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                            ui.label(format!("{}", &item.attach_required));
-                                            ui.label(format!("{}", &item.pod_info_on_mount));
-                                            ui.label(format!("{}", &item.storage_capacity));
-                                            ui.label(format!("{}", &item.fs_group_policy));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(item.attach_required.to_string());
+                                            ui.label(item.pod_info_on_mount.to_string());
+                                            ui.label(item.storage_capacity.to_string());
+                                            ui.label(item.fs_group_policy.to_string());
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2622,7 +2615,7 @@ async fn main() {
                     if storage_classes_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if storage_classes.lock().unwrap().len() == 0 {
+                        if storage_classes.lock().unwrap().is_empty() {
                             show_empty(ui);
                         } else {
                             let scs_list = storage_classes.lock().unwrap();
@@ -2640,11 +2633,11 @@ async fn main() {
                                         let cur_item_object = &item.name;
                                         if filter_scs.is_empty() || cur_item_object.contains(&filter_scs) {
                                             ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
-                                            ui.label(format!("{}", &item.provisioner));
-                                            ui.label(format!("{}", &item.reclaim_policy));
-                                            ui.label(format!("{}", &item.volume_binding_mode));
-                                            ui.label(format!("{}", &item.is_default));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(item.provisioner.to_string());
+                                            ui.label(item.reclaim_policy.to_string());
+                                            ui.label(item.volume_binding_mode.to_string());
+                                            ui.label(item.is_default.to_string());
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2699,7 +2692,7 @@ async fn main() {
                     if pvs_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if pvs.lock().unwrap().len() == 0 {
+                        if pvs.lock().unwrap().is_empty() {
                             show_empty(ui);
                         } else {
                             let pvs_list = pvs.lock().unwrap();
@@ -2759,12 +2752,12 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            ui.label(format!("{}", &item.storage_class));
-                                            ui.label(format!("{}", &item.capacity));
-                                            ui.label(format!("{}", &item.claim));
+                                            ui.label(item.storage_class.to_string());
+                                            ui.label(item.capacity.to_string());
+                                            ui.label(item.claim.to_string());
                                             ui.label(egui::RichText::new(&item.reclaim_policy).color(item_color(&item.reclaim_policy)));
                                             ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2820,7 +2813,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("PersistentVolumeClaims - {}", visible_pvcs.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -2849,7 +2842,7 @@ async fn main() {
                     if pvcs_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_pvcs.len() == 0 {
+                        if visible_pvcs.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
@@ -2908,14 +2901,14 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.storage_class));
-                                            ui.label(format!("{}", &item.volume_name));
-                                            ui.label(format!("{}", &item.size));
+                                            ui.label(item.storage_class.to_string());
+                                            ui.label(item.volume_name.to_string());
+                                            ui.label(item.size.to_string());
                                             ui.label(egui::RichText::new(&item.status).color(item_color(&item.status)));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -2968,7 +2961,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Endpoints - {}", visible_endpoints.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -2990,7 +2983,7 @@ async fn main() {
                     if endpoints_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_endpoints.len() == 0 {
+                        if visible_endpoints.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
@@ -3019,13 +3012,13 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             //ui.label(format!("{}", &item.addresses));
-                                            ui.add(egui::Label::new(egui::RichText::new(format!("{}", &item.addresses))).wrap());
+                                            ui.add(egui::Label::new(egui::RichText::new(item.addresses.to_string())).wrap());
                                             ui.label(format!("{:?}", &item.ports));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -3078,7 +3071,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Jobs - {}", visible_jobs.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -3100,7 +3093,7 @@ async fn main() {
                     if jobs_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_jobs.len() == 0 {
+                        if visible_jobs.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
@@ -3129,12 +3122,12 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(format!("{}", &item.completions));
                                             ui.label(egui::RichText::new(&item.condition).color(item_color(&item.condition)));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -3187,7 +3180,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Services - {}", visible_services.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -3216,7 +3209,7 @@ async fn main() {
                     if services_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_services.len() == 0 {
+                        if visible_services.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
@@ -3248,14 +3241,14 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.svc_type));
+                                            ui.label(item.svc_type.to_string());
                                             ui.label(format!("{:?}", &item.cluster_ip));
                                             ui.label(format!("{:?}", &item.external_ip));
                                             ui.label(format!("{:?}", &item.status));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.label(egui::RichText::new(&item.ports).color(egui::Color32::LIGHT_YELLOW));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
@@ -3309,7 +3302,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("CronJobs - {}", visible_cronjobs.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -3331,7 +3324,7 @@ async fn main() {
                     if cronjobs_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_cronjobs.len() == 0 {
+                        if visible_cronjobs.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
@@ -3362,14 +3355,14 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.schedule));
-                                            ui.label(format!("{}", &item.suspend));
+                                            ui.label(item.schedule.to_string());
+                                            ui.label(item.suspend.to_string());
                                             ui.label(format!("{}", &item.active));
-                                            ui.label(format!("{}", &item.last_schedule));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(item.last_schedule.to_string());
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -3422,7 +3415,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("StatefulSets - {}", visible_statefulsets.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -3444,7 +3437,7 @@ async fn main() {
                     if statefulsets_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_statefulsets.len() == 0 {
+                        if visible_statefulsets.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
@@ -3474,18 +3467,18 @@ async fn main() {
                                                 });
                                             }
 
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
 
-                                            let stat_color = match &item.ready_replicas < &item.replicas {
+                                            let stat_color = match item.ready_replicas < item.replicas {
                                                 true => Color32::ORANGE,
                                                 _ => Color32::GREEN,
                                             };
 
                                             ui.label(egui::RichText::new(format!("{}/{}", &item.ready_replicas, &item.replicas)).color(stat_color));
                                             ui.label(egui::RichText::new(&item.service_name).italics().color(egui::Color32::CYAN));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("⬍ Scale").size(16.0).color(ORANGE_BUTTON)).clicked() {
@@ -3554,8 +3547,8 @@ async fn main() {
                         }
 
                         ui.separator();
-                        if ui.button("💾 Export list of nodes").clicked() {
-                            if let Some(path) = rfd::FileDialog::new()
+                        if ui.button("💾 Export list of nodes").clicked()
+                            && let Some(path) = rfd::FileDialog::new()
                                 .set_file_name("nodes_list.txt").save_file()
                             {
                                 let content = app_state.nodes_list.join("\n");
@@ -3568,7 +3561,6 @@ async fn main() {
                                     }
                                 }
                             }
-                        }
                     });
                     ui.separator();
                     if let Some((msg, when)) = &app_state.export_message {
@@ -3591,7 +3583,7 @@ async fn main() {
                     if nodes_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if nodes.lock().unwrap().len() == 0 {
+                        if nodes.lock().unwrap().is_empty() {
                             show_empty(ui);
                         } else {
                             let nodes = nodes.lock().unwrap();
@@ -3703,7 +3695,7 @@ async fn main() {
                                             }
 
                                             let labels = &item.labels;
-                                            if labels.len() > 0 {
+                                            if !labels.is_empty() {
                                                 let labels_list: String = labels.join("\n");
                                                 ui.label(egui::RichText::new(labels.len().to_string()).color(DETAIL_COLOR))
                                                     .on_hover_cursor(CursorIcon::PointingHand)
@@ -3718,9 +3710,9 @@ async fn main() {
                                                 ui.label("unknown");
                                             }
 
-                                            ui.label(format!("{}", item.roles.join(", ")));
+                                            ui.label(item.roles.join(", ").to_string());
 
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
 
                                             let node_status = egui::RichText::new(&item.status).color(item_color(&item.status));
                                             let scheduling_status = match item.scheduling_disabled {
@@ -3861,7 +3853,7 @@ async fn main() {
                     if namespaces_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if namespaces.lock().unwrap().len() == 0 {
+                        if namespaces.lock().unwrap().is_empty() {
                             show_empty(ui);
                         } else {
                             let ns = namespaces.lock().unwrap();
@@ -3897,7 +3889,7 @@ async fn main() {
                                             SortBy::Age => {
                                                 let at = &a.creation_timestamp;
                                                 let bt = &b.creation_timestamp;
-                                                at.cmp(&bt)
+                                                at.cmp(bt)
                                             }
                                         };
                                         if app_config.sort_preferences.namespace_sort_asc { ord } else { ord.reverse() }
@@ -3931,7 +3923,7 @@ async fn main() {
                                                 ui.label("-");
                                             }
 
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
 
@@ -3990,7 +3982,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Pods - {}", visible_pods.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -4019,7 +4011,7 @@ async fn main() {
                     if pods_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_pods.len() == 0 {
+                        if visible_pods.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
@@ -4097,7 +4089,7 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR));
+                                            ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR));
                                             let status;
                                             let mut ready_color: Color32;
                                             let cur_phase: &str;
@@ -4182,14 +4174,14 @@ async fn main() {
                                                     }
                                                 }
                                             });
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             if item.restart_count > 0 {
                                                 ui.label(egui::RichText::new(format!("{}", item.restart_count)).color(egui::Color32::ORANGE));
                                             } else {
-                                                ui.label(egui::RichText::new(format!("Never")).color(egui::Color32::GRAY));
+                                                ui.label(egui::RichText::new("Never".to_string()).color(egui::Color32::GRAY));
                                             }
-                                            if item.controller.is_some().clone() {
-                                                ui.label(item.controller.as_ref().unwrap());
+                                            if let Some(ctrl) = &item.controller {
+                                                ui.label(ctrl);
                                             } else {
                                                 ui.label("");
                                             }
@@ -4256,7 +4248,7 @@ async fn main() {
                                             });
 
                                             if action_button.response.hovered() || pod_name_label.hovered() {
-                                                hl_item = String::from(item.name.clone() + &item.namespace.clone().unwrap_or("".to_string()));
+                                                hl_item = item.name.clone() + &item.namespace.clone().unwrap_or("".to_string());
                                             }
 
                                             ui.end_row();
@@ -4282,7 +4274,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Deployments - {}", visible_deployments.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -4311,7 +4303,7 @@ async fn main() {
                     if deployments_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_deployments.len() == 0 {
+                        if visible_deployments.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
@@ -4343,11 +4335,11 @@ async fn main() {
                                                 });
                                             }
 
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
 
-                                            let stat_color = match &item.ready_replicas < &item.replicas {
+                                            let stat_color = match item.ready_replicas < item.replicas {
                                                 true => Color32::ORANGE,
                                                 _ => Color32::GREEN,
                                             };
@@ -4355,7 +4347,7 @@ async fn main() {
                                             ui.label(format!("{}", &item.replicas));
                                             ui.label(format!("{}", &item.updated_replicas));
                                             ui.label(format!("{}", &item.available_replicas));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -4427,7 +4419,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Secrets - {}", visible_secrets.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -4456,7 +4448,7 @@ async fn main() {
                     if secrets_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_secrets.len() == 0 {
+                        if visible_secrets.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
@@ -4484,11 +4476,11 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.secret_type));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(item.secret_type.to_string());
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
                                                 if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
@@ -4540,7 +4532,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("ConfigMaps - {}", visible_configmaps.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -4569,7 +4561,7 @@ async fn main() {
                     if configmaps_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_configmaps.len() == 0 {
+                        if visible_configmaps.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
@@ -4599,12 +4591,12 @@ async fn main() {
                                                     }
                                                 });
                                             }
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
-                                            ui.label(format!("{}", &item.type_));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            ui.label(format!("{}", &item.keys.join(", ")));
+                                            ui.label(item.type_.to_string());
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
+                                            ui.label(item.keys.join(", ").to_string());
 
                                             ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
                                                 ui.set_width(200.0);
@@ -4659,7 +4651,7 @@ async fn main() {
                     ui.horizontal(|ui| {
                         ui.heading(format!("Events - {}", visible_events.len()));
                         ui.separator();
-                        ui.heading(format!("Namespace - "));
+                        ui.heading("Namespace - ".to_string());
                         egui::ComboBox::from_id_salt("namespace_combo").selected_text(selected_ns.as_deref().unwrap_or("all")).width(150.0).show_ui(ui, |ui| {
                             ui.selectable_value(&mut *selected_ns, None, "all");
                             for item in ns.iter() {
@@ -4684,7 +4676,7 @@ async fn main() {
                     if events_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        if visible_events.len() == 0 {
+                        if visible_events.is_empty() {
                             show_empty(ui);
                         } else {
                             egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
@@ -4714,8 +4706,8 @@ async fn main() {
                                         if passes_text_filter && passes_warning_filter {
                                             ui.label(&item.timestamp);
                                             ui.label(egui::RichText::new(&item.event_type).color(item_color(&item.event_type)));
-                                            ui.label(format_age(&item.creation_timestamp.as_ref().unwrap()));
-                                            if ui.label(egui::RichText::new(&item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                            ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
+                                            if ui.label(egui::RichText::new(item.namespace.clone().unwrap_or("".to_string())).color(NAMESPACE_COLUMN_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(&item.reason);
@@ -4784,12 +4776,11 @@ async fn main() {
         }
 
         // YAML editor
-        if let Ok(mut editor) = yaml_editor_window.lock() {
-            if editor.show {
+        if let Ok(mut editor) = yaml_editor_window.lock()
+            && editor.show {
                 let client_clone = Arc::clone(&client);
                 show_yaml_editor(ctx, &mut editor, &mut decoder_window, client_clone);
             }
-        }
 
         // New resource creation window
         if new_resource_window.show {
@@ -4803,13 +4794,12 @@ async fn main() {
         }
 
         // Logs window
-        if let Ok(mut logs_w) = log_window.lock() {
-            if logs_w.show {
+        if let Ok(mut logs_w) = log_window.lock()
+            && logs_w.show {
                 let client_clone = Arc::clone(&client);
                 //let log_parser_w = log_parser_window.lock();
                 show_log_window(ctx, &mut logs_w, &mut log_parser_window, client_clone);
             }
-        }
 
         // Node details window
         if node_details_window.show {
@@ -5037,7 +5027,7 @@ async fn main() {
                 app_config.sort_preferences.pvcs_sort_asc,
                 app_config.sort_preferences.namespace_sort_by,
                 app_config.sort_preferences.namespace_sort_asc,
-                app_config.ai_settings.selected_ai_provider.clone(),
+                app_config.ai_settings.selected_ai_provider,
                 app_config.ai_settings.gemini_api_url.clone(),
                 app_config.ai_settings.gemini_api_key.clone(),
                 app_config.ai_settings.amazon_bedrock_model_id.clone(),

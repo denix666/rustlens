@@ -189,7 +189,9 @@ pub fn read_app_config_from_file() -> AppConfig {
     };
 
     // Try to use loaded config. In case of error - create new (backward compatibility)
-    let app_config = match toml::from_str(&toml_str) {
+    
+
+    match toml::from_str(&toml_str) {
         Ok(res) => res,
         Err(_) => {
             write_config_to_file(
@@ -216,9 +218,7 @@ pub fn read_app_config_from_file() -> AppConfig {
             ).unwrap();
             new_config
         }
-    };
-
-    app_config
+    }
 }
 
 pub fn window_moved_or_resized(ctx: &Context, app_config: &mut AppConfig) -> bool {

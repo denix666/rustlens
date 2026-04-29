@@ -2,21 +2,13 @@ use std::process::Command;
 
 use crate::theme::{ERROR_MESSAGE_COLOR, NORMAL_COLOR, WARNING_COLOR};
 
+#[derive(Default)]
 pub struct ProxyProcess {
     is_running: bool,
     process: Option<std::process::Child>,
     error_message: Option<String>,
 }
 
-impl Default for ProxyProcess {
-    fn default() -> Self {
-        Self {
-            is_running: false,
-            process: None,
-            error_message: None,
-        }
-    }
-}
 
 impl Drop for ProxyProcess {
     fn drop(&mut self) {

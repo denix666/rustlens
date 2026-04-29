@@ -94,7 +94,7 @@ pub fn show_deployment_details_window(
                     ui.end_row();
                 }
 
-                if guard_details.conditions.len() > 0 {
+                if !guard_details.conditions.is_empty() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Conditions:").color(ROW_NAME_COLOR));
                     egui::Grid::new("deployment_details_conditions_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
@@ -139,7 +139,7 @@ pub fn show_deployment_details_window(
                     ui.end_row();
                 }
 
-                if guard_details.selector.len() > 0 {
+                if !guard_details.selector.is_empty() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Selector:").color(ROW_NAME_COLOR));
                     egui::Grid::new("deployment_details_selector_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
@@ -172,9 +172,8 @@ pub fn show_deployment_details_window(
     });
     crate::show_delete_confirmation(ctx, delete_confirm);
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             deployment_details_window.show = false;
         }
-    }
 }

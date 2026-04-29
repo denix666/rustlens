@@ -62,14 +62,13 @@ pub fn show_crd_details_window(
                 ui.label(egui::RichText::new(guard_details.name.clone().unwrap()).color(DETAIL_COLOR));
                 ui.end_row();
 
-                if let Some(item) = crd_item {
-                    if let Some(creation_timestamp) = &item.creation_timestamp {
+                if let Some(item) = crd_item
+                    && let Some(creation_timestamp) = &item.creation_timestamp {
                         ui.label(egui::RichText::new("Creation time:").color(ROW_NAME_COLOR));
                         let timestamp_text = format!("{}, {} ago", creation_timestamp.0, crate::format_age(creation_timestamp));
                         ui.label(egui::RichText::new(timestamp_text).color(DETAIL_COLOR));
                         ui.end_row();
                     }
-                }
 
                 if let Some(labels) = guard_details.labels.clone() {
                     ui.separator(); ui.separator(); ui.end_row();
@@ -101,9 +100,8 @@ pub fn show_crd_details_window(
     });
     crate::show_delete_confirmation(ctx, delete_confirm);
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             crd_details_window.show = false;
         }
-    }
 }

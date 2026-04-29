@@ -125,7 +125,7 @@ pub fn show_pod_details_window(
                     }
 
                     ui.label(egui::RichText::new("Restarts count:").color(ROW_NAME_COLOR));
-                    ui.label(egui::RichText::new(&item.restart_count.to_string()).color(WARNING_COLOR));
+                    ui.label(egui::RichText::new(item.restart_count.to_string()).color(WARNING_COLOR));
                     ui.end_row();
                 }
 
@@ -179,7 +179,7 @@ pub fn show_pod_details_window(
                     ui.end_row();
                 }
 
-                if guard_details.tolerations.len() > 0 {
+                if !guard_details.tolerations.is_empty() {
                     ui.separator(); ui.separator(); ui.end_row();
                     ui.label(egui::RichText::new("Tolerations:").color(ROW_NAME_COLOR));
                     egui::Grid::new("pod_details_tolerations_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
@@ -280,7 +280,7 @@ pub fn show_pod_details_window(
 
                         if let Some(res) = &container.last_state {
                             ui.label(egui::RichText::new("Last status:").color(ROW_NAME_COLOR));
-                            let label_text = format!("{}", res);
+                            let label_text = res.to_string();
                             let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(WARNING_COLOR)).wrap();
                             ui.add(label);
                             ui.end_row();
@@ -288,7 +288,7 @@ pub fn show_pod_details_window(
 
                         if let Some(res) = &container.reason {
                             ui.label(egui::RichText::new("Last reason:").color(ROW_NAME_COLOR));
-                            let label_text = format!("{}", res);
+                            let label_text = res.to_string();
                             let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(WARNING_COLOR)).wrap();
                             ui.add(label);
                             ui.end_row();
@@ -296,7 +296,7 @@ pub fn show_pod_details_window(
 
                         if let Some(res) = &container.stop_signal {
                             ui.label(egui::RichText::new("Last stop signal:").color(ROW_NAME_COLOR));
-                            let label_text = format!("{}", res);
+                            let label_text = res.to_string();
                             let label = egui::widgets::Label::new(egui::RichText::new(&label_text).color(WARNING_COLOR)).wrap();
                             ui.add(label);
                             ui.end_row();
@@ -304,19 +304,19 @@ pub fn show_pod_details_window(
 
                         if let Some(last_exit_code) = &container.last_exit_code {
                             let (exit_code_text, exit_code_color) = match last_exit_code {
-                                0 => (format!("{} - Succes", last_exit_code.to_string()), NORMAL_COLOR),
-                                1 => (format!("{} - Command line error", last_exit_code.to_string()), ERROR_COLOR),
-                                2 => (format!("{} - Misuse of Shell Builtins", last_exit_code.to_string()), ERROR_COLOR),
-                                124 => (format!("{} - Timeout", last_exit_code.to_string()), ERROR_COLOR),
-                                125 => (format!("{} - The docker run command did not execute successfully", last_exit_code.to_string()), ERROR_COLOR),
-                                126 => (format!("{} - A command specified in the image specification could not be invoked", last_exit_code.to_string()), ERROR_COLOR),
-                                127 => (format!("{} - Command Not Found", last_exit_code.to_string()), ERROR_COLOR),
-                                128 => (format!("{} - Invalid argument", last_exit_code.to_string()), ERROR_COLOR),
-                                134 => (format!("{} - Abnormal termination", last_exit_code.to_string()), ERROR_COLOR),
-                                137 => (format!("{} - Killed by OOM", last_exit_code.to_string()), ERROR_COLOR),
-                                139 => (format!("{} - Segmentation Fault", last_exit_code.to_string()), ERROR_COLOR),
-                                143 => (format!("{} - Terminated by Signal", last_exit_code.to_string()), WARNING_COLOR),
-                                _ => (format!("{} - Unknown exit code", last_exit_code.to_string()), WARNING_COLOR),
+                                0 => (format!("{} - Succes", last_exit_code), NORMAL_COLOR),
+                                1 => (format!("{} - Command line error", last_exit_code), ERROR_COLOR),
+                                2 => (format!("{} - Misuse of Shell Builtins", last_exit_code), ERROR_COLOR),
+                                124 => (format!("{} - Timeout", last_exit_code), ERROR_COLOR),
+                                125 => (format!("{} - The docker run command did not execute successfully", last_exit_code), ERROR_COLOR),
+                                126 => (format!("{} - A command specified in the image specification could not be invoked", last_exit_code), ERROR_COLOR),
+                                127 => (format!("{} - Command Not Found", last_exit_code), ERROR_COLOR),
+                                128 => (format!("{} - Invalid argument", last_exit_code), ERROR_COLOR),
+                                134 => (format!("{} - Abnormal termination", last_exit_code), ERROR_COLOR),
+                                137 => (format!("{} - Killed by OOM", last_exit_code), ERROR_COLOR),
+                                139 => (format!("{} - Segmentation Fault", last_exit_code), ERROR_COLOR),
+                                143 => (format!("{} - Terminated by Signal", last_exit_code), WARNING_COLOR),
+                                _ => (format!("{} - Unknown exit code", last_exit_code), WARNING_COLOR),
                             };
 
                             ui.label(egui::RichText::new("Last Exit code:").color(ROW_NAME_COLOR));
@@ -326,11 +326,11 @@ pub fn show_pod_details_window(
                         }
 
                         ui.label(egui::RichText::new("Image:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(container.image.as_deref().unwrap_or_else(|| "Undefined")).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(container.image.as_deref().unwrap_or("Undefined")).color(DETAIL_COLOR));
                         ui.end_row();
 
                         ui.label(egui::RichText::new("Image pull policy:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(container.image_pull_policy.as_deref().unwrap_or_else(|| "Undefined")).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(container.image_pull_policy.as_deref().unwrap_or("Undefined")).color(DETAIL_COLOR));
                         ui.end_row();
 
                         if let Some(item) = &container.mem_request {
@@ -384,7 +384,7 @@ pub fn show_pod_details_window(
                                 ui.label("");
                                 ui.end_row();
                                 for arg in args.iter() {
-                                    ui.label(egui::RichText::new(&arg.to_string()).color(DETAIL_COLOR));
+                                    ui.label(egui::RichText::new(arg.to_string()).color(DETAIL_COLOR));
                                     ui.end_row();
                                 }
                             });
@@ -398,7 +398,7 @@ pub fn show_pod_details_window(
                                 ui.label("");
                                 ui.end_row();
                                 for c in cmd.iter() {
-                                    ui.label(egui::RichText::new(&c.to_string()).color(DETAIL_COLOR));
+                                    ui.label(egui::RichText::new(c.to_string()).color(DETAIL_COLOR));
                                     ui.end_row();
                                 }
                             });
@@ -444,9 +444,8 @@ pub fn show_pod_details_window(
     });
     crate::show_delete_confirmation(ctx, delete_confirm);
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             pod_details_window.show = false;
         }
-    }
 }

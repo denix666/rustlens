@@ -178,7 +178,7 @@ pub fn show_configuration(ui: &mut Ui, app_config: &mut AppConfig) {
             app_config.sort_preferences.pvcs_sort_asc,
             app_config.sort_preferences.namespace_sort_by,
             app_config.sort_preferences.namespace_sort_asc,
-            app_config.ai_settings.selected_ai_provider.clone(),
+            app_config.ai_settings.selected_ai_provider,
             app_config.ai_settings.gemini_api_url.clone(),
             app_config.ai_settings.gemini_api_key.clone(),
             app_config.ai_settings.amazon_bedrock_model_id.clone(),

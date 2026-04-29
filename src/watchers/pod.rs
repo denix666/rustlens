@@ -44,7 +44,7 @@ fn convert_pod(pod: Pod) -> Option<PodItem> {
         .and_then(|owners| {
             owners.iter()
                 .find(|o| o.controller.unwrap_or(false))
-                .map(|o| format!("{}", o.kind)) // can be name, uid etc...
+                .map(|o| o.kind.to_string()) // can be name, uid etc...
         });
 
     if let Some(statuses) = pod.status.as_ref().and_then(|s| s.container_statuses.clone()) {

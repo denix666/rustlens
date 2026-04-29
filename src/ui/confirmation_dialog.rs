@@ -52,10 +52,9 @@ pub fn show_delete_confirmation(ctx: &Context, delete_confirm: &mut DeleteConfir
                 });
             });
 
-        if let Some(inner_response) = response {
-            if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if let Some(inner_response) = response
+            && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
                 delete_confirm.show = false;
             }
-        }
     }
 }

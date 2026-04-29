@@ -192,7 +192,7 @@ fn get_bedrock_tools(mcp_server_url: &String) -> Result<Vec<Tool>, SerdeError> {
     ];
 
     // --- 2. Добавляем внешние инструменты ---
-    match fetch_external_tools_sync(&mcp_server_url) {
+    match fetch_external_tools_sync(mcp_server_url) {
         Ok(ext_tools) => {
             log::info!("Fetched {} external tools for Bedrock", ext_tools.len());
             for t in ext_tools {
@@ -227,7 +227,7 @@ fn convert_json_schema_to_gemini(schema: &Value) -> Value {
 
 fn convert_to_gemini_tool(t: &ExternalTool) -> Value {
     let parameters = t.input_schema.as_ref()
-        .map(|schema| convert_json_schema_to_gemini(schema))
+        .map(convert_json_schema_to_gemini)
         .unwrap_or_else(|| json!({ "type": "OBJECT", "properties": {} }));
 
     json!({
@@ -316,7 +316,7 @@ fn execute_kubectl(args: &[String]) -> Result<String, io::Error> {
         let error_msg = String::from_utf8_lossy(&output.stderr).into_owned();
         let stdout_msg = String::from_utf8_lossy(&output.stdout).into_owned();
         let full_error = format!("Stderr:\n{}\n\nStdout:\n{}", error_msg, stdout_msg);
-        Err(io::Error::new(io::ErrorKind::Other, full_error))
+        Err(io::Error::other(full_error))
     }
 }
 
@@ -334,7 +334,7 @@ fn ping_host(host: &str) -> Result<String, io::Error> {
         Ok(result)
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr).into_owned();
-        Err(io::Error::new(io::ErrorKind::Other, error_msg))
+        Err(io::Error::other(error_msg))
     }
 }
 
@@ -456,11 +456,10 @@ pub fn show_ai_window(ctx: &egui::Context, ai: &mut AiWindow, app_config: &crate
         }
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             ai.show = false;
         }
-    }
 }
 
 fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String, mcp_server_url: String) -> anyhow::Result<String> {
@@ -554,7 +553,7 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String, m
                     let doc = tool_call.input();
                     let args_value: serde_json::Value = convert_doc_to_value(doc);
                     let function_call = FunctionCall {
-                        name: name,
+                        name,
                         args: args_value,
                     };
 
@@ -579,7 +578,7 @@ fn ask_amazon_bedrock_blocking(prompt: &str, model_id: String, region: String, m
                         }
                     };
 
-                    log::info!("📦 Sending tool result back to model: {}", tool_result_value.to_string());
+                    log::info!("📦 Sending tool result back to model: {}", tool_result_value);
                     let tool_result_doc: Document = convert_value_to_doc(&tool_result_value);
                     tool_results.push(
                         ContentBlock::ToolResult(
@@ -701,7 +700,7 @@ fn call_gemini_mcp_tool(func_call: &FunctionCall, mcp_server_url: &String) -> an
             }
         };
 
-        if let Some(command) = args_vec.get(0) {
+        if let Some(command) = args_vec.first() {
             let allowed_commands = [
                 "get", "describe", "logs", "top", "version", "api-resources", "cluster-info"
             ];
@@ -763,7 +762,7 @@ fn call_external_mcp_tool(func_call: &FunctionCall, mcp_server_url: &String) -> 
         "args": func_call.args
     });
 
-    log::info!("Sending to external MCP: {}", payload.to_string());
+    log::info!("Sending to external MCP: {}", payload);
 
     let resp = client.post(&url)
         .json(&payload)
@@ -776,14 +775,14 @@ fn call_external_mcp_tool(func_call: &FunctionCall, mcp_server_url: &String) -> 
     }
 
     let result_json: Value = resp.json()?;
-    log::info!("Received from external MCP: {}", result_json.to_string());
+    log::info!("Received from external MCP: {}", result_json);
 
     Ok(result_json)
 }
 
 fn convert_external_tool_to_bedrock_spec(tool: &ExternalTool) -> Result<Tool, SerdeError> {
     let schema_doc: Document = tool.input_schema.as_ref()
-        .map(|schema_val| convert_value_to_doc(schema_val))
+        .map(convert_value_to_doc)
         .unwrap_or_else(|| convert_value_to_doc(&json!({
             "type": "object",
             "properties": {}

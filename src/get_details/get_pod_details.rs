@@ -152,16 +152,15 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
             };
 
             let mut env_vars = vec![];
-            if let Some(container_envs) = spec_container {
-                if let Some(envs) = &container_envs.env {
+            if let Some(container_envs) = spec_container
+                && let Some(envs) = &container_envs.env {
                     for env in envs {
                         env_vars.push(ContainerEnv {
                             name: env.name.clone(),
                             value: env.value.clone(),
                         });
                     }
-                }
-            };
+                };
 
             let state = cs.state.as_ref().and_then(|s| {
                 if s.running.is_some() {
@@ -180,7 +179,7 @@ pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>
             if let Some(lst) = &cs.last_state {
                 if lst.running.is_some() {
                     last_state = Some("Running".to_string());
-                } else if let Some(_) = &lst.waiting {
+                } else if lst.waiting.is_some() {
                     last_state = Some("Waiting".to_string());
                 } else if let Some(terminated) = &lst.terminated {
                     last_state = Some("Terminated".to_string());

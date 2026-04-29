@@ -26,8 +26,7 @@ fn convert_crd(obj: &kube::api::DynamicObject) -> Option<CRDItem> {
 
     let version = spec
         .get("versions")?
-        .as_array()?
-        .get(0)?
+        .as_array()?.first()?
         .get("name")?
         .as_str()?
         .to_string();

@@ -25,8 +25,8 @@ pub fn convert_ingress(ing: Ingress) -> Option<IngressItem> {
     let mut paths = vec![];
     let mut services = vec![];
 
-    if let Some(spec) = ing.spec {
-        if let Some(rules) = spec.rules {
+    if let Some(spec) = ing.spec
+        && let Some(rules) = spec.rules {
             for rule in rules {
                 if let Some(host) = rule.host {
                     hosts.push(host.clone());
@@ -43,7 +43,6 @@ pub fn convert_ingress(ing: Ingress) -> Option<IngressItem> {
                 }
             }
         }
-    }
 
     let tls = ing_spec
         .as_ref()

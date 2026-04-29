@@ -24,7 +24,6 @@ use futures_util::StreamExt;
 use serde_json::{json};
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use serde_yml;
 use base64::Engine;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
@@ -256,7 +255,9 @@ pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<Str
 }
 
 pub fn item_color(item: &str) -> Color32 {
-    let ret_color = match item {
+    
+
+    match item {
         "Burstable" => Color32::from_rgb(137, 90, 9), // close to orange
         "Guaranteed" => Color32::from_rgb(6, 140, 0), // green
         "BestEffort" => Color32::from_rgb(112, 135, 9), // close to red
@@ -280,9 +281,9 @@ pub fn item_color(item: &str) -> Color32 {
         _ => {
             if let Some(pos) = item.find('.') {
                 let after_dot = &item[pos + 1..];
-                if let Some(end) = after_dot.find('.') {
-                    if let Ok(num) = after_dot[..end].parse::<u32>() {
-                        if let Some(actual_major) = crate::ACTUAL_K8S_MINOR_VERSION.get() {
+                if let Some(end) = after_dot.find('.')
+                    && let Ok(num) = after_dot[..end].parse::<u32>()
+                        && let Some(actual_major) = crate::ACTUAL_K8S_MINOR_VERSION.get() {
                             return match num {
                                 n if n == *actual_major => Color32::from_rgb(26, 186, 26), // Green
                                 n if n + 1 == *actual_major => Color32::from_rgb(26, 186, 26), // Green
@@ -293,14 +294,10 @@ pub fn item_color(item: &str) -> Color32 {
                                 _ => Color32::LIGHT_GRAY,
                             };
                         }
-                    }
-                }
             }
             Color32::LIGHT_GRAY
         }
-    };
-
-    ret_color
+    }
 }
 
 pub fn edit_yaml_for<K>(name: String, namespace: String, yaml_editor_window: Arc<Mutex<crate::YamlEditorWindow>>, client: Arc<Client>) where
@@ -354,12 +351,12 @@ pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<cr
     logs.pod_name = pod_name.clone();
     logs.namespace = namespace.clone();
     logs.containers = containers.clone();
-    logs.selected_container = containers.get(0).map(|c| c.name.clone()).unwrap_or_default();
+    logs.selected_container = containers.first().map(|c| c.name.clone()).unwrap_or_default();
     logs.last_container = None;
     logs.buffer = Arc::new(Mutex::new(String::new()));
     logs.show = true;
 
-    let selected_container = containers.get(0).map(|c| c.name.clone()).unwrap_or_default();
+    let selected_container = containers.first().map(|c| c.name.clone()).unwrap_or_default();
     let buffer = Arc::new(Mutex::new(String::new()));
     let prev_logs = logs.show_previous_logs;
 
@@ -383,11 +380,10 @@ pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyho
     let meta: kube_discovery::kube::api::TypeMeta = serde_yml::from_value(value.clone())?;
 
     // Remove metadata.managedFields, if exists
-    if let Some(metadata) = value.get_mut("metadata") {
-        if let Some(obj) = metadata.as_mapping_mut() {
-            obj.remove(&serde_yml::Value::String("managedFields".to_string()));
+    if let Some(metadata) = value.get_mut("metadata")
+        && let Some(obj) = metadata.as_mapping_mut() {
+            obj.remove(serde_yml::Value::String("managedFields".to_string()));
         }
-    }
 
     let (group, version) = if meta.api_version.contains('/') {
         let mut parts = meta.api_version.splitn(2, '/');
@@ -878,14 +874,14 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
                     let mut chart_name: Option<String> = None;
                     let mut version: Option<String> = None;
 
-                    if let Some(data) = &s.data {
-                        if let Some(release_bytes) = data.get("release") {
-                            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&release_bytes.0) {
-                                if let Ok(decompressed) = decompress_gzip(&decoded) {
+                    if let Some(data) = &s.data
+                        && let Some(release_bytes) = data.get("release")
+                            && let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&release_bytes.0)
+                                && let Ok(decompressed) = decompress_gzip(&decoded) {
                                     let as_str = String::from_utf8_lossy(&decompressed);
                                     let chart_line = as_str.lines().find(|l| l.contains("\"chart\""));
-                                    if let Some(line) = chart_line {
-                                        if let Some(val) = line.split('"').nth(3) {
+                                    if let Some(line) = chart_line
+                                        && let Some(val) = line.split('"').nth(3) {
                                             let parts: Vec<&str> = val.rsplitn(2, '-').collect();
                                             if parts.len() == 2 {
                                                 version = Some(parts[0].to_string());
@@ -894,11 +890,7 @@ pub async fn get_helm_releases(client: Arc<Client>, list: Arc<Mutex<Vec<HelmRele
                                                 chart_name = Some(val.to_string());
                                             }
                                         }
-                                    }
                                 }
-                            }
-                        }
-                    }
 
                     let created_at = s.metadata.creation_timestamp;
 

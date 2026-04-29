@@ -67,7 +67,7 @@ pub fn show_ipcalculator_window(ctx: &Context, ipcalculator_window: &mut IpCalcu
                         }
                         Err(e) => {
                             if e.to_string().len() > 50 {
-                                ui.colored_label(egui::Color32::RED, format!("Error in input"));
+                                ui.colored_label(egui::Color32::RED, "Error in input".to_string());
                             } else {
                                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
                             }
@@ -79,9 +79,8 @@ pub fn show_ipcalculator_window(ctx: &Context, ipcalculator_window: &mut IpCalcu
             });
         });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             ipcalculator_window.show = false;
         }
-    }
 }

@@ -56,7 +56,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                 let cur_ns = log_window.namespace.clone();
                 let cur_pod = log_window.pod_name.clone();
                 let cur_container = log_window.selected_container.clone();
-                let prev_logs = log_window.show_previous_logs.clone();
+                let prev_logs = log_window.show_previous_logs;
                 let client_clone = Arc::clone(&client);
 
                 tokio::spawn(async move {
@@ -67,9 +67,9 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                 });
             }
             ui.separator();
-            if ui.button("💾 Export to file").clicked() {
-                if let Ok(logs) = log_window.buffer.lock() {
-                    if let Some(path) = FileDialog::new()
+            if ui.button("💾 Export to file").clicked()
+                && let Ok(logs) = log_window.buffer.lock()
+                    && let Some(path) = FileDialog::new()
                         .set_file_name(format!(
                             "{}_{}_{}.log",
                             log_window.namespace,
@@ -89,8 +89,6 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                             }
                         }
                     }
-                }
-            }
             ui.separator();
             if ui.button(egui::RichText::new("🔎 Log parser").size(16.0).color(egui::Color32::LIGHT_GREEN)).clicked() {
                 match crate::ui::log_parser::load_plugins() {
@@ -123,7 +121,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
                                 let lines: Vec<_> = log_buffer.lines().collect();
                                 for (line_idx, line) in lines.into_iter().enumerate().rev() {
                                     for (pname, rule, re) in &compiled {
-                                        if re.is_match(&line) {
+                                        if re.is_match(line) {
                                             let key = (pname.clone(), rule.id.clone());
                                             let entry = stats.entry(key.clone()).or_insert_with(|| crate::ui::log_parser::RuleStats {
                                                 plugin: pname.clone(),
@@ -188,7 +186,7 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
             let cur_ns = log_window.namespace.clone();
             let cur_pod = log_window.pod_name.clone();
             let cur_container = log_window.selected_container.clone();
-            let prev_logs = log_window.show_previous_logs.clone();
+            let prev_logs = log_window.show_previous_logs;
             let client_clone = Arc::clone(&client);
             tokio::spawn(async move {
                 crate::fetch_logs(client_clone,
@@ -218,9 +216,8 @@ pub fn show_log_window(ctx: &Context, log_window: &mut LogWindow, log_parser_win
         });
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             log_window.show = false;
         }
-    }
 }

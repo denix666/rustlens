@@ -114,7 +114,7 @@ pub fn show_log_parser_window(ctx: &egui::Context, window: &mut LogParserWindow)
         .max_height(600.0)
         .show(ctx, |ui|
     {
-        if window.filtered.len() == 0 {
+        if window.filtered.is_empty() {
             ui.label(egui::RichText::new("😎 Log parser didn't found anything in the log").color(Color32::GREEN));
         } else {
             egui::ScrollArea::vertical().stick_to_bottom(true).auto_shrink([false; 2]).show(ui, |ui| {
@@ -130,7 +130,7 @@ pub fn show_log_parser_window(ctx: &egui::Context, window: &mut LogParserWindow)
                         }
 
                         ui.label(egui::RichText::new("Occured:").color(ROW_NAME_COLOR));
-                        ui.label(egui::RichText::new(&i.matches.to_string()).color(DETAIL_COLOR));
+                        ui.label(egui::RichText::new(i.matches.to_string()).color(DETAIL_COLOR));
                         ui.end_row();
 
                         if let Some(msg) = &i.message {
@@ -139,7 +139,7 @@ pub fn show_log_parser_window(ctx: &egui::Context, window: &mut LogParserWindow)
                             ui.end_row();
                         }
 
-                        if i.examples.len() > 0 {
+                        if !i.examples.is_empty() {
                             ui.separator(); ui.separator(); ui.end_row();
                             ui.label(egui::RichText::new("Examples:").color(ROW_NAME_COLOR));
                             let grid_id = format!("log_parser_examples_grid_{}", grid_idx);
@@ -169,9 +169,8 @@ pub fn show_log_parser_window(ctx: &egui::Context, window: &mut LogParserWindow)
         }
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             window.show = false;
         }
-    }
 }

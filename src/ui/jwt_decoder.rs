@@ -230,9 +230,8 @@ pub fn show_jwt_decoder_window(ctx: &Context, jwt: &mut JwtDecoderWindow,) {
         });
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             jwt.show = false;
         }
-    }
 }

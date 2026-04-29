@@ -126,7 +126,7 @@ pub fn show_res_converter_window(ctx: &Context, res_converter_window: &mut ResCo
                 res_converter_window.req_cpu = if res_converter_window.req_cpu_cores.is_empty() || res_converter_window.req_cpu_milli.contains("invalid") {
                     "0m".to_string()
                 } else {
-                    format!("{}", res_converter_window.req_cpu_cores.trim())
+                    res_converter_window.req_cpu_cores.trim().to_string()
                 };
             }
             ui.label("CPU (millicores):");
@@ -185,7 +185,7 @@ pub fn show_res_converter_window(ctx: &Context, res_converter_window: &mut ResCo
                 res_converter_window.lim_cpu = if res_converter_window.lim_cpu_cores.is_empty() || res_converter_window.lim_cpu_milli.contains("invalid") {
                     "0m".to_string()
                 } else {
-                    format!("{}", res_converter_window.lim_cpu_cores.trim())
+                    res_converter_window.lim_cpu_cores.trim().to_string()
                 };
             }
             ui.label("CPU (millicores):");
@@ -262,9 +262,8 @@ pub fn show_res_converter_window(ctx: &Context, res_converter_window: &mut ResCo
         ui.add_space(10.0);
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             res_converter_window.show = false;
         }
-    }
 }

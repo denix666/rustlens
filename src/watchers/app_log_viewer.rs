@@ -28,7 +28,7 @@ impl LogViewer {
                     thread::sleep(Duration::from_millis(200));
                     continue;
                 }
-                if let Err(_) = tx.send(line) {
+                if tx.send(line).is_err() {
                     break;
                 }
             }

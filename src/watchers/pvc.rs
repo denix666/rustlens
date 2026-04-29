@@ -25,7 +25,7 @@ pub fn convert_pvc(pvc: PersistentVolumeClaim) -> Option<PvcItem> {
             .unwrap_or_else(|| "-".to_string()),
         size: pvc.spec.as_ref()
             .and_then(|s| s.resources.as_ref().unwrap().requests.as_ref())
-            .and_then(|r| r.get("storage")).map(|q| q.0.to_string()).unwrap_or_else(|| "".to_string()),
+            .and_then(|r| r.get("storage")).map(|q| q.0.to_string()).unwrap_or_default(),
         volume_name: pvc
             .spec
             .as_ref()

@@ -6,7 +6,7 @@ use tokio::time::sleep;
 const K8S_RELEASE_URL: &str = "https://api.github.com/repos/kubernetes/kubernetes/releases/latest";
 
 pub fn parse_k8s_minor(version: &str) -> Option<u32> {
-    let s = version.trim().trim_start_matches(|c| c == 'v' || c == 'V');
+    let s = version.trim().trim_start_matches(['v', 'V']);
     let mut parts = s.split('.');
 
     let _major = parts.next()?;                 // "1"
@@ -41,8 +41,8 @@ impl KubernetesVersionFetcher {
                     .await
                 {
                     Ok(resp) => {
-                        if let Ok(json) = resp.json::<serde_json::Value>().await {
-                            if let Some(tag) = json["tag_name"].as_str() {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await
+                            && let Some(tag) = json["tag_name"].as_str() {
                                 let mut lock = shared.lock().unwrap();
                                 *lock = Some(tag.to_string());
                                 if let Some(major) = parse_k8s_minor(tag) {
@@ -50,7 +50,6 @@ impl KubernetesVersionFetcher {
                                 }
                                 break; // нашли версию – прекращаем попытки
                             }
-                        }
                     }
                     Err(err) => {
                         log::error!("Error getting k8s version: {err}");

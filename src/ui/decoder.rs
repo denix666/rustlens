@@ -32,7 +32,7 @@ pub fn show_decoder_window(ctx: &Context, decoder_window: &mut DecoderWindow,) {
                         .desired_width(f32::INFINITY)
                         .lock_focus(true);
                     if ui.add(plain_text).changed() {
-                        decoder_window.encrypted_content = general_purpose::STANDARD.encode(decoder_window.plain_text_content.to_owned());
+                        decoder_window.encrypted_content = general_purpose::STANDARD.encode(&decoder_window.plain_text_content);
                     }
                 });
             });
@@ -69,9 +69,8 @@ pub fn show_decoder_window(ctx: &Context, decoder_window: &mut DecoderWindow,) {
         });
     });
 
-    if let Some(inner_response) = response {
-        if inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if let Some(inner_response) = response
+        && inner_response.response.contains_pointer() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             decoder_window.show = false;
         }
-    }
 }
