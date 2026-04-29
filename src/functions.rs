@@ -255,7 +255,7 @@ pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<Str
 }
 
 pub fn item_color(item: &str) -> Color32 {
-    
+
 
     match item {
         "Burstable" => Color32::from_rgb(137, 90, 9), // close to orange
@@ -730,16 +730,29 @@ pub async fn delete_cr_instance(client: Arc<Client>, name: &str, namespace: Opti
     Ok(())
 }
 
-pub async fn get_cr_instance_yaml(client: Arc<Client>, name: &str, namespace: Option<&str>, group: &str, version: &str, kind: &str, plural: &str) -> Result<String, kube::Error> {
-    use kube::api::{ApiResource, DynamicObject, GroupVersionKind};
-    let ar = ApiResource::from_gvk_with_plural(&GroupVersionKind::gvk(group, version, kind), plural);
-    let api: Api<DynamicObject> = if let Some(ns) = namespace {
-        Api::namespaced_with(client.as_ref().clone(), ns, &ar)
+pub async fn get_cr_instance_yaml(client: Arc<Client>, name: &str, namespace: Option<&str>, group: &str, version: &str, _kind: &str, plural: &str) -> Result<String, kube::Error> {
+    let path = if let Some(ns) = namespace {
+        if group.is_empty() {
+            format!("/api/{}/namespaces/{}/{}/{}", version, ns, plural, name)
+        } else {
+            format!("/apis/{}/{}/namespaces/{}/{}/{}", group, version, ns, plural, name)
+        }
     } else {
-        Api::all_with(client.as_ref().clone(), &ar)
+        if group.is_empty() {
+            format!("/api/{}/{}/{}", version, plural, name)
+        } else {
+            format!("/apis/{}/{}/{}/{}", group, version, plural, name)
+        }
     };
-    let obj = api.get(name).await?;
-    Ok(serde_yml::to_string(&obj).unwrap_or_default())
+
+    let req = http::Request::get(&path)
+        .body(Vec::new())
+        .map_err(|e| kube::Error::BuildRequest(kube::core::request::Error::BuildRequest(e)))?;
+
+    let raw_json = client.request_text(req).await?;
+    let json_value: serde_json::Value = serde_json::from_str(&raw_json)
+        .map_err(|e| kube::Error::SerdeError(e))?;
+    Ok(serde_yml::to_string(&json_value).unwrap_or_default())
 }
 
 pub async fn delete_namespace(client: Arc<Client>, name: &str) -> Result<(), kube::Error> {
