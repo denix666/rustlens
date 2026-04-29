@@ -92,7 +92,7 @@ pub fn load_plugins() -> anyhow::Result<HashMap<String, Plugin>> {
             Some("yaml") | Some("yml") => {
                 let f = File::open(path)
                     .with_context(|| format!("opening plugin file {}", path.display()))?;
-                let plugin: Plugin = serde_yaml::from_reader(f)
+                let plugin: Plugin = serde_yml::from_reader(f)
                     .with_context(|| format!("parsing YAML {}", path.display()))?;
                 map.insert(plugin.name.clone(), plugin);
             }

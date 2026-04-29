@@ -32,7 +32,7 @@ pub fn show_yaml2json_window(ctx: &Context, yaml2json_window: &mut Yaml2JsonWind
                         .desired_width(f32::INFINITY)
                         .lock_focus(true);
                     if ui.add(yaml_text).changed() {
-                        match serde_yaml::from_str::<serde_yaml::Value>(yaml2json_window.yaml_content.as_str()) {
+                        match serde_yml::from_str::<serde_yml::Value>(yaml2json_window.yaml_content.as_str()) {
                             Ok(v) => {
                                 let j: Result<JsonValue, _> = serde_json::from_str(&serde_json::to_string(&v).unwrap());
                                 match j {
@@ -63,7 +63,7 @@ pub fn show_yaml2json_window(ctx: &Context, yaml2json_window: &mut Yaml2JsonWind
                         .lock_focus(true);
                     if ui.add(json_text).changed() {
                         match serde_json::from_str::<JsonValue>(yaml2json_window.json_content.as_str()) {
-                            Ok(v) => match serde_yaml::to_string(&v) {
+                            Ok(v) => match serde_yml::to_string(&v) {
                                 Ok(y) => {
                                     yaml2json_window.yaml_content = y;
                                 }

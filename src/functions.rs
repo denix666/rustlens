@@ -24,7 +24,7 @@ use futures_util::StreamExt;
 use serde_json::{json};
 use kube::api::{DeleteParams, ListParams, LogParams, Patch, PatchParams, PostParams, PropagationPolicy};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use serde_yaml;
+use serde_yml;
 use crate::ui::OverviewStats;
 use k8s_openapi::Resource as K8sResource;
 
@@ -237,7 +237,7 @@ pub async fn get_yaml_namespaced<T>(client: Arc<Client>, namespace: &str, name: 
 {
     let api: Api<T> = Api::namespaced(client.as_ref().clone(), namespace);
     let obj = api.get(name).await?;
-    Ok(serde_yaml::to_string(&obj).unwrap())
+    Ok(serde_yml::to_string(&obj).unwrap())
 }
 
 pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<String, kube::Error> where
@@ -251,7 +251,7 @@ pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<Str
 {
     let api: Api<T> = Api::all(client.as_ref().clone());
     let obj = api.get(name).await?;
-    Ok(serde_yaml::to_string(&obj).unwrap())
+    Ok(serde_yml::to_string(&obj).unwrap())
 }
 
 pub fn item_color(item: &str) -> Color32 {
@@ -378,13 +378,13 @@ pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<cr
 
 pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyhow::Error> {
     let client = cl.as_ref().clone();
-    let mut value: serde_yaml::Value = serde_yaml::from_str(yaml_str)?;
-    let meta: kube_discovery::kube::api::TypeMeta = serde_yaml::from_value(value.clone())?;
+    let mut value: serde_yml::Value = serde_yml::from_str(yaml_str)?;
+    let meta: kube_discovery::kube::api::TypeMeta = serde_yml::from_value(value.clone())?;
 
     // Remove metadata.managedFields, if exists
     if let Some(metadata) = value.get_mut("metadata") {
         if let Some(obj) = metadata.as_mapping_mut() {
-            obj.remove(&serde_yaml::Value::String("managedFields".to_string()));
+            obj.remove(&serde_yml::Value::String("managedFields".to_string()));
         }
     }
 
@@ -423,60 +423,60 @@ pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyho
 }
 
 pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::ResourceType) -> Result<(), anyhow::Error> {
-    let value: serde_yaml::Value = serde_yaml::from_str(yaml)?;
+    let value: serde_yml::Value = serde_yml::from_str(yaml)?;
 
     match resource_type {
         crate::ResourceType::Blank => {},
         crate::ResourceType::ServiceAccount => {
-            let obj: ServiceAccount = serde_yaml::from_value(value)?;
+            let obj: ServiceAccount = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<ServiceAccount> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::Role => {
-            let obj: Role = serde_yaml::from_value(value)?;
+            let obj: Role = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Role> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::RoleBinding => {
-            let obj: RoleBinding = serde_yaml::from_value(value)?;
+            let obj: RoleBinding = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<RoleBinding> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::DaemonSet => {
-            let obj: DaemonSet = serde_yaml::from_value(value)?;
+            let obj: DaemonSet = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<DaemonSet> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::ReplicaSet => {
-            let obj: ReplicaSet = serde_yaml::from_value(value)?;
+            let obj: ReplicaSet = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::Ingress => {
-            let obj: Ingress = serde_yaml::from_value(value)?;
+            let obj: Ingress = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Ingress> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::Service => {
-            let obj: Service = serde_yaml::from_value(value)?;
+            let obj: Service = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Service> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::Deployment => {
-            let obj: Deployment = serde_yaml::from_value(value)?;
+            let obj: Deployment = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::ConfigMap => {
-            let obj: ConfigMap = serde_yaml::from_value(value)?;
+            let obj: ConfigMap = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<ConfigMap> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
@@ -484,45 +484,45 @@ pub async fn apply_yaml(client: Arc<Client>, yaml: &str, resource_type: super::R
         crate::ResourceType::ExternalSecret => {
             use kube::{api::{Api, DynamicObject, GroupVersionKind}};
             let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
-            let obj: kube::api::DynamicObject = serde_yaml::from_value(value.clone())?;
+            let obj: kube::api::DynamicObject = serde_yml::from_value(value.clone())?;
             let ns = obj.namespace().unwrap_or("default".into());
             let api: Api<DynamicObject> = Api::namespaced_with(client.as_ref().clone(), &ns, &ar);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::NameSpace => {
-            let obj: Namespace = serde_yaml::from_value(value)?;
+            let obj: Namespace = serde_yml::from_value(value)?;
             let api: Api<Namespace> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::StorageClass => {
-            let obj: StorageClass = serde_yaml::from_value(value)?;
+            let obj: StorageClass = serde_yml::from_value(value)?;
             let api: Api<StorageClass> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::ClusterRole => {
-            let obj: ClusterRole = serde_yaml::from_value(value)?;
+            let obj: ClusterRole = serde_yml::from_value(value)?;
             let api: Api<ClusterRole> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::ClusterRoleBinding => {
-            let obj: ClusterRoleBinding = serde_yaml::from_value(value)?;
+            let obj: ClusterRoleBinding = serde_yml::from_value(value)?;
             let api: Api<ClusterRoleBinding> = Api::all(client.as_ref().clone());
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::PersistenceVolumeClaim => {
-            let obj: PersistentVolumeClaim = serde_yaml::from_value(value)?;
+            let obj: PersistentVolumeClaim = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::Pod | crate::ResourceType::PodWithPvc => {
-            let obj: Pod = serde_yaml::from_value(value)?;
+            let obj: Pod = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;
         },
         crate::ResourceType::Secret => {
-            let obj: Secret = serde_yaml::from_value(value)?;
+            let obj: Secret = serde_yml::from_value(value)?;
             let ns = obj.namespace().unwrap();
             let api: Api<Secret> = Api::namespaced(client.as_ref().clone(), &ns);
             api.create(&PostParams::default(), &obj).await?;

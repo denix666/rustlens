@@ -106,7 +106,7 @@ pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &
                 editor.apply_button_enabled = false;
                 *editor.apply_flag.lock().unwrap() = false;
 
-                match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+                match serde_yml::from_str::<serde_yml::Value>(&content) {
                     Ok(_) => {
                         // YAML is valid!
                         let client_clone = Arc::clone(&client);
