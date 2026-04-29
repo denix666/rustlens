@@ -1028,8 +1028,52 @@ async fn main() {
                                 egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_cluster_secret_store_header(ui);
+                                        ui.label("Actions");
+                                        ui.end_row();
                                         for j in cr_items.clone().iter() {
                                             show_cluster_secret_store_details(&j.name, &j.data, ui);
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    let yaml_editor_clone = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match crate::get_cr_instance_yaml(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_clone.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => log::error!("Failed to get CR YAML: {}", e),
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(name.clone(), ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(e) = crate::delete_cr_instance(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                                log::error!("Failed to delete CR instance: {}", e);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
                                         }
                                     });
                                 });
@@ -1038,8 +1082,52 @@ async fn main() {
                                 egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_external_secret_header(ui);
+                                        ui.label("Actions");
+                                        ui.end_row();
                                         for j in cr_items.clone().iter() {
                                             show_external_secret_details(&j.name, &j.data, ui);
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    let yaml_editor_clone = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match crate::get_cr_instance_yaml(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_clone.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => log::error!("Failed to get CR YAML: {}", e),
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(name.clone(), ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(e) = crate::delete_cr_instance(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                                log::error!("Failed to delete CR instance: {}", e);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
                                         }
                                     });
                                 });
@@ -1048,8 +1136,52 @@ async fn main() {
                                 egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_virtual_service_header(ui);
+                                        ui.label("Actions");
+                                        ui.end_row();
                                         for j in cr_items.clone().iter() {
                                             show_virtual_service_details(&j.name, &j.data, ui);
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    let yaml_editor_clone = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match crate::get_cr_instance_yaml(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_clone.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => log::error!("Failed to get CR YAML: {}", e),
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(name.clone(), ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(e) = crate::delete_cr_instance(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                                log::error!("Failed to delete CR instance: {}", e);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
                                         }
                                     });
                                 });
@@ -1058,8 +1190,52 @@ async fn main() {
                                 egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_cilium_load_balancer_ip_pool_header(ui);
+                                        ui.label("Actions");
+                                        ui.end_row();
                                         for j in cr_items.clone().iter() {
                                             show_cilium_load_balancer_ip_pool_details(&j.name, &j.data, ui);
+                                            ui.menu_button(egui::RichText::new(ACTIONS_MENU_LABEL).size(ACTIONS_MENU_BUTTON_SIZE).color(MENU_BUTTON), |ui| {
+                                                ui.set_width(200.0);
+                                                if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    let yaml_editor_clone = Arc::clone(&yaml_editor_window);
+                                                    tokio::spawn(async move {
+                                                        match crate::get_cr_instance_yaml(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                            Ok(yaml) => {
+                                                                let mut editor = yaml_editor_clone.lock().unwrap();
+                                                                editor.content = yaml;
+                                                                editor.show = true;
+                                                            }
+                                                            Err(e) => log::error!("Failed to get CR YAML: {}", e),
+                                                        }
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
+                                                    let name = j.name.clone();
+                                                    let ns = j.namespace.clone();
+                                                    let group = j.group.clone();
+                                                    let version = j.version.clone();
+                                                    let plural = j.plural.clone();
+                                                    let kind = j.kind.clone();
+                                                    let client_clone = Arc::clone(&client);
+                                                    confirmation_dialog.request(name.clone(), ns.clone(), move || {
+                                                        tokio::spawn(async move {
+                                                            if let Err(e) = crate::delete_cr_instance(client_clone, &name, ns.as_deref(), &group, &version, &kind, &plural).await {
+                                                                log::error!("Failed to delete CR instance: {}", e);
+                                                            }
+                                                        });
+                                                    });
+                                                    ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                            });
+                                            ui.end_row();
                                         }
                                     });
                                 });
@@ -1157,8 +1333,6 @@ async fn main() {
                                                 for col in &ordered_cols {
                                                     ui.label(col);
                                                 }
-                                                ui.end_row();
-
                                                 ui.label("Actions");
                                                 ui.end_row();
 

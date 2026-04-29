@@ -13,7 +13,6 @@ pub fn show_cluster_secret_store_header(ui: &mut egui::Ui) {
     ui.label("Status");
     ui.label("Capabilities");
     ui.label("Age");
-    ui.end_row();
 }
 
 pub fn show_cluster_secret_store_details(name: &String, data: &Value, ui: &mut egui::Ui) {
@@ -71,7 +70,6 @@ pub fn show_cluster_secret_store_details(name: &String, data: &Value, ui: &mut e
     ui.label(cstatus);
     ui.label(capabilities);
     ui.label(crate::format_age(&creation_timestamp_k8s_time));
-    ui.end_row();
 }
 
 // External secret
@@ -84,7 +82,6 @@ pub fn show_external_secret_header(ui: &mut egui::Ui) {
     ui.label("Status");
     ui.label("Reason");
     ui.label("Age");
-    ui.end_row();
 }
 
 pub fn show_external_secret_details(name: &String, data: &Value, ui: &mut egui::Ui) {
@@ -138,8 +135,6 @@ pub fn show_external_secret_details(name: &String, data: &Value, ui: &mut egui::
     ui.label(egui::RichText::new(ctype).color(item_color(ctype)));
     ui.label(reason);
     ui.label(crate::format_age(&creation_timestamp_k8s_time));
-
-    ui.end_row();
 }
 
 // Virtual service
@@ -150,7 +145,6 @@ pub fn show_virtual_service_header(ui: &mut egui::Ui) {
     ui.label("Gateway");
     ui.label("Host");
     ui.label("Age");
-    ui.end_row();
 }
 
 pub fn show_virtual_service_details(name: &String, data: &Value, ui: &mut egui::Ui) {
@@ -188,8 +182,6 @@ pub fn show_virtual_service_details(name: &String, data: &Value, ui: &mut egui::
     ui.label(gateways);
     ui.label(hosts);
     ui.label(crate::format_age(&creation_timestamp_k8s_time));
-
-    ui.end_row();
 }
 
 
@@ -201,7 +193,6 @@ pub fn show_cilium_load_balancer_ip_pool_header(ui: &mut egui::Ui) {
     ui.label("allowFirstLastIPs");
     ui.label("IP Pools");
     ui.label("Disabled");
-    ui.end_row();
 }
 
 pub fn show_cilium_load_balancer_ip_pool_details(name: &String, data: &Value, ui: &mut egui::Ui) {
@@ -257,6 +248,4 @@ pub fn show_cilium_load_balancer_ip_pool_details(name: &String, data: &Value, ui
     } else {
         ui.label("No");
     }
-
-    ui.end_row();
 }
