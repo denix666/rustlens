@@ -681,7 +681,7 @@ async fn main() {
         });
 
         egui::SidePanel::left("tasks panel").resizable(false).exact_width(290.0).show(ctx, |ui| {
-            egui::ScrollArea::vertical().id_salt("menu_scroll").show(ui, |ui| {
+            egui::ScrollArea::vertical().auto_shrink(false).id_salt("menu_scroll").show(ui, |ui| {
                 let current = selected_category_ui.lock().unwrap().clone();
 
                 egui::CollapsingHeader::new("☸ Cluster").default_open(true).show(ui, |ui| {
@@ -931,7 +931,7 @@ async fn main() {
                         if visible_leases.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("leases_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("leases_scroll").show(ui, |ui| {
                                 egui::Grid::new("leases_grid").striped(true).min_col_width(20.0).max_col_width(630.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -1025,7 +1025,7 @@ async fn main() {
                     if let Some(first_item) = cr_items.first() {
                         match first_item.kind.as_str() {
                             "ClusterSecretStore" => {
-                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                egui::ScrollArea::vertical().auto_shrink(false).id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_cluster_secret_store_header(ui);
                                         ui.label("Actions");
@@ -1079,7 +1079,7 @@ async fn main() {
                                 });
                             },
                             "ExternalSecret" => {
-                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                egui::ScrollArea::vertical().auto_shrink(false).id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_external_secret_header(ui);
                                         ui.label("Actions");
@@ -1133,7 +1133,7 @@ async fn main() {
                                 });
                             },
                             "VirtualService" => {
-                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                egui::ScrollArea::vertical().auto_shrink(false).id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_virtual_service_header(ui);
                                         ui.label("Actions");
@@ -1187,7 +1187,7 @@ async fn main() {
                                 });
                             },
                             "CiliumLoadBalancerIPPool" => {
-                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                egui::ScrollArea::vertical().auto_shrink(false).id_salt("cr_scroll").show(ui, |ui| {
                                     egui::Grid::new("cr_grid").striped(true).min_col_width(40.0).show(ui, |ui| {
                                         show_cilium_load_balancer_ip_pool_header(ui);
                                         ui.label("Actions");
@@ -1241,7 +1241,7 @@ async fn main() {
                                 });
                             },
                             _ => {
-                                egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                egui::ScrollArea::vertical().auto_shrink(false).id_salt("cr_scroll").show(ui, |ui| {
                                     fn value_to_string(v: &Value) -> Option<String> {
                                         match v {
                                             Value::String(s) => Some(s.clone()),
@@ -1326,7 +1326,7 @@ async fn main() {
                                             }
                                         }
 
-                                        egui::ScrollArea::vertical().id_salt("cr_scroll").show(ui, |ui| {
+                                        egui::ScrollArea::vertical().auto_shrink(false).id_salt("cr_scroll").show(ui, |ui| {
                                             egui::Grid::new("cr_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                                 // header
                                                 ui.label("Name");
@@ -1447,7 +1447,7 @@ async fn main() {
                         if visible_service_accounts.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("sservice_accounts_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("sservice_accounts_scroll").show(ui, |ui| {
                                 egui::Grid::new("service_accounts_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -1558,7 +1558,7 @@ async fn main() {
                         if visible_roles.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("roles_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("roles_scroll").show(ui, |ui| {
                                 egui::Grid::new("roles_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -1646,7 +1646,7 @@ async fn main() {
                         if visible_cluster_roles.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("cluster_roles_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("cluster_roles_scroll").show(ui, |ui| {
                                 egui::Grid::new("cluster_roles_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Age");
@@ -1746,7 +1746,7 @@ async fn main() {
                         if visible_rbs.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("rbs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("rbs_scroll").show(ui, |ui| {
                                 egui::Grid::new("rbs_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -1834,7 +1834,7 @@ async fn main() {
                         if visible_cluster_rbs.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("cluster_rb_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("cluster_rb_scroll").show(ui, |ui| {
                                 egui::Grid::new("cluster_rb_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Age");
@@ -1924,7 +1924,7 @@ async fn main() {
                     if helm_releases_loading.load(Ordering::Relaxed) {
                         show_loading(ui);
                     } else {
-                        egui::ScrollArea::vertical().id_salt("helm_releases_scroll").show(ui, |ui| {
+                        egui::ScrollArea::vertical().auto_shrink(false).id_salt("helm_releases_scroll").show(ui, |ui| {
                             egui::Grid::new("helm_releases_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                 ui.label("Name");
                                 ui.label("Chart");
@@ -1995,7 +1995,7 @@ async fn main() {
                         show_loading(ui);
                     } else {
                         let crds_list = crds.lock().unwrap();
-                        egui::ScrollArea::vertical().id_salt("crds_scroll").show(ui, |ui| {
+                        egui::ScrollArea::vertical().auto_shrink(false).id_salt("crds_scroll").show(ui, |ui| {
                             egui::Grid::new("crds_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                 ui.label("Name");
                                 ui.label("Plural");
@@ -2107,7 +2107,7 @@ async fn main() {
                         if visible_network_policies.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("network_policies_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("network_policies_scroll").show(ui, |ui| {
                                 egui::Grid::new("network_policies_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -2202,7 +2202,7 @@ async fn main() {
                         if visible_pdbs.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("pdbs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("pdbs_scroll").show(ui, |ui| {
                                 egui::Grid::new("pdbs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -2308,7 +2308,7 @@ async fn main() {
                         if visible_daemonsets.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("daemonsets_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("daemonsets_scroll").show(ui, |ui| {
                                 egui::Grid::new("daemonsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -2425,7 +2425,7 @@ async fn main() {
                         if !stats.namespaces_with_pending_items.is_empty() {
                             ui.add_space(50.0);
                             ui.heading("List of namespaces with pending items:");
-                            egui::ScrollArea::vertical().id_salt("ns_with_pending_items_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("ns_with_pending_items_scroll").show(ui, |ui| {
                                 ui.separator();
                                 egui::Grid::new("ns_with_pending_items_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("");
@@ -2515,7 +2515,7 @@ async fn main() {
                         if visible_replicasets.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("replicasets_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("replicasets_scroll").show(ui, |ui| {
                                 egui::Grid::new("replicasets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -2650,7 +2650,7 @@ async fn main() {
                         if visible_ingresses.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("ingresses_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("ingresses_scroll").show(ui, |ui| {
                                 egui::Grid::new("ingresses_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -2740,7 +2740,7 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             let csi_drivers_list = csi_drivers.lock().unwrap();
-                            egui::ScrollArea::vertical().id_salt("csi_drivers_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("csi_drivers_scroll").show(ui, |ui| {
                                 egui::Grid::new("csi_drivers_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Attach Required");
@@ -2811,7 +2811,7 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             let scs_list = storage_classes.lock().unwrap();
-                            egui::ScrollArea::vertical().id_salt("scs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("scs_scroll").show(ui, |ui| {
                                 egui::Grid::new("scs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Provisioner");
@@ -2888,7 +2888,7 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             let pvs_list = pvs.lock().unwrap();
-                            egui::ScrollArea::vertical().id_salt("pvs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("pvs_scroll").show(ui, |ui| {
                                 egui::Grid::new("pvs_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         if app_config.sort_preferences.pvs_sort_by == SortBy::Name {
@@ -3037,7 +3037,7 @@ async fn main() {
                         if visible_pvcs.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("pvcs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("pvcs_scroll").show(ui, |ui| {
                                 egui::Grid::new("pvcs_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                         if app_config.sort_preferences.pvcs_sort_by == SortBy::Name {
@@ -3178,7 +3178,7 @@ async fn main() {
                         if visible_endpoints.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("endpoints_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("endpoints_scroll").show(ui, |ui| {
                                 egui::Grid::new("endpoints_grid").striped(true).min_col_width(20.0).max_col_width(600.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -3288,7 +3288,7 @@ async fn main() {
                         if visible_jobs.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("jobs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("jobs_scroll").show(ui, |ui| {
                                 egui::Grid::new("jobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -3404,7 +3404,7 @@ async fn main() {
                         if visible_services.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("services_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("services_scroll").show(ui, |ui| {
                                 egui::Grid::new("services_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -3519,7 +3519,7 @@ async fn main() {
                         if visible_cronjobs.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("cronjobs_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("cronjobs_scroll").show(ui, |ui| {
                                 egui::Grid::new("cronjobs_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -3632,7 +3632,7 @@ async fn main() {
                         if visible_statefulsets.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("statefulsets_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("statefulsets_scroll").show(ui, |ui| {
                                 egui::Grid::new("statefulsets_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -3779,7 +3779,7 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             let nodes = nodes.lock().unwrap();
-                            egui::ScrollArea::vertical().id_salt("node_scroll").hscroll(true).show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("node_scroll").hscroll(true).show(ui, |ui| {
                                 egui::Grid::new("node_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label(""); // For hightlight
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -4049,7 +4049,7 @@ async fn main() {
                             show_empty(ui);
                         } else {
                             let ns = namespaces.lock().unwrap();
-                            egui::ScrollArea::vertical().id_salt("namespace_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("namespace_scroll").show(ui, |ui| {
                                 egui::Grid::new("namespace_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("");
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -4206,7 +4206,7 @@ async fn main() {
                         if visible_pods.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("pods_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("pods_scroll").show(ui, |ui| {
                                 egui::Grid::new("pods_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                                     ui.label(""); // For hightlight
                                     if ui.label("Name").on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -4498,7 +4498,7 @@ async fn main() {
                         if visible_deployments.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("deployments_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("deployments_scroll").show(ui, |ui| {
                                 egui::Grid::new("deployments_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -4643,7 +4643,7 @@ async fn main() {
                         if visible_secrets.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("secrets_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("secrets_scroll").show(ui, |ui| {
                                 egui::Grid::new("secrets_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -4756,7 +4756,7 @@ async fn main() {
                         if visible_configmaps.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("configmaps_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("configmaps_scroll").show(ui, |ui| {
                                 egui::Grid::new("configmaps_grid").striped(true).min_col_width(20.0).max_col_width(430.0).show(ui, |ui| {
                                     ui.label("Name");
                                     ui.label("Namespace");
@@ -4871,7 +4871,7 @@ async fn main() {
                         if visible_events.is_empty() {
                             show_empty(ui);
                         } else {
-                            egui::ScrollArea::vertical().id_salt("events_scroll").show(ui, |ui| {
+                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("events_scroll").show(ui, |ui| {
                                 egui::Grid::new("events_grid").striped(true).min_col_width(20.0).max_col_width(400.0).show(ui, |ui| {
                                     ui.label("Time");
                                     ui.label("Type");

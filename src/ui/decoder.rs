@@ -23,7 +23,7 @@ pub fn show_decoder_window(ctx: &Context, decoder_window: &mut DecoderWindow,) {
             ui.group(|ui| {
                 ui.set_height(270.0);
                 ui.label("Plain text:");
-                egui::ScrollArea::vertical().id_salt("plain").show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt("plain").auto_shrink(false).show(ui, |ui| {
                     let plain_text = egui::TextEdit::multiline(&mut decoder_window.plain_text_content)
                         .code_editor()
                         .font(egui::FontId::new(14.0, egui::FontFamily::Monospace))
@@ -39,7 +39,7 @@ pub fn show_decoder_window(ctx: &Context, decoder_window: &mut DecoderWindow,) {
             ui.group(|ui| {
                 ui.set_height(270.0);
                 ui.label("Decoded base64 text:");
-                egui::ScrollArea::vertical().id_salt("encrypted").show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt("encrypted").auto_shrink(false).show(ui, |ui| {
                     let encrypted_text = egui::TextEdit::multiline(&mut decoder_window.encrypted_content)
                         .code_editor()
                         .font(egui::FontId::new(14.0, egui::FontFamily::Monospace))

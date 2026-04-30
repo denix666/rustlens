@@ -18,21 +18,34 @@ pub struct OverviewStats {
 }
 
 fn paint_filled_arc(ui: &Ui, center: Pos2, inner_radius: f32, outer_radius: f32, start_angle: f32, end_angle: f32, color: Color32) {
-    let angle_span = end_angle - start_angle;
-    let num_points = (angle_span.abs() * 30.0).ceil().max(5.0) as usize;
-    let mut points = Vec::with_capacity(num_points * 2);
-
-    for i in 0..=num_points {
-        let angle = start_angle + angle_span * (i as f32 / num_points as f32);
-        points.push(center + outer_radius * egui::vec2(angle.cos(), angle.sin()));
+    let total_span = end_angle - start_angle;
+    if total_span.abs() < 0.001 {
+        return;
     }
 
-    for i in (0..=num_points).rev() {
-        let angle = start_angle + angle_span * (i as f32 / num_points as f32);
-        points.push(center + inner_radius * egui::vec2(angle.cos(), angle.sin()));
-    }
+    let max_segment = std::f32::consts::FRAC_PI_2;
+    let num_segments = (total_span.abs() / max_segment).ceil() as usize;
 
-    ui.painter().add(egui::Shape::convex_polygon(points, color, egui::Stroke::NONE));
+    for seg in 0..num_segments {
+        let seg_start = start_angle + total_span * (seg as f32 / num_segments as f32);
+        let seg_end = start_angle + total_span * ((seg + 1) as f32 / num_segments as f32);
+        let seg_span = seg_end - seg_start;
+
+        let num_points = (seg_span.abs() * 30.0).ceil().max(4.0) as usize;
+        let mut points = Vec::with_capacity((num_points + 1) * 2);
+
+        for i in 0..=num_points {
+            let angle = seg_start + seg_span * (i as f32 / num_points as f32);
+            points.push(center + outer_radius * egui::vec2(angle.cos(), angle.sin()));
+        }
+
+        for i in (0..=num_points).rev() {
+            let angle = seg_start + seg_span * (i as f32 / num_points as f32);
+            points.push(center + inner_radius * egui::vec2(angle.cos(), angle.sin()));
+        }
+
+        ui.painter().add(egui::Shape::convex_polygon(points, color, egui::Stroke::NONE));
+    }
 }
 
 pub fn show_overview(ui: &mut egui::Ui, stats: &OverviewStats) {

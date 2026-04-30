@@ -63,7 +63,7 @@ pub fn show_pv_details_window(
             }
         });
         ui.separator();
-        egui::ScrollArea::vertical().max_height(600.0).show(ui, |ui| {
+        egui::ScrollArea::vertical().auto_shrink(false).max_height(600.0).show(ui, |ui| {
             egui::Grid::new("pv_details_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
 
                 ui.label(egui::RichText::new("Pv name:").color(ROW_NAME_COLOR));
