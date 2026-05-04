@@ -641,15 +641,15 @@ pub async fn restart_workload(client: Arc<Client>, name: &str, namespace: &str, 
     match kind {
         ScaleTarget::Deployment => {
             let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), namespace);
-            api.patch(name, &PatchParams::apply("rustlens-restart").force(), &Patch::Merge(&patch)).await?;
+            api.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
         }
         ScaleTarget::StatefulSet => {
             let api: Api<StatefulSet> = Api::namespaced(client.as_ref().clone(), namespace);
-            api.patch(name, &PatchParams::apply("rustlens-restart").force(), &Patch::Merge(&patch)).await?;
+            api.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
         }
         ScaleTarget::DaemonSet => {
             let api: Api<DaemonSet> = Api::namespaced(client.as_ref().clone(), namespace);
-            api.patch(name, &PatchParams::apply("rustlens-restart").force(), &Patch::Merge(&patch)).await?;
+            api.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
         }
         ScaleTarget::ReplicaSet => {}
     }
