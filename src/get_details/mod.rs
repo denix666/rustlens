@@ -67,5 +67,8 @@ pub use get_endpoint_details::*;
 pub mod get_cr_instances;
 pub use get_cr_instances::*;
 
+pub mod get_sc_details;
+pub use get_sc_details::*;
+
 pub mod get_k8s_released_version;
 pub use get_k8s_released_version::*;

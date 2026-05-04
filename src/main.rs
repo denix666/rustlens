@@ -184,6 +184,7 @@ async fn main() {
     let mut ingress_details_window = ui::ingress_details::IngressDetailsWindow::new();
     let mut endpoint_details_window = ui::endpoint_details::EndpointDetailsWindow::new();
     let mut secret_details_window = ui::secret_details::SecretDetailsWindow::new();
+    let mut sc_details_window = ui::sc_details::ScDetailsWindow::new();
     let log_window = Arc::new(Mutex::new(ui::logs::LogWindow::new()));
     let mut log_parser_window = ui::log_parser::LogParserWindow::new();
     let yaml_editor_window = Arc::new(Mutex::new(ui::yaml_editor::YamlEditorWindow::new()));
@@ -515,6 +516,7 @@ async fn main() {
 
     // SC
     let storage_classes = Arc::new(Mutex::new(Vec::<StorageClassItem>::new()));
+    let sc_details = Arc::new(Mutex::new(ScDetails::default()));
     let storage_classes_loading = Arc::new(AtomicBool::new(true));
     spawn_watcher(
         Arc::clone(&client),
@@ -2824,7 +2826,19 @@ async fn main() {
                                     for item in scs_list.iter().rev().take(200) {
                                         let cur_item_object = &item.name;
                                         if filter_scs.is_empty() || cur_item_object.contains(&filter_scs) {
-                                            ui.label(egui::RichText::new(&item.name).color(egui::Color32::WHITE));
+                                            if ui.label(egui::RichText::new(&item.name).color(ITEM_NAME_COLOR)).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                let name = cur_item_object.clone();
+                                                let client_clone = Arc::clone(&client);
+                                                let details = Arc::clone(&sc_details);
+                                                sc_details_window.show = true;
+                                                tokio::spawn({
+                                                    async move {
+                                                        if let Err(e) = get_sc_details(client_clone, &name, details).await {
+                                                            log::error!("StorageClass details fetch failed: {:?}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             ui.label(item.provisioner.to_string());
                                             ui.label(item.reclaim_policy.to_string());
                                             ui.label(item.volume_binding_mode.to_string());
@@ -5192,6 +5206,15 @@ async fn main() {
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
             show_configmap_details_window(ctx, &mut configmap_details_window, configmap_details_clone, configmaps_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+        }
+
+        // StorageClass details window
+        if sc_details_window.show {
+            let sc_details_clone = Arc::clone(&sc_details);
+            let storage_classes_clone = Arc::clone(&storage_classes);
+            let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
+            let client_clone = Arc::clone(&client);
+            show_sc_details_window(ctx, &mut sc_details_window, sc_details_clone, storage_classes_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Scale window

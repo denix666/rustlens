@@ -40,6 +40,7 @@ pub mod kubectl_proxy;
 pub mod ai_consultant;
 pub mod configuration;
 pub mod lease_details;
+pub mod sc_details;
 
 pub use logs::*;
 pub use new_resource::*;
@@ -83,3 +84,4 @@ pub use kubectl_proxy::*;
 pub use ai_consultant::*;
 pub use configuration::*;
 pub use lease_details::*;
+pub use sc_details::*;
