@@ -1,5 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![allow(deprecated)]
 
 mod ui;
 use flexi_logger::{Duplicate, FileSpec, Logger};
