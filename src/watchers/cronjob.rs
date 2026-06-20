@@ -20,7 +20,7 @@ pub fn convert_cronjob(cj: CronJob) -> Option<CronJobItem> {
     let name = metadata.name.clone()?;
     let creation_timestamp =  metadata.creation_timestamp.clone();
     let namespace = cj.metadata.namespace.clone();
-    let spec = cj.spec?;
+    let spec = cj.spec;
     let schedule = spec.schedule;
     let suspend = spec.suspend.unwrap_or(false);
 

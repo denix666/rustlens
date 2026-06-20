@@ -37,9 +37,9 @@ pub fn convert_pdb(pdb: PodDisruptionBudget) -> Option<PodDisruptionBudgetItem> 
             IntOrString::Int(i) => i.to_string(),
             IntOrString::String(s) => s,
         }),
-        allowed_disruptions: status.disruptions_allowed,
-        current_healthy: status.current_healthy,
-        desired_healthy: status.desired_healthy,
+        allowed_disruptions: status.disruptions_allowed.unwrap_or(0),
+        current_healthy: status.current_healthy.unwrap_or(0),
+        desired_healthy: status.desired_healthy.unwrap_or(0),
         creation_timestamp,
         namespace,
     })

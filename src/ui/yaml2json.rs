@@ -31,7 +31,7 @@ pub fn show_yaml2json_window(ctx: &Context, yaml2json_window: &mut Yaml2JsonWind
                         .desired_rows(15)
                         .desired_width(f32::INFINITY)
                         .lock_focus(true);
-                    if ui.add(yaml_text).changed() && let Ok(v) = serde_yml::from_str::<serde_yml::Value>(yaml2json_window.yaml_content.as_str()) {
+                    if ui.add(yaml_text).changed() && let Ok(v) = yaml_serde::from_str::<yaml_serde::Value>(yaml2json_window.yaml_content.as_str()) {
                         let j: Result<JsonValue, _> = serde_json::from_str(&serde_json::to_string(&v).unwrap());
                         if let Ok(jv) = j && let Ok(s) = serde_json::to_string_pretty(&jv) {
                             yaml2json_window.json_content = s;
@@ -51,7 +51,7 @@ pub fn show_yaml2json_window(ctx: &Context, yaml2json_window: &mut Yaml2JsonWind
                         .desired_width(f32::INFINITY)
                         .lock_focus(true);
                     if ui.add(json_text).changed()
-                        && let Ok(v) = serde_json::from_str::<JsonValue>(yaml2json_window.json_content.as_str()) && let Ok(y) = serde_yml::to_string(&v) {
+                        && let Ok(v) = serde_json::from_str::<JsonValue>(yaml2json_window.json_content.as_str()) && let Ok(y) = yaml_serde::to_string(&v) {
                             yaml2json_window.yaml_content = y;
                         }
                 });
