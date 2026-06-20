@@ -554,13 +554,30 @@ pub fn get_current_context_info() -> Result<NamedContext, anyhow::Error> {
     Ok(context.clone())
 }
 
-pub async fn get_cluster_name() -> Result<String, anyhow::Error> {
-    let config = Config::infer().await?;
+pub async fn get_cluster_name(kubeconfig_path: Option<&str>, context: Option<&str>) -> Result<String, anyhow::Error> {
+    let config = load_kube_config(kubeconfig_path, context).await?;
     Ok(config.cluster_url.host().unwrap_or("unknown").to_string())
 }
 
-pub async fn get_kubernetes_client() -> Result<Client, kube::Error> {
-    let mut config = Config::infer().await.unwrap();
+async fn load_kube_config(kubeconfig_path: Option<&str>, context: Option<&str>) -> Result<Config, anyhow::Error> {
+    match (kubeconfig_path, context) {
+        (None, None) => Ok(Config::infer().await?),
+        _ => {
+            let options = kube::config::KubeConfigOptions {
+                context: context.map(|s| s.to_string()),
+                ..Default::default()
+            };
+            let kubeconfig = match kubeconfig_path {
+                Some(path) => Kubeconfig::read_from(path)?,
+                None => Kubeconfig::read()?,
+            };
+            Ok(Config::from_custom_kubeconfig(kubeconfig, &options).await?)
+        }
+    }
+}
+
+pub async fn get_kubernetes_client(kubeconfig_path: Option<&str>, context: Option<&str>) -> anyhow::Result<Client> {
+    let mut config = load_kube_config(kubeconfig_path, context).await?;
 
     let is_proxy = config.cluster_url.to_string().starts_with("http://127.0.0.1");
 
@@ -588,7 +605,7 @@ pub async fn get_kubernetes_client() -> Result<Client, kube::Error> {
         log::info!("Detected kubectl proxy at {}, bypass authentication.", config.cluster_url);
     }
 
-    Client::try_from(config)
+    Ok(Client::try_from(config)?)
 }
 
 #[derive(Debug, Clone)]

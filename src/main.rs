@@ -120,6 +120,14 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let cli = parse_cli_args(&args);
+
+    if cli.show_help {
+        print_help();
+        std::process::exit(0);
+    }
+
     let mut title = String::from("RustLens v");
 
     // App config
@@ -258,7 +266,7 @@ async fn main() {
 
     // Client connection
     log::info!("Connecting to kubernetes cluster...");
-    let client = match get_kubernetes_client().await {
+    let client = match get_kubernetes_client(cli.kubeconfig.as_deref(), cli.context.as_deref()).await {
         Ok(c) => Arc::new(c),
         Err(e) => {
             log::error!("Error connecting to kubernetes cluster: {:?}", e);
@@ -272,8 +280,10 @@ async fn main() {
     }));
     let cluster_info_ui = Arc::clone(&cluster_info);
     let cluster_info_bg = Arc::clone(&cluster_info);
+    let cli_kubeconfig = cli.kubeconfig.clone();
+    let cli_context = cli.context.clone();
     tokio::spawn(async move {
-        if let Ok(cluster_name) = get_cluster_name().await {
+        if let Ok(cluster_name) = get_cluster_name(cli_kubeconfig.as_deref(), cli_context.as_deref()).await {
             *cluster_info_bg.lock().unwrap() = EnvVars {
                 cluster_name
             };
@@ -5254,4 +5264,49 @@ async fn main() {
         ctx.request_repaint();
     })
     .unwrap();
+}
+
+struct CliArgs {
+    kubeconfig: Option<String>,
+    context: Option<String>,
+    show_help: bool,
+}
+
+fn parse_cli_args(args: &[String]) -> CliArgs {
+    let mut kubeconfig = None;
+    let mut context = None;
+    let mut show_help = false;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--kubeconfig" | "-k" => {
+                i += 1;
+                kubeconfig = args.get(i).cloned();
+            }
+            "--context" | "-c" => {
+                i += 1;
+                context = args.get(i).cloned();
+            }
+            "--help" | "-h" => {
+                show_help = true;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    CliArgs { kubeconfig, context, show_help }
+}
+
+fn print_help() {
+    println!("RustLens v{}", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("USAGE:");
+    println!("    rustlens [OPTIONS]");
+    println!();
+    println!("OPTIONS:");
+    println!("    -k, --kubeconfig <PATH>    Path to kubeconfig file (default: ~/.kube/config)");
+    println!("    -c, --context <NAME>       Kubernetes context to use (default: current-context)");
+    println!("    -h, --help                 Print this help message");
 }
