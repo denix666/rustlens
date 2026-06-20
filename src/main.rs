@@ -210,7 +210,7 @@ async fn main() {
     let mut selected_cr = String::new();
 
     log::info!("Loading kubernetes config...");
-    let ctx_info = match get_current_context_info() {
+    let ctx_info = match get_current_context_info(cli.kubeconfig.as_deref(), cli.context.as_deref()) {
         Ok(c) => c,
         Err(e) => {
             log::error!("Error getting kubernetes config: {:?}", e);

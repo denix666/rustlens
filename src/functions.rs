@@ -537,13 +537,19 @@ fn get_kubeconfig_path() -> Option<PathBuf> {
     })
 }
 
-pub fn get_current_context_info() -> Result<NamedContext, anyhow::Error> {
-    let config_path = get_kubeconfig_path().ok_or_else(|| anyhow::anyhow!("Impossible to get your home dir!"))?;
-    let config = Kubeconfig::read_from(config_path)?;
+pub fn get_current_context_info(kubeconfig_path: Option<&str>, context_name: Option<&str>) -> Result<NamedContext, anyhow::Error> {
+    let config = match kubeconfig_path {
+        Some(path) => Kubeconfig::read_from(path)?,
+        None => {
+            let config_path = get_kubeconfig_path().ok_or_else(|| anyhow::anyhow!("Impossible to get your home dir!"))?;
+            Kubeconfig::read_from(config_path)?
+        }
+    };
 
-    let current_context = config
-        .current_context
-        .ok_or_else(|| anyhow::anyhow!("No current context set"))?;
+    let current_context = match context_name {
+        Some(name) => name.to_string(),
+        None => config.current_context.ok_or_else(|| anyhow::anyhow!("No current context set"))?,
+    };
 
     let context = config
         .contexts
