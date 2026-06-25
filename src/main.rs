@@ -314,179 +314,89 @@ async fn main() {
     // LEASES
     let leases = Arc::new(Mutex::new(Vec::<LeaseItem>::new()));
     let lease_details = Arc::new(Mutex::new(LeaseDetails::default()));
-    let leases_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&leases),
-        Arc::clone(&leases_loading),
-        |c, s, l| {
-        Box::pin(watch_leases(c, s, l))
-    });
+    let leases_loading = Arc::new(AtomicBool::new(false));
+    let leases_started = Arc::new(AtomicBool::new(false));
 
     // ENDPOINTS
     let endpoints = Arc::new(Mutex::new(Vec::<EndpointItem>::new()));
     let endpoint_details = Arc::new(Mutex::new(EndpointDetails::default()));
-    let endpoints_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&endpoints),
-        Arc::clone(&endpoints_loading),
-        |c, s, l| {
-        Box::pin(watch_endpoints(c, s, l))
-    });
+    let endpoints_loading = Arc::new(AtomicBool::new(false));
+    let endpoints_started = Arc::new(AtomicBool::new(false));
 
     // ROLES
     let roles = Arc::new(Mutex::new(Vec::<RoleItem>::new()));
     let role_details = Arc::new(Mutex::new(RoleDetails::default()));
-    let roles_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&roles),
-        Arc::clone(&roles_loading),
-        |c, s, l| {
-        Box::pin(watch_roles(c, s, l))
-    });
+    let roles_loading = Arc::new(AtomicBool::new(false));
+    let roles_started = Arc::new(AtomicBool::new(false));
 
     // ROLE BINDINGS
     let rbs = Arc::new(Mutex::new(Vec::<RoleBindingItem>::new()));
     let rb_details = Arc::new(Mutex::new(RoleBindingDetails::default()));
-    let rb_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&rbs),
-        Arc::clone(&rb_loading),
-        |c, s, l| {
-        Box::pin(watch_rbs(c, s, l))
-    });
+    let rb_loading = Arc::new(AtomicBool::new(false));
+    let rbs_started = Arc::new(AtomicBool::new(false));
 
     // CLUSTER ROLES
     let cluster_roles = Arc::new(Mutex::new(Vec::<ClusterRoleItem>::new()));
     let cluster_role_details = Arc::new(Mutex::new(ClusterRoleDetails::default()));
-    let cluster_roles_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&cluster_roles),
-        Arc::clone(&cluster_roles_loading),
-        |c, s, l| {
-        Box::pin(watch_cluster_roles(c, s, l))
-    });
+    let cluster_roles_loading = Arc::new(AtomicBool::new(false));
+    let cluster_roles_started = Arc::new(AtomicBool::new(false));
 
     // CLUSTER ROLE BINDINGS
     let cluster_rbs = Arc::new(Mutex::new(Vec::<ClusterRoleBindingItem>::new()));
     let cluster_rb_details = Arc::new(Mutex::new(ClusterRoleBindingDetails::default()));
-    let cluster_rb_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&cluster_rbs),
-        Arc::clone(&cluster_rb_loading),
-        |c, s, l| {
-        Box::pin(watch_cluster_rbs(c, s, l))
-    });
+    let cluster_rb_loading = Arc::new(AtomicBool::new(false));
+    let cluster_rbs_started = Arc::new(AtomicBool::new(false));
 
     // POD DISRUPTION BUDGET
     let pdbs = Arc::new(Mutex::new(Vec::<PodDisruptionBudgetItem>::new()));
-    let pdbs_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&pdbs),
-        Arc::clone(&pdbs_loading),
-        |c, s, l| {
-        Box::pin(watch_pod_disruption_budgets(c, s, l))
-    });
+    let pdbs_loading = Arc::new(AtomicBool::new(false));
+    let pdbs_started = Arc::new(AtomicBool::new(false));
 
     // SERVICE ACCOUNT
     let service_accounts = Arc::new(Mutex::new(Vec::<ServiceAccountItem>::new()));
     let service_account_details = Arc::new(Mutex::new(ServiceAccountDetails::default()));
-    let service_accounts_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&service_accounts),
-        Arc::clone(&service_accounts_loading),
-        |c, s, l| {
-        Box::pin(watch_service_accounts(c, s, l))
-    });
+    let service_accounts_loading = Arc::new(AtomicBool::new(false));
+    let service_accounts_started = Arc::new(AtomicBool::new(false));
 
     // CRONJOBS
     let cronjobs = Arc::new(Mutex::new(Vec::<CronJobItem>::new()));
     let cronjob_details = Arc::new(Mutex::new(CronJobDetails::default()));
-    let cronjobs_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&cronjobs),
-        Arc::clone(&cronjobs_loading),
-        |c, s, l| {
-        Box::pin(watch_cronjobs(c, s, l))
-    });
+    let cronjobs_loading = Arc::new(AtomicBool::new(false));
+    let cronjobs_started = Arc::new(AtomicBool::new(false));
 
     // NETWORK POLICIES
     let network_policies = Arc::new(Mutex::new(Vec::<NetworkPolicyItem>::new()));
-    let network_policies_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&network_policies),
-        Arc::clone(&network_policies_loading),
-        |c, s, l| {
-        Box::pin(watch_network_policies(c, s, l))
-    });
+    let network_policies_loading = Arc::new(AtomicBool::new(false));
+    let network_policies_started = Arc::new(AtomicBool::new(false));
 
     // SERVICES
     let services = Arc::new(Mutex::new(Vec::<ServiceItem>::new()));
     let service_details = Arc::new(Mutex::new(ServiceDetails::default()));
-    let services_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&services),
-        Arc::clone(&services_loading),
-        |c, s, l| {
-        Box::pin(watch_services(c, s, l))
-    });
+    let services_loading = Arc::new(AtomicBool::new(false));
+    let services_started = Arc::new(AtomicBool::new(false));
 
     // INGRESSES
     let ingresses = Arc::new(Mutex::new(Vec::<IngressItem>::new()));
     let ingress_details = Arc::new(Mutex::new(IngressDetails::default()));
-    let ingresses_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&ingresses),
-        Arc::clone(&ingresses_loading),
-        |c, s, l| {
-        Box::pin(watch_ingresses(c, s, l))
-    });
+    let ingresses_loading = Arc::new(AtomicBool::new(false));
+    let ingresses_started = Arc::new(AtomicBool::new(false));
 
     // CRDS
     let crds = Arc::new(Mutex::new(Vec::<CRDItem>::new()));
     let crd_details = Arc::new(Mutex::new(CrdDetails::default()));
-    let crds_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&crds),
-        Arc::clone(&crds_loading),
-        |c, s, l| {
-        Box::pin(watch_crds(c, s, l))
-    });
+    let crds_loading = Arc::new(AtomicBool::new(false));
+    let crds_started = Arc::new(AtomicBool::new(false));
 
     // CSI DRIVERS
     let csi_drivers = Arc::new(Mutex::new(Vec::<CSIDriverItem>::new()));
-    let csi_drivers_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&csi_drivers),
-        Arc::clone(&csi_drivers_loading),
-        |c, s, l| {
-        Box::pin(watch_csi_drivers(c, s, l))
-    });
+    let csi_drivers_loading = Arc::new(AtomicBool::new(false));
+    let csi_drivers_started = Arc::new(AtomicBool::new(false));
 
     // PVC
     let pvcs = Arc::new(Mutex::new(Vec::<PvcItem>::new()));
     let pvc_details = Arc::new(Mutex::new(PvcDetails::default()));
-    let pvcs_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&pvcs),
-        Arc::clone(&pvcs_loading),
-        |c, s, l| {
-        Box::pin(watch_pvcs(c, s, l))
-    });
+    let pvcs_loading = Arc::new(AtomicBool::new(false));
+    let pvcs_started = Arc::new(AtomicBool::new(false));
 
     // DAEMONSETS
     let daemonsets = Arc::new(Mutex::new(Vec::<DaemonSetItem>::new()));
@@ -503,49 +413,25 @@ async fn main() {
     // JOBS
     let jobs = Arc::new(Mutex::new(Vec::<JobItem>::new()));
     let job_details = Arc::new(Mutex::new(JobDetails::default()));
-    let jobs_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&jobs),
-        Arc::clone(&jobs_loading),
-        |c, s, l| {
-        Box::pin(watch_jobs(c, s, l))
-    });
+    let jobs_loading = Arc::new(AtomicBool::new(false));
+    let jobs_started = Arc::new(AtomicBool::new(false));
 
     // PV
     let pvs = Arc::new(Mutex::new(Vec::<PvItem>::new()));
     let pv_details = Arc::new(Mutex::new(PvDetails::default()));
-    let pvs_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&pvs),
-        Arc::clone(&pvs_loading),
-        |c, s, l| {
-        Box::pin(watch_pvs(c, s, l))
-    });
+    let pvs_loading = Arc::new(AtomicBool::new(false));
+    let pvs_started = Arc::new(AtomicBool::new(false));
 
     // SC
     let storage_classes = Arc::new(Mutex::new(Vec::<StorageClassItem>::new()));
     let sc_details = Arc::new(Mutex::new(ScDetails::default()));
-    let storage_classes_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&storage_classes),
-        Arc::clone(&storage_classes_loading),
-        |c, s, l| {
-        Box::pin(watch_storage_classes(c, s, l))
-    });
+    let storage_classes_loading = Arc::new(AtomicBool::new(false));
+    let storage_classes_started = Arc::new(AtomicBool::new(false));
 
     // EVENTS
     let events = Arc::new(Mutex::new(Vec::<EventItem>::new()));
-    let events_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&events),
-        Arc::clone(&events_loading),
-        |c, s, l| {
-        Box::pin(watch_events(c, s, l))
-    });
+    let events_loading = Arc::new(AtomicBool::new(false));
+    let events_started = Arc::new(AtomicBool::new(false));
 
     // STATEFULSETS
     let statefulsets = Arc::new(Mutex::new(Vec::<StatefulSetItem>::new()));
@@ -586,26 +472,14 @@ async fn main() {
     // SECRETS
     let secrets = Arc::new(Mutex::new(Vec::<SecretItem>::new()));
     let secret_details = Arc::new(Mutex::new(SecretDetails::default()));
-    let secrets_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&secrets),
-        Arc::clone(&secrets_loading),
-        |c, s, l| {
-        Box::pin(watch_secrets(c, s, l))
-    });
+    let secrets_loading = Arc::new(AtomicBool::new(false));
+    let secrets_started = Arc::new(AtomicBool::new(false));
 
     // CONFIGMAPS
     let configmaps = Arc::new(Mutex::new(Vec::<ConfigMapItem>::new()));
     let configmap_details = Arc::new(Mutex::new(ConfigMapDetails::default()));
-    let configmaps_loading = Arc::new(AtomicBool::new(true));
-    spawn_watcher(
-        Arc::clone(&client),
-        Arc::clone(&configmaps),
-        Arc::clone(&configmaps_loading),
-        |c, s, l| {
-        Box::pin(watch_configmaps(c, s, l))
-    });
+    let configmaps_loading = Arc::new(AtomicBool::new(false));
+    let configmaps_started = Arc::new(AtomicBool::new(false));
 
     // NODES
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
@@ -901,8 +775,25 @@ async fn main() {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            match *selected_category_ui.lock().unwrap() {
+            macro_rules! lazy_start {
+                ($started:expr, $loading:expr, $client:expr, $state:expr, $watch_fn:expr) => {
+                    if !$started.load(Ordering::Relaxed) {
+                        $started.store(true, Ordering::Relaxed);
+                        $loading.store(true, Ordering::Relaxed);
+                        spawn_watcher(
+                            Arc::clone(&$client),
+                            Arc::clone(&$state),
+                            Arc::clone(&$loading),
+                            $watch_fn,
+                        );
+                    }
+                };
+            }
+
+            let current_category = selected_category_ui.lock().unwrap().clone();
+            match current_category {
                 Category::Leases => {
+                    lazy_start!(leases_started, leases_loading, client, leases, |c, s, l| Box::pin(watch_leases(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_leases: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -1413,6 +1304,7 @@ async fn main() {
                     }
                 },
                 Category::ServiceAccounts => {
+                    lazy_start!(service_accounts_started, service_accounts_loading, client, service_accounts, |c, s, l| Box::pin(watch_service_accounts(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_service_accounts: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -1525,6 +1417,7 @@ async fn main() {
                 },
                 Category::Roles => {
                     let ns = namespaces.lock().unwrap();
+                    lazy_start!(roles_started, roles_loading, client, roles, |c, s, l| Box::pin(watch_roles(c, s, l)));
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_roles: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
                         roles.lock().unwrap()
@@ -1636,6 +1529,7 @@ async fn main() {
                 },
                 Category::ClusterRoles => {
                     let visible_cluster_roles = cluster_roles.lock().unwrap();
+                    lazy_start!(cluster_roles_started, cluster_roles_loading, client, cluster_roles, |c, s, l| Box::pin(watch_cluster_roles(c, s, l)));
                     ui.horizontal(|ui| {
                         ui.heading(format!("Cluster roles - {}", visible_cluster_roles.len()));
                         ui.separator();
@@ -1713,6 +1607,7 @@ async fn main() {
                 },
                 Category::RoleBindings => {
                     let ns = namespaces.lock().unwrap();
+                    lazy_start!(rbs_started, rb_loading, client, rbs, |c, s, l| Box::pin(watch_rbs(c, s, l)));
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_rbs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
                         rbs.lock().unwrap()
@@ -1824,6 +1719,7 @@ async fn main() {
                 },
                 Category::ClusterRoleBindings => {
                     let visible_cluster_rbs = cluster_rbs.lock().unwrap();
+                    lazy_start!(cluster_rbs_started, cluster_rb_loading, client, cluster_rbs, |c, s, l| Box::pin(watch_cluster_rbs(c, s, l)));
                     ui.horizontal(|ui| {
                         ui.heading(format!("Cluster role bindings - {}", visible_cluster_rbs.len()));
                         ui.separator();
@@ -1993,6 +1889,7 @@ async fn main() {
                     }
                 },
                 Category::CustomResourcesDefinitions => {
+                    lazy_start!(crds_started, crds_loading, client, crds, |c, s, l| Box::pin(watch_crds(c, s, l)));
                     ui.horizontal(|ui| {
                         ui.heading(format!("Custom Resources Definitions - {}", crds.lock().unwrap().len()));
                         ui.separator();
@@ -2080,6 +1977,7 @@ async fn main() {
                     }
                 },
                 Category::NetworkPolicies => {
+                    lazy_start!(network_policies_started, network_policies_loading, client, network_policies, |c, s, l| Box::pin(watch_network_policies(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_network_policies: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -2175,6 +2073,7 @@ async fn main() {
                     }
                 },
                 Category::PodDisruptionBudgets => {
+                    lazy_start!(pdbs_started, pdbs_loading, client, pdbs, |c, s, l| Box::pin(watch_pod_disruption_budgets(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_pdbs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -2616,6 +2515,7 @@ async fn main() {
                     }
                 },
                 Category::Ingresses => {
+                    lazy_start!(ingresses_started, ingresses_loading, client, ingresses, |c, s, l| Box::pin(watch_ingresses(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_ingresses: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -2735,6 +2635,7 @@ async fn main() {
                     }
                 },
                 Category::CSIDrivers => {
+                    lazy_start!(csi_drivers_started, csi_drivers_loading, client, csi_drivers, |c, s, l| Box::pin(watch_csi_drivers(c, s, l)));
                     ui.horizontal(|ui| {
                         ui.heading(format!("CSI Drivers - {}", csi_drivers.lock().unwrap().len()));
                         ui.separator();
@@ -2800,6 +2701,7 @@ async fn main() {
                     }
                 },
                 Category::StorageClasses => {
+                    lazy_start!(storage_classes_started, storage_classes_loading, client, storage_classes, |c, s, l| Box::pin(watch_storage_classes(c, s, l)));
                     ui.horizontal(|ui| {
                         ui.heading(format!("StorageClasses - {}", storage_classes.lock().unwrap().len()));
                         ui.separator();
@@ -2895,6 +2797,7 @@ async fn main() {
                     }
                 },
                 Category::PersistentVolumes => {
+                    lazy_start!(pvs_started, pvs_loading, client, pvs, |c, s, l| Box::pin(watch_pvs(c, s, l)));
                     ui.horizontal(|ui| {
                         ui.heading(format!("PersistentVolumes - {}", pvs.lock().unwrap().len()));
                         ui.separator();
@@ -3015,6 +2918,7 @@ async fn main() {
                     }
                 },
                 Category::PersistentVolumeClaims => {
+                    lazy_start!(pvcs_started, pvcs_loading, client, pvcs, |c, s, l| Box::pin(watch_pvcs(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_pvcs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -3163,6 +3067,7 @@ async fn main() {
                     }
                 },
                 Category::Endpoints => {
+                    lazy_start!(endpoints_started, endpoints_loading, client, endpoints, |c, s, l| Box::pin(watch_endpoints(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_endpoints: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -3273,6 +3178,7 @@ async fn main() {
                     }
                 },
                 Category::Jobs => {
+                    lazy_start!(jobs_started, jobs_loading, client, jobs, |c, s, l| Box::pin(watch_jobs(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_jobs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -3382,6 +3288,7 @@ async fn main() {
                     }
                 },
                 Category::Services => {
+                    lazy_start!(services_started, services_loading, client, services, |c, s, l| Box::pin(watch_services(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_services: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -3504,6 +3411,7 @@ async fn main() {
                     }
                 },
                 Category::CronJobs => {
+                    lazy_start!(cronjobs_started, cronjobs_loading, client, cronjobs, |c, s, l| Box::pin(watch_cronjobs(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_cronjobs: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -4646,6 +4554,7 @@ async fn main() {
                     }
                 },
                 Category::Secrets => {
+                    lazy_start!(secrets_started, secrets_loading, client, secrets, |c, s, l| Box::pin(watch_secrets(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_secrets: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -4759,6 +4668,7 @@ async fn main() {
                     }
                 },
                 Category::ConfigMaps => {
+                    lazy_start!(configmaps_started, configmaps_loading, client, configmaps, |c, s, l| Box::pin(watch_configmaps(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_configmaps: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -4878,6 +4788,7 @@ async fn main() {
                     }
                 },
                 Category::Events => {
+                    lazy_start!(events_started, events_loading, client, events, |c, s, l| Box::pin(watch_events(c, s, l)));
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_events: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
