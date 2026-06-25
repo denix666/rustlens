@@ -51,7 +51,7 @@ pub fn convert_pv(pv: PersistentVolume) -> Option<PvItem> {
 
 pub async fn watch_pvs(client: Arc<Client>, pv_list: Arc<Mutex<Vec<PvItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<PersistentVolume> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

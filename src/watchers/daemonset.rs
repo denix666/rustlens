@@ -1,7 +1,7 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
 use futures_util::StreamExt;
 use k8s_openapi::{api::apps::v1::DaemonSet, apimachinery::pkg::apis::meta::v1::Time};
-use kube::{api::ListParams, Client};
+use kube::Client;
 use kube::{Api, runtime::watcher, runtime::watcher::Event};
 
 #[derive(Debug, Clone)]
@@ -35,13 +35,8 @@ pub async fn watch_daemonsets(client: Arc<Client>, daemonsets_list: Arc<Mutex<Ve
 
     load_status.store(true, Ordering::Relaxed);
 
-    // first-fast load
-    if let Ok(ol) = api.list(&ListParams::default()).await {
-        let mut items = daemonsets_list.lock().unwrap();
-        *items = ol.into_iter().filter_map(convert_daemonset).collect();
-    }
 
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

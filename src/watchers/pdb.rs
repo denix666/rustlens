@@ -47,7 +47,7 @@ pub fn convert_pdb(pdb: PodDisruptionBudget) -> Option<PodDisruptionBudgetItem> 
 
 pub async fn watch_pod_disruption_budgets(client: Arc<Client>, list: Arc<Mutex<Vec<PodDisruptionBudgetItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<PodDisruptionBudget> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

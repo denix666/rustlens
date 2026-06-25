@@ -39,7 +39,7 @@ pub fn convert_csi_driver(driver: CSIDriver) -> Option<CSIDriverItem> {
 
 pub async fn watch_csi_drivers(client: Arc<Client>, csi_list: Arc<Mutex<Vec<CSIDriverItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<CSIDriver> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

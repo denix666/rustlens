@@ -1,7 +1,7 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
 use futures_util::StreamExt;
 use k8s_openapi::{api::{core::v1::Secret}, apimachinery::pkg::apis::meta::v1::Time};
-use kube::{api::ListParams, Client};
+use kube::Client;
 use kube::{Api, runtime::watcher};
 use kube::runtime::reflector::Lookup;
 
@@ -29,13 +29,8 @@ pub async fn watch_secrets(client: Arc<Client>, secrets_list: Arc<Mutex<Vec<Secr
 
     load_status.store(true, Ordering::Relaxed);
 
-    // first-fast load
-    if let Ok(ol) = api.list(&ListParams::default()).await {
-        let mut items = secrets_list.lock().unwrap();
-        *items = ol.into_iter().filter_map(convert_secret).collect();
-    }
 
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

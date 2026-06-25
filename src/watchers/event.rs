@@ -39,7 +39,7 @@ pub fn convert_event(ev: k8s_openapi::api::core::v1::Event) -> Option<EventItem>
 
 pub async fn watch_events(client: Arc<Client>, events_list: Arc<Mutex<Vec<EventItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.as_ref().clone());
-    let mut event_stream = watcher(api, watcher::Config::default()).boxed();
+    let mut event_stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

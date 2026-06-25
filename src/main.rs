@@ -35,6 +35,7 @@ const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.png");
 const ACTIONS_MENU_BUTTON_SIZE: f32 = 10.0;
 const ACTIONS_MENU_LABEL: &str = "🔻";
 const MAX_LOG_LINES: usize = 600;
+pub const WATCHER_PAGE_SIZE: u32 = 200;
 pub static ACTUAL_K8S_MINOR_VERSION: OnceLock<u32> = OnceLock::new();
 const CONFIG_DIR: &str = ".local/share/rustlens";
 const MAIN_CONFIG_FILE_NAME: &str = "config.toml";

@@ -58,7 +58,7 @@ pub async fn watch_crds(client: Arc<Client>, list: Arc<Mutex<Vec<CRDItem>>>, loa
     let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
     let api: Api<DynamicObject> = Api::all_with(client.as_ref().clone(), &ar);
 
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

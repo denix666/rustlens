@@ -49,7 +49,7 @@ pub async fn watch_storage_classes(client: Arc<Client>, sc_list: Arc<Mutex<Vec<S
 
     load_status.store(true, Ordering::Relaxed);
 
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

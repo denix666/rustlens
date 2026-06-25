@@ -23,7 +23,7 @@ pub fn convert_namespace(ns: Namespace) -> Option<NamespaceItem> {
 
 pub async fn watch_namespaces(client: Arc<Client>, ns_list: Arc<Mutex<Vec<NamespaceItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Namespace> = Api::all(client.as_ref().clone());
-    let mut ns_stream = watcher(api, watcher::Config::default()).boxed();
+    let mut ns_stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     load_status.store(true, Ordering::Relaxed);
 

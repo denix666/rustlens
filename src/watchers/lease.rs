@@ -29,7 +29,7 @@ pub fn convert_lease(lease: Lease) -> Option<LeaseItem> {
 
 pub async fn watch_leases(client: Arc<Client>, list: Arc<Mutex<Vec<LeaseItem>>>, load_status: Arc<AtomicBool>) {
     let api: Api<Lease> = Api::all(client.as_ref().clone());
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

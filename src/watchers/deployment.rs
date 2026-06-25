@@ -1,7 +1,7 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
 use futures_util::StreamExt;
 use k8s_openapi::{api::apps::v1::{Deployment}, apimachinery::pkg::apis::meta::v1::Time};
-use kube::{api::ListParams, Client};
+use kube::Client;
 use kube::{Api, runtime::watcher};
 use kube::runtime::watcher::Event as WatcherEvent;
 
@@ -38,13 +38,8 @@ pub async fn watch_deployments(client: Arc<Client>, deployments_list: Arc<Mutex<
 
     load_status.store(true, Ordering::Relaxed);
 
-    // first-fast load
-    if let Ok(ol) = api.list(&ListParams::default()).await {
-        let mut items = deployments_list.lock().unwrap();
-        *items = ol.into_iter().filter_map(convert_deployment).collect();
-    }
 
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;

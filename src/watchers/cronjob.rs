@@ -1,7 +1,7 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
 use futures_util::StreamExt;
 use k8s_openapi::{api::batch::v1::CronJob, apimachinery::pkg::apis::meta::v1::Time};
-use kube::{api::ListParams, Client};
+use kube::Client;
 use kube::{Api, runtime::watcher, runtime::watcher::Event};
 
 #[derive(Debug, Clone)]
@@ -51,13 +51,8 @@ pub async fn watch_cronjobs(client: Arc<Client>, cronjob_list: Arc<Mutex<Vec<Cro
 
     load_status.store(true, Ordering::Relaxed);
 
-    // first-fast load
-    if let Ok(ol) = api.list(&ListParams::default()).await {
-        let mut items = cronjob_list.lock().unwrap();
-        *items = ol.into_iter().filter_map(convert_cronjob).collect();
-    }
 
-    let mut stream = watcher(api, watcher::Config::default()).boxed();
+    let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
     let mut initial = vec![];
     let mut initialized = false;
