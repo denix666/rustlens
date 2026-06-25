@@ -506,7 +506,8 @@ async fn main() {
 
     // HELM RELEASES
     let helm_releases = Arc::new(Mutex::new(Vec::<HelmReleaseItem>::new()));
-    let helm_releases_loading = Arc::new(AtomicBool::new(true));
+    let helm_releases_loading = Arc::new(AtomicBool::new(false));
+    let helm_releases_started = Arc::new(AtomicBool::new(false));
 
     #[allow(deprecated)]
     eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
@@ -738,17 +739,6 @@ async fn main() {
                 egui::CollapsingHeader::new("⎈ Helm").default_open(false).show(ui, |ui| {
                     if ui.selectable_label(current == Category::HelmReleases, "📥 Releases").clicked() {
                         *selected_category_ui.lock().unwrap() = Category::HelmReleases;
-                        tokio::spawn({
-                            let client = Arc::clone(&client);
-                            let list = Arc::clone(&helm_releases);
-                            let helm_releases_loading = Arc::clone(&helm_releases_loading);
-
-                            async move {
-                                if let Err(e) = get_helm_releases(client.clone(), list.clone(), helm_releases_loading).await {
-                                    log::error!("Helm release fetch failed: {:?}", e);
-                                }
-                            }
-                        });
                     }
                 });
 
@@ -1796,6 +1786,18 @@ async fn main() {
                     }
                 },
                 Category::HelmReleases => {
+                    if !helm_releases_started.load(Ordering::Relaxed) {
+                        helm_releases_started.store(true, Ordering::Relaxed);
+                        helm_releases_loading.store(true, Ordering::Relaxed);
+                        let client_clone = Arc::clone(&client);
+                        let list = Arc::clone(&helm_releases);
+                        let loading = Arc::clone(&helm_releases_loading);
+                        tokio::spawn(async move {
+                            if let Err(e) = get_helm_releases(client_clone, list, loading).await {
+                                log::error!("Helm release fetch failed: {:?}", e);
+                            }
+                        });
+                    }
                     let ns = namespaces.lock().unwrap();
                     let mut selected_ns = selected_namespace_clone.lock().unwrap();
                     let visible_helm_releases: Vec<_> = if let Some(ns) = selected_ns.as_ref() {
@@ -1826,6 +1828,20 @@ async fn main() {
                         filter_helm_releases = filter_helm_releases.to_lowercase();
                         if ui.button(egui::RichText::new("ｘ").size(16.0).color(RED_BUTTON)).on_hover_text("Clean filter").clicked() {
                             filter_helm_releases.clear();
+                        }
+                        ui.separator();
+                        if ui.add_enabled(!helm_releases_loading.load(Ordering::Relaxed), egui::Button::new(egui::RichText::new("⟳ Refresh").size(14.0).color(GREEN_BUTTON))).clicked() {
+                            helm_releases_started.store(false, Ordering::Relaxed);
+                            helm_releases_started.store(true, Ordering::Relaxed);
+                            helm_releases_loading.store(true, Ordering::Relaxed);
+                            let client_clone = Arc::clone(&client);
+                            let list = Arc::clone(&helm_releases);
+                            let loading = Arc::clone(&helm_releases_loading);
+                            tokio::spawn(async move {
+                                if let Err(e) = get_helm_releases(client_clone, list, loading).await {
+                                    log::error!("Helm release fetch failed: {:?}", e);
+                                }
+                            });
                         }
                     });
                     ui.separator();

@@ -39,7 +39,7 @@ pub fn convert_service(svc: Service) -> Option<ServiceItem> {
                         IntOrString::String(s) => s.to_string(),
                     });
                     let protocol = p.protocol.as_ref().map_or("TCP".to_string(), |s| s.clone());
-                    format!("{}/{}→{}", port, protocol, target_port)
+                    format!("{}/{}➡{}", port, protocol, target_port)
                 })
                 .collect::<Vec<_>>()
                 .join(", ")
