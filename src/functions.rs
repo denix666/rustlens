@@ -255,8 +255,6 @@ pub async fn get_yaml_global<T>(client: Arc<Client>, name: &str, ) -> Result<Str
 }
 
 pub fn item_color(item: &str) -> Color32 {
-
-
     match item {
         "Burstable" => Color32::from_rgb(137, 90, 9), // close to orange
         "Guaranteed" => Color32::from_rgb(6, 140, 0), // green
@@ -612,6 +610,15 @@ pub async fn get_kubernetes_client(kubeconfig_path: Option<&str>, context: Optio
     }
 
     Ok(Client::try_from(config)?)
+}
+
+pub async fn set_cronjob_suspend(client: Arc<Client>, name: &str, namespace: &str, suspend: bool) -> Result<(), kube::Error> {
+    let api: Api<k8s_openapi::api::batch::v1::CronJob> = Api::namespaced(client.as_ref().clone(), namespace);
+    let patch = serde_json::json!({
+        "spec": { "suspend": suspend }
+    });
+    api.patch(name, &PatchParams::apply("rustlens"), &Patch::Merge(&patch)).await?;
+    Ok(())
 }
 
 #[derive(Debug, Clone)]

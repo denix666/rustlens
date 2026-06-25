@@ -32,6 +32,7 @@ pub const RED_BUTTON: Color32 = Color32::from_rgb(0xF4, 0x43, 0x36); // red
 pub const ORANGE_BUTTON: Color32 = Color32::ORANGE; // orange
 pub const GRAY_BUTTON: Color32 = Color32::GRAY; // gray
 pub const BLUE_BUTTON: Color32 = Color32::LIGHT_BLUE; // blue
+pub const YELLOW_BUTTON: Color32 = Color32::from_rgb(0xFF, 0xC1, 0x07); // amber
 pub const MENU_BUTTON: Color32 = Color32::from_rgb(147, 38, 245);
 pub const COPY_BUTTON: Color32 = Color32::from_rgb(48, 232, 151);
 

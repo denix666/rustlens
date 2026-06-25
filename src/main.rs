@@ -3574,7 +3574,7 @@ async fn main() {
                                                 *selected_ns = item.namespace.clone();
                                             }
                                             ui.label(item.schedule.to_string());
-                                            ui.label(item.suspend.to_string());
+                                            ui.label(egui::RichText::new(item.suspend.to_string()).color(if item.suspend == "true" { YELLOW_BUTTON } else { GREEN_BUTTON }));
                                             ui.label(format!("{}", &item.active));
                                             ui.label(item.last_schedule.to_string());
                                             ui.label(format_age(item.creation_timestamp.as_ref().unwrap()));
@@ -3588,6 +3588,31 @@ async fn main() {
                                                         Arc::clone(&client)
                                                     );
                                                     ui.close_kind(egui::UiKind::Menu);
+                                                }
+                                                if item.suspend == "true" {
+                                                    if ui.button(egui::RichText::new("▶ Resume").size(16.0).color(GREEN_BUTTON)).clicked() {
+                                                        let name = item.name.clone();
+                                                        let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                        let client_clone = Arc::clone(&client);
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::set_cronjob_suspend(client_clone, &name, &ns, false).await {
+                                                                log::error!("Failed to resume cronJob: {}", err);
+                                                            }
+                                                        });
+                                                        ui.close_kind(egui::UiKind::Menu);
+                                                    }
+                                                } else {
+                                                    if ui.button(egui::RichText::new("⏸ Suspend").size(16.0).color(YELLOW_BUTTON)).clicked() {
+                                                        let name = item.name.clone();
+                                                        let ns = item.namespace.clone().unwrap_or_else(|| "default".to_string());
+                                                        let client_clone = Arc::clone(&client);
+                                                        tokio::spawn(async move {
+                                                            if let Err(err) = crate::set_cronjob_suspend(client_clone, &name, &ns, true).await {
+                                                                log::error!("Failed to suspend cronJob: {}", err);
+                                                            }
+                                                        });
+                                                        ui.close_kind(egui::UiKind::Menu);
+                                                    }
                                                 }
                                                 if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(RED_BUTTON)).clicked() {
                                                     let cur_item = item.name.clone();

@@ -52,6 +52,30 @@ pub fn show_cronjob_details_window(
                 );
             }
 
+            if cronjob_item.unwrap().suspend == "true" {
+                if ui.button(egui::RichText::new("▶ Resume").size(16.0).color(crate::GREEN_BUTTON)).clicked() {
+                    let name = guard_details.name.clone().unwrap();
+                    let ns = cur_ns.clone().unwrap_or_else(|| "default".to_string());
+                    let client_clone = Arc::clone(&client);
+                    tokio::spawn(async move {
+                        if let Err(err) = crate::set_cronjob_suspend(client_clone, &name, &ns, false).await {
+                            log::error!("Failed to resume cronJob: {}", err);
+                        }
+                    });
+                }
+            } else {
+                if ui.button(egui::RichText::new("⏸ Suspend").size(16.0).color(crate::YELLOW_BUTTON)).clicked() {
+                    let name = guard_details.name.clone().unwrap();
+                    let ns = cur_ns.clone().unwrap_or_else(|| "default".to_string());
+                    let client_clone = Arc::clone(&client);
+                    tokio::spawn(async move {
+                        if let Err(err) = crate::set_cronjob_suspend(client_clone, &name, &ns, true).await {
+                            log::error!("Failed to suspend cronJob: {}", err);
+                        }
+                    });
+                }
+            }
+
             if ui.button(egui::RichText::new("🗑 Delete").size(16.0).color(crate::RED_BUTTON)).clicked() {
                 let name = guard_details.name.clone().unwrap();
                 let ns = cur_ns.clone();
