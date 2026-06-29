@@ -9,6 +9,8 @@ pub struct YamlEditorWindow {
     pub show: bool,
     pub apply_button_enabled: bool,
     pub search_query: String,
+    pub search_index: usize,
+    pub scroll_to_match: bool,
     pub status_message: Arc<Mutex<Option<(String, Instant)>>>,
     pub apply_flag: Arc<Mutex<bool>>,
 }
@@ -20,6 +22,8 @@ impl YamlEditorWindow {
             show: false,
             apply_button_enabled: true,
             search_query: String::new(),
+            search_index: 0,
+            scroll_to_match: false,
             status_message: Arc::new(Mutex::new(None)),
             apply_flag: Arc::new(Mutex::new(true)),
         }
@@ -68,14 +72,45 @@ fn show_status_banner(ctx: &egui::Context, editor: &mut YamlEditorWindow) {
 
 pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &mut DecoderWindow, client: Arc<Client>) {
     let response = egui::Window::new("Edit resource").max_width(1200.0).max_height(600.0).default_width(800.0).default_height(600.0).collapsible(false).resizable(true).show(ctx, |ui| {
+        let matches: Vec<(usize, usize)> = if !editor.search_query.is_empty() {
+            if let Ok(re) = RegexBuilder::new(&regex::escape(&editor.search_query))
+                .case_insensitive(true)
+                .build()
+            {
+                re.find_iter(&editor.content).map(|m| (m.start(), m.end())).collect()
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        };
+
+        let match_count = matches.len();
+
         ui.horizontal(|ui| {
             ui.label("🔍");
             ui.add(egui::TextEdit::singleline(&mut editor.search_query)
                 .hint_text("Search...")
                 .desired_width(200.0),
             );
-            if ui.button("×").clicked() {
+            if ui.button(egui::RichText::new("×").size(16.0).color(egui::Color32::DARK_RED)).clicked() {
                 editor.search_query.clear();
+                editor.search_index = 0;
+            }
+            if match_count > 0 {
+                if ui.button(egui::RichText::new("⏶").size(16.0).color(egui::Color32::GREEN)).clicked() {
+                    editor.search_index = if editor.search_index == 0 {
+                        match_count - 1
+                    } else {
+                        editor.search_index - 1
+                    };
+                    editor.scroll_to_match = true;
+                }
+                if ui.button(egui::RichText::new("⏷").size(16.0).color(egui::Color32::GREEN)).clicked() {
+                    editor.search_index = (editor.search_index + 1) % match_count;
+                    editor.scroll_to_match = true;
+                }
+                ui.label(format!("{}/{}", editor.search_index + 1, match_count));
             }
             ui.separator();
             if ui.button(egui::RichText::new("🖹 Decoder").size(16.0).color(egui::Color32::LIGHT_BLUE)).clicked() {
@@ -86,9 +121,30 @@ pub fn show_yaml_editor(ctx: &Context, editor: &mut YamlEditorWindow, decoder: &
 
         show_status_banner(ctx, editor);
 
+        if editor.search_index >= match_count {
+            editor.search_index = 0;
+        }
+
+        let scroll_to_byte = if editor.scroll_to_match {
+            editor.scroll_to_match = false;
+            matches.get(editor.search_index).map(|(s, _)| *s)
+        } else {
+            None
+        };
+
+        let line_height = 14.0 + 2.0;
+        let scroll_offset = scroll_to_byte.map(|byte_pos| {
+            let line = editor.content[..byte_pos].chars().filter(|c| *c == '\n').count();
+            line as f32 * line_height
+        });
+
         let mut layouter = make_yaml_layouter(editor.search_query.clone());
 
-        egui::ScrollArea::vertical().hscroll(true).show(ui, |ui| {
+        let mut scroll_area = egui::ScrollArea::vertical().hscroll(true);
+        if let Some(offset) = scroll_offset {
+            scroll_area = scroll_area.vertical_scroll_offset(offset);
+        }
+        scroll_area.show(ui, |ui| {
             ui.add(egui::TextEdit::multiline(&mut editor.content)
                 .font(TextStyle::Monospace)
                 .code_editor()
