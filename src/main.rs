@@ -22,7 +22,7 @@ use get_details::*;
 
 use eframe::egui::{CursorIcon};
 use eframe::*;
-use egui::{Color32, Context, FontId, TextStyle};
+use egui::{Color32, FontId, TextStyle};
 use std::collections::{BTreeMap, BTreeSet};
 use std::f32;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -509,12 +509,12 @@ async fn main() {
     let helm_releases_loading = Arc::new(AtomicBool::new(false));
     let helm_releases_started = Arc::new(AtomicBool::new(false));
 
-    #[allow(deprecated)]
-    eframe::run_simple_native(&title, options, move |ctx: &Context, _frame| {
+    eframe::run_ui_native(&title, options, move |ui: &mut egui::Ui, _frame| {
+        let ctx = ui.ctx().clone();
         ctx.set_visuals(egui::Visuals::dark());
 
         // Manage window position and size
-        if window_moved_or_resized(ctx, &mut app_config) {
+        if window_moved_or_resized(&ctx, &mut app_config) {
             config_should_be_saved = true;
         }
 
@@ -533,7 +533,7 @@ async fn main() {
 
         ctx.set_global_style(style);
 
-        egui::TopBottomPanel::top("top panel").show(ctx, |ui| {
+        egui::Panel::top("top panel").show(ui, |ui| {
             ui.add_space(7.0);
             ui.horizontal(|ui| {
                 if ui.button(egui::RichText::new("🖹 Base64 decoder").size(17.0).color(egui::Color32::LIGHT_GRAY)).on_hover_text("Base64 text decoder").clicked() {
@@ -567,7 +567,7 @@ async fn main() {
             ui.add_space(7.0);
         });
 
-        egui::SidePanel::left("tasks panel").resizable(false).exact_width(290.0).show(ctx, |ui| {
+        egui::Panel::left("tasks panel").resizable(false).exact_size(290.0).show(ui, |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).id_salt("menu_scroll").show(ui, |ui| {
                 let current = selected_category_ui.lock().unwrap().clone();
 
@@ -764,7 +764,7 @@ async fn main() {
             *cr_grouped_list_clone.lock().unwrap() = result;
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             macro_rules! lazy_start {
                 ($started:expr, $loading:expr, $client:expr, $state:expr, $watch_fn:expr) => {
                     if !$started.load(Ordering::Relaxed) {
@@ -4910,55 +4910,55 @@ async fn main() {
 
         // Decoder window
         if decoder_window.show {
-            show_decoder_window(ctx, &mut decoder_window);
+            show_decoder_window(&ctx, &mut decoder_window);
         }
 
         // AI consultant window
         if ai_window.show {
-            show_ai_window(ctx, &mut ai_window, &app_config);
+            show_ai_window(&ctx, &mut ai_window, &app_config);
         }
 
         // JWT Decoder
         if jwt_decoder_window.show {
-            show_jwt_decoder_window(ctx, &mut jwt_decoder_window);
+            show_jwt_decoder_window(&ctx, &mut jwt_decoder_window);
         }
 
         // IP Calculator window
         if ipcalculator_window.show {
-            show_ipcalculator_window(ctx, &mut ipcalculator_window);
+            show_ipcalculator_window(&ctx, &mut ipcalculator_window);
         }
 
         // YAML/JSON converter
         if yaml2json_window.show {
-            show_yaml2json_window(ctx, &mut yaml2json_window);
+            show_yaml2json_window(&ctx, &mut yaml2json_window);
         }
 
         // Resources converter
         if res_converter_window.show {
-            show_res_converter_window(ctx, &mut res_converter_window);
+            show_res_converter_window(&ctx, &mut res_converter_window);
         }
 
         // UUID Generator
         if uuid_gen_window.show {
-            show_uuid_gen_window(ctx, &mut uuid_gen_window);
+            show_uuid_gen_window(&ctx, &mut uuid_gen_window);
         }
 
         // YAML editor
         if let Ok(mut editor) = yaml_editor_window.lock()
             && editor.show {
                 let client_clone = Arc::clone(&client);
-                show_yaml_editor(ctx, &mut editor, &mut decoder_window, client_clone);
+                show_yaml_editor(&ctx, &mut editor, &mut decoder_window, client_clone);
             }
 
         // New resource creation window
         if new_resource_window.show {
             let client_clone = Arc::clone(&client);
-            show_new_resource_window(ctx, &mut new_resource_window, client_clone);
+            show_new_resource_window(&ctx, &mut new_resource_window, client_clone);
         }
 
         // Log parser window
         if log_parser_window.show {
-            show_log_parser_window(ctx, &mut log_parser_window);
+            show_log_parser_window(&ctx, &mut log_parser_window);
         }
 
         // Logs window
@@ -4966,7 +4966,7 @@ async fn main() {
             && logs_w.show {
                 let client_clone = Arc::clone(&client);
                 //let log_parser_w = log_parser_window.lock();
-                show_log_window(ctx, &mut logs_w, &mut log_parser_window, client_clone);
+                show_log_window(&ctx, &mut logs_w, &mut log_parser_window, client_clone);
             }
 
         // Node details window
@@ -4976,7 +4976,7 @@ async fn main() {
             let pods_clone = Arc::clone(&pods);
             let details = Arc::clone(&pod_details);
             let client_clone = Arc::clone(&client);
-            show_node_details_window(ctx, &mut node_details_window, node_details_clone, nodes_clone, pods_clone, &mut pod_details_window, details, client_clone);
+            show_node_details_window(&ctx, &mut node_details_window, node_details_clone, nodes_clone, pods_clone, &mut pod_details_window, details, client_clone);
         }
 
         // Pod details window
@@ -4987,7 +4987,7 @@ async fn main() {
             let log_window_clone = Arc::clone(&log_window);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_pod_details_window(ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_pod_details_window(&ctx, &mut pod_details_window, pod_details_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Deployment details window
@@ -4996,7 +4996,7 @@ async fn main() {
             let deployments_clone = Arc::clone(&deployments);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_deployment_details_window(ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_deployment_details_window(&ctx, &mut deployment_details_window, deployment_details_clone, deployments_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Pvc details window
@@ -5005,7 +5005,7 @@ async fn main() {
             let pvcs_clone = Arc::clone(&pvcs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_pvc_details_window(ctx, &mut pvc_details_window, pvc_details_clone, pvcs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_pvc_details_window(&ctx, &mut pvc_details_window, pvc_details_clone, pvcs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Pv details window
@@ -5014,7 +5014,7 @@ async fn main() {
             let pvs_clone = Arc::clone(&pvs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_pv_details_window(ctx, &mut pv_details_window, pv_details_clone, pvs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_pv_details_window(&ctx, &mut pv_details_window, pv_details_clone, pvs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Service details window
@@ -5023,7 +5023,7 @@ async fn main() {
             let services_clone = Arc::clone(&services);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_service_details_window(ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_service_details_window(&ctx, &mut service_details_window, service_details_clone, services_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Lease details window
@@ -5032,7 +5032,7 @@ async fn main() {
             let leases_clone = Arc::clone(&leases);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_lease_details_window(ctx, &mut lease_details_window, lease_details_clone, leases_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_lease_details_window(&ctx, &mut lease_details_window, lease_details_clone, leases_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Endpoint details window
@@ -5041,7 +5041,7 @@ async fn main() {
             let endpoints_clone = Arc::clone(&endpoints);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_endpoint_details_window(ctx, &mut endpoint_details_window, endpoint_details_clone, endpoints_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_endpoint_details_window(&ctx, &mut endpoint_details_window, endpoint_details_clone, endpoints_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Ingress details window
@@ -5050,7 +5050,7 @@ async fn main() {
             let ingresses_clone = Arc::clone(&ingresses);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_ingress_details_window(ctx, &mut ingress_details_window, ingress_details_clone, ingresses_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_ingress_details_window(&ctx, &mut ingress_details_window, ingress_details_clone, ingresses_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Service account details window
@@ -5059,7 +5059,7 @@ async fn main() {
             let service_accounts_clone = Arc::clone(&service_accounts);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_service_account_details_window(ctx, &mut service_account_details_window, service_account_details_clone, service_accounts_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_service_account_details_window(&ctx, &mut service_account_details_window, service_account_details_clone, service_accounts_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Role details window
@@ -5068,7 +5068,7 @@ async fn main() {
             let roles_clone = Arc::clone(&roles);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_role_details_window(ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_role_details_window(&ctx, &mut role_details_window, role_details_clone, roles_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Role bindings details window
@@ -5077,7 +5077,7 @@ async fn main() {
             let rbs_clone = Arc::clone(&rbs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_rb_details_window(ctx, &mut rb_details_window, rb_details_clone, rbs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_rb_details_window(&ctx, &mut rb_details_window, rb_details_clone, rbs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Cluser role details window
@@ -5086,7 +5086,7 @@ async fn main() {
             let cluster_roles_clone = Arc::clone(&cluster_roles);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_cluster_role_details_window(ctx, &mut cluster_role_details_window, cluster_role_details_clone, cluster_roles_clone, yaml_editor_window_clone, client_clone);
+            show_cluster_role_details_window(&ctx, &mut cluster_role_details_window, cluster_role_details_clone, cluster_roles_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Cluser role binding details window
@@ -5095,7 +5095,7 @@ async fn main() {
             let cluster_rb_clone = Arc::clone(&cluster_rbs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_cluster_rb_details_window(ctx, &mut cluster_rb_details_window, cluster_rb_details_clone, cluster_rb_clone, yaml_editor_window_clone, client_clone);
+            show_cluster_rb_details_window(&ctx, &mut cluster_rb_details_window, cluster_rb_details_clone, cluster_rb_clone, yaml_editor_window_clone, client_clone);
         }
 
         // Secret details window
@@ -5104,7 +5104,7 @@ async fn main() {
             let secrets_clone = Arc::clone(&secrets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_secret_details_window(ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_secret_details_window(&ctx, &mut secret_details_window, secret_details_clone, secrets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // CRD details window
@@ -5113,7 +5113,7 @@ async fn main() {
             let crds_clone = Arc::clone(&crds);
             let client_clone = Arc::clone(&client);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
-            show_crd_details_window(ctx, &mut crd_details_window, crd_details_clone, crds_clone, &mut confirmation_dialog, client_clone, yaml_editor_window_clone);
+            show_crd_details_window(&ctx, &mut crd_details_window, crd_details_clone, crds_clone, &mut confirmation_dialog, client_clone, yaml_editor_window_clone);
         }
 
         // DaemonSet details window
@@ -5122,7 +5122,7 @@ async fn main() {
             let daemonsets_clone = Arc::clone(&daemonsets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_daemonset_details_window(ctx, &mut daemonset_details_window, daemonset_details_clone, daemonsets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_daemonset_details_window(&ctx, &mut daemonset_details_window, daemonset_details_clone, daemonsets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // ReplicaSet details window
@@ -5131,7 +5131,7 @@ async fn main() {
             let replicasets_clone = Arc::clone(&replicasets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_replicaset_details_window(ctx, &mut replicaset_details_window, replicaset_details_clone, replicasets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_replicaset_details_window(&ctx, &mut replicaset_details_window, replicaset_details_clone, replicasets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Job details window
@@ -5140,7 +5140,7 @@ async fn main() {
             let jobs_clone = Arc::clone(&jobs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_job_details_window(ctx, &mut job_details_window, job_details_clone, jobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_job_details_window(&ctx, &mut job_details_window, job_details_clone, jobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // CronJob details window
@@ -5149,7 +5149,7 @@ async fn main() {
             let cronjobs_clone = Arc::clone(&cronjobs);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_cronjob_details_window(ctx, &mut cronjob_details_window, cronjob_details_clone, cronjobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_cronjob_details_window(&ctx, &mut cronjob_details_window, cronjob_details_clone, cronjobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // StatefulSet details window
@@ -5158,7 +5158,7 @@ async fn main() {
             let statefulsets_clone = Arc::clone(&statefulsets);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_statefulset_details_window(ctx, &mut statefulset_details_window, statefulset_details_clone, statefulsets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_statefulset_details_window(&ctx, &mut statefulset_details_window, statefulset_details_clone, statefulsets_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // ConfigMap details window
@@ -5167,7 +5167,7 @@ async fn main() {
             let configmaps_clone = Arc::clone(&configmaps);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_configmap_details_window(ctx, &mut configmap_details_window, configmap_details_clone, configmaps_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_configmap_details_window(&ctx, &mut configmap_details_window, configmap_details_clone, configmaps_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // StorageClass details window
@@ -5176,17 +5176,17 @@ async fn main() {
             let storage_classes_clone = Arc::clone(&storage_classes);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_sc_details_window(ctx, &mut sc_details_window, sc_details_clone, storage_classes_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_sc_details_window(&ctx, &mut sc_details_window, sc_details_clone, storage_classes_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // Scale window
         if scale_window.show {
             let client_clone = Arc::clone(&client);
-            show_scale_window(ctx, &mut scale_window, client_clone);
+            show_scale_window(&ctx, &mut scale_window, client_clone);
         }
 
         // Confirmation dialog
-        show_delete_confirmation(ctx, &mut confirmation_dialog);
+        show_delete_confirmation(&ctx, &mut confirmation_dialog);
 
         if config_should_be_saved {
             let _ = write_config_to_file(

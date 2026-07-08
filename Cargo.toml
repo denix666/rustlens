@@ -1,7 +1,7 @@
 
 [package]
 name = "rustlens"
-version = "0.6.3"
+version = "0.6.4"
 edition = "2024"
 authors = ["Denis Salmanovich"]
 readme = "README.md"
@@ -15,7 +15,7 @@ kube = { version = "4.0", default-features = false, features = ["runtime", "deri
 k8s-openapi = { version = "0.28", features = ["latest"] }
 kube-discovery = "0.4.2"
 futures = "0.3"
-eframe = "0.34"
+eframe = "0.35"
 futures-util = "0.3"
 image = "0.25"
 serde_json = "1.0"
@@ -24,7 +24,7 @@ home = "0.5"
 yaml_serde = "0.10"
 serde = "1.0"
 regex = "1.12"
-egui = "0.34"
+egui = "0.35"
 http = "1.4"
 rfd = "0.17"
 indexmap = "2"
@@ -41,7 +41,7 @@ flexi_logger = "0.31"
 aws-config = { version = "1", default-features = false, features = ["rt-tokio", "sso"] }
 aws-sdk-bedrockruntime = { version = "1", default-features = false, features = [ "rustls", "rt-tokio" ] }
 aws-smithy-runtime-api = "1"
-aws-smithy-types = { version = "1.5", features = ["serde-serialize", "serde-deserialize"] }
+aws-smithy-types = { version = "1.6", features = ["serde-serialize", "serde-deserialize"] }
 shell-words = "1"
 flate2 = "1"
 

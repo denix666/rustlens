@@ -998,10 +998,14 @@ pub async fn fetch_logs(client: Arc<Client>, namespace: &str, pod_name: &str, co
     }
 
     let lp = &LogParams { follow: true, previous: previous_logs, container: Some(container_name.to_string()), since_seconds: Some(1), ..Default::default() };
-    let mut log_lines = pods.log_stream(pod_name, lp)
-        .await
-        .unwrap()
-        .lines();
+    let stream = match pods.log_stream(pod_name, lp).await {
+        Ok(s) => s,
+        Err(e) => {
+            error!("failed to open log stream: {:?}", e);
+            return;
+        }
+    };
+    let mut log_lines = stream.lines();
 
     while let Some(line) = log_lines.next().await {
         match line {
