@@ -5138,9 +5138,11 @@ async fn main() {
         if job_details_window.show {
             let job_details_clone = Arc::clone(&job_details);
             let jobs_clone = Arc::clone(&jobs);
+            let pods_clone = Arc::clone(&pods);
+            let log_window_clone = Arc::clone(&log_window);
             let yaml_editor_window_clone = Arc::clone(&yaml_editor_window);
             let client_clone = Arc::clone(&client);
-            show_job_details_window(&ctx, &mut job_details_window, job_details_clone, jobs_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
+            show_job_details_window(&ctx, &mut job_details_window, job_details_clone, jobs_clone, pods_clone, log_window_clone, yaml_editor_window_clone, client_clone, &mut confirmation_dialog);
         }
 
         // CronJob details window

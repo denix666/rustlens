@@ -21,6 +21,8 @@ pub fn show_job_details_window(
         job_details_window: &mut JobDetailsWindow,
         details: Arc<Mutex<crate::JobDetails>>,
         jobs: Arc<Mutex<Vec<crate::JobItem>>>,
+        pods: Arc<Mutex<Vec<crate::PodItem>>>,
+        log_window: Arc<Mutex<crate::LogWindow>>,
         yaml_editor_window: Arc<Mutex<YamlEditorWindow>>,
         client: Arc<crate::Client>,
         delete_confirm: &mut super::DeleteConfirmation,
@@ -39,8 +41,21 @@ pub fn show_job_details_window(
     let response = egui::Window::new("Job details").min_width(800.0).collapsible(false).resizable(true).open(&mut job_details_window.show).show(ctx, |ui| {
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("📃 Logs").size(16.0).color(crate::GRAY_BUTTON)).clicked() {
-                // TODO
-                log::warn!("TODO! Not implemented yet");
+                let job_name = guard_details.name.clone().unwrap();
+                let ns = cur_ns.clone();
+                let pods_guard = pods.lock().unwrap();
+                let job_pod = pods_guard.iter().find(|p| {
+                    p.name.starts_with(&job_name) && p.namespace == ns
+                });
+                if let Some(pod) = job_pod {
+                    crate::open_logs_for_pod(
+                        pod.name.clone(),
+                        ns.unwrap_or_default(),
+                        pod.containers.clone(),
+                        Arc::clone(&log_window),
+                        Arc::clone(&client),
+                    );
+                }
             }
 
             if ui.button(egui::RichText::new("✏ Edit").size(16.0).color(crate::GREEN_BUTTON)).clicked() {

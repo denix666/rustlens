@@ -1,7 +1,7 @@
 
 [package]
 name = "rustlens"
-version = "0.6.4"
+version = "0.6.5"
 edition = "2024"
 authors = ["Denis Salmanovich"]
 readme = "README.md"
@@ -23,7 +23,7 @@ anyhow = "1.0"
 home = "0.5"
 yaml_serde = "0.10"
 serde = "1.0"
-regex = "1.12"
+regex = "1"
 egui = "0.35"
 http = "1.4"
 rfd = "0.17"
