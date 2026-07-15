@@ -509,9 +509,16 @@ async fn main() {
     let helm_releases_loading = Arc::new(AtomicBool::new(false));
     let helm_releases_started = Arc::new(AtomicBool::new(false));
 
+    let mut title_updated = false;
     eframe::run_ui_native(&title, options, move |ui: &mut egui::Ui, _frame| {
         let ctx = ui.ctx().clone();
         ctx.set_visuals(egui::Visuals::dark());
+
+        if !title_updated {
+            let new_title = format!("RustLens v{} - {}", env!("CARGO_PKG_VERSION"), cluster_name);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(new_title));
+            title_updated = true;
+        }
 
         // Manage window position and size
         if window_moved_or_resized(&ctx, &mut app_config) {
