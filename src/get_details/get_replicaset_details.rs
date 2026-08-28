@@ -22,8 +22,8 @@ pub struct ReplicaSetDetails {
 pub async fn get_replicaset_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<ReplicaSetDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<ReplicaSet> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let replicaset = api.get(name).await.unwrap();
-    let replicaset_events = crate::get_resource_events(client.clone(), "ReplicaSet", ns.clone().as_str(), name).await.unwrap();
+    let replicaset = api.get(name).await?;
+    let replicaset_events = crate::get_resource_events(client.clone(), "ReplicaSet", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = replicaset.metadata.clone();
 

@@ -20,8 +20,8 @@ pub struct LeaseDetails {
 pub async fn get_lease_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<LeaseDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Lease> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let lease = api.get(name).await.unwrap();
-    let lease_events = crate::get_resource_events(client.clone(), "Lease", ns.clone().as_str(), name).await.unwrap();
+    let lease = api.get(name).await?;
+    let lease_events = crate::get_resource_events(client.clone(), "Lease", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = lease.metadata.clone();
 

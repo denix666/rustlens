@@ -22,8 +22,8 @@ pub struct PvDetails {
 
 pub async fn get_pv_details(client: Arc<Client>, name: &str, details: Arc<Mutex<PvDetails>>) -> Result<(), kube::Error> {
     let api: Api<PersistentVolume> = Api::all(client.as_ref().clone());
-    let pv = api.get(name).await.unwrap();
-    let pv_events = crate::get_cluster_resource_events(client.clone(), "PersistentVolume", name).await.unwrap();
+    let pv = api.get(name).await?;
+    let pv_events = crate::get_cluster_resource_events(client.clone(), "PersistentVolume", name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = pv.metadata.clone();
     let spec = pv.spec.as_ref();

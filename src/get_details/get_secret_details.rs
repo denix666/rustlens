@@ -22,8 +22,8 @@ pub struct SecretDetails {
 pub async fn get_secret_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<SecretDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Secret> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let secret = api.get(name).await.unwrap();
-    let secret_events = crate::get_resource_events(client.clone(), "Secret", ns.clone().as_str(), name).await.unwrap();
+    let secret = api.get(name).await?;
+    let secret_events = crate::get_resource_events(client.clone(), "Secret", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = secret.metadata.clone();
 

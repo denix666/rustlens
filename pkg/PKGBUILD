@@ -1,5 +1,5 @@
 pkgname=rustlens
-pkgver=0.6.6
+pkgver=0.6.7
 pkgrel=1
 pkgdesc="A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster."
 arch=('x86_64')

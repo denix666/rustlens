@@ -23,8 +23,8 @@ pub struct ServiceDetails {
 pub async fn get_service_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<ServiceDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Service> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let service = api.get(name).await.unwrap();
-    let service_events = crate::get_resource_events(client.clone(), "Service", ns.clone().as_str(), name).await.unwrap();
+    let service = api.get(name).await?;
+    let service_events = crate::get_resource_events(client.clone(), "Service", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = service.metadata.clone();
     let spec = service.spec.as_ref();

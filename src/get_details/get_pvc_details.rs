@@ -22,8 +22,8 @@ pub struct PvcDetails {
 pub async fn get_pvc_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<PvcDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<PersistentVolumeClaim> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let pvc = api.get(name).await.unwrap();
-    let pvc_events = crate::get_resource_events(client.clone(), "PersistentVolumeClaim", ns.clone().as_str(), name).await.unwrap();
+    let pvc = api.get(name).await?;
+    let pvc_events = crate::get_resource_events(client.clone(), "PersistentVolumeClaim", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = pvc.metadata.clone();
 

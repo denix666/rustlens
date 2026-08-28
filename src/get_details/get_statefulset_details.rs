@@ -22,8 +22,8 @@ pub struct StatefulSetDetails {
 pub async fn get_statefulset_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<StatefulSetDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<StatefulSet> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let statefulset = api.get(name).await.unwrap();
-    let statefulset_events = crate::get_resource_events(client.clone(), "StatefulSet", ns.clone().as_str(), name).await.unwrap();
+    let statefulset = api.get(name).await?;
+    let statefulset_events = crate::get_resource_events(client.clone(), "StatefulSet", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = statefulset.metadata.clone();
 

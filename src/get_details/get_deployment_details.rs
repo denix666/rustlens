@@ -34,8 +34,8 @@ pub struct DeploymentDetails {
 pub async fn get_deployment_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<DeploymentDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Deployment> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let deployment = api.get(name).await.unwrap();
-    let deployment_events = crate::get_resource_events(client.clone(), "Deployment", ns.clone().as_str(), name).await.unwrap();
+    let deployment = api.get(name).await?;
+    let deployment_events = crate::get_resource_events(client.clone(), "Deployment", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
 
     let metadata = deployment.metadata.clone();

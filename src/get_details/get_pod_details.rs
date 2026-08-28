@@ -66,9 +66,9 @@ pub struct PodDetails {
 pub async fn get_pod_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<PodDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Pod> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let pod = api.get(name).await.unwrap();
+    let pod = api.get(name).await?;
 
-    let pod_events = crate::get_resource_events(client.clone(), "Pod", ns.clone().as_str(), name).await.unwrap();
+    let pod_events = crate::get_resource_events(client.clone(), "Pod", ns.clone().as_str(), name).await?;
 
     let mut details_items = details.lock().unwrap();
 

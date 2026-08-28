@@ -22,8 +22,8 @@ pub struct RoleDetails {
 pub async fn get_role_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<RoleDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Role> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let role = api.get(name).await.unwrap();
-    let role_events = crate::get_resource_events(client.clone(), "Role", ns.clone().as_str(), name).await.unwrap();
+    let role = api.get(name).await?;
+    let role_events = crate::get_resource_events(client.clone(), "Role", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = role.metadata.clone();
 

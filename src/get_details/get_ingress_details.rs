@@ -22,8 +22,8 @@ pub struct IngressDetails {
 pub async fn get_ingress_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<IngressDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Ingress> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let ingress = api.get(name).await.unwrap();
-    let ingress_events = crate::get_resource_events(client.clone(), "Ingress", ns.clone().as_str(), name).await.unwrap();
+    let ingress = api.get(name).await?;
+    let ingress_events = crate::get_resource_events(client.clone(), "Ingress", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = ingress.metadata.clone();
 

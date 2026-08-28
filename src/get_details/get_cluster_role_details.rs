@@ -20,8 +20,8 @@ pub struct ClusterRoleDetails {
 
 pub async fn get_cluster_role_details(client: Arc<Client>, name: &str, details: Arc<Mutex<ClusterRoleDetails>>) -> Result<(), kube::Error> {
     let api: Api<ClusterRole> = Api::all(client.as_ref().clone());
-    let cluster_role = api.get(name).await.unwrap();
-    let cluster_role_events = crate::get_resource_events(client.clone(), "ClusterRole", "default", name).await.unwrap();
+    let cluster_role = api.get(name).await?;
+    let cluster_role_events = crate::get_resource_events(client.clone(), "ClusterRole", "default", name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = cluster_role.metadata.clone();
 

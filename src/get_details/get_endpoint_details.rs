@@ -22,8 +22,8 @@ pub struct EndpointDetails {
 pub async fn get_endpoint_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<EndpointDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Endpoints> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let endpoint = api.get(name).await.unwrap();
-    let endpoint_events = crate::get_resource_events(client.clone(), "Endpoint", ns.clone().as_str(), name).await.unwrap();
+    let endpoint = api.get(name).await?;
+    let endpoint_events = crate::get_resource_events(client.clone(), "Endpoint", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = endpoint.metadata.clone();
 

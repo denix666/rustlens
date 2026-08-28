@@ -22,8 +22,8 @@ pub struct RoleBindingDetails {
 pub async fn get_rb_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<RoleBindingDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<RoleBinding> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let rb = api.get(name).await.unwrap();
-    let rb_events = crate::get_resource_events(client.clone(), "RoleBinding", ns.clone().as_str(), name).await.unwrap();
+    let rb = api.get(name).await?;
+    let rb_events = crate::get_resource_events(client.clone(), "RoleBinding", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = rb.metadata.clone();
 

@@ -35,7 +35,7 @@ impl NodeDetails {
 
 pub async fn get_node_details(client: Arc<Client>, name: &str, details: Arc<Mutex<NodeDetails>>) -> Result<(), kube::Error> {
     let api: Api<Node> = Api::all(client.as_ref().clone());
-    let node = api.get(name).await.unwrap();
+    let node = api.get(name).await?;
     let mut details_items = details.lock().unwrap();
 
     let metadata = node.metadata.clone();

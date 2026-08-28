@@ -23,8 +23,8 @@ pub struct ScDetails {
 
 pub async fn get_sc_details(client: Arc<Client>, name: &str, details: Arc<Mutex<ScDetails>>) -> Result<(), kube::Error> {
     let api: Api<StorageClass> = Api::all(client.as_ref().clone());
-    let sc = api.get(name).await.unwrap();
-    let sc_events = crate::get_cluster_resource_events(client.clone(), "StorageClass", name).await.unwrap();
+    let sc = api.get(name).await?;
+    let sc_events = crate::get_cluster_resource_events(client.clone(), "StorageClass", name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = sc.metadata.clone();
 

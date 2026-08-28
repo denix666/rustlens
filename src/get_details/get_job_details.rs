@@ -22,8 +22,8 @@ pub struct JobDetails {
 pub async fn get_job_details(client: Arc<Client>, name: &str, ns: Option<String>, details: Arc<Mutex<JobDetails>>) -> Result<(), kube::Error> {
     let ns = ns.unwrap_or("default".to_string());
     let api: Api<Job> = Api::namespaced(client.as_ref().clone(), ns.as_str());
-    let job = api.get(name).await.unwrap();
-    let job_events = crate::get_resource_events(client.clone(), "Job", ns.clone().as_str(), name).await.unwrap();
+    let job = api.get(name).await?;
+    let job_events = crate::get_resource_events(client.clone(), "Job", ns.clone().as_str(), name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = job.metadata.clone();
 

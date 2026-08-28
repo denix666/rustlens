@@ -11,10 +11,10 @@ pub struct CrdDetails {
 }
 
 pub async fn get_crd_details(client: Arc<Client>, name: &str, details: Arc<Mutex<CrdDetails>>) -> Result<(), kube::Error> {
-    let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await.unwrap();
+    let (ar, _caps) = discovery::pinned_kind(&client, &GroupVersionKind::gvk("apiextensions.k8s.io", "v1", "CustomResourceDefinition")).await?;
     let api: Api<DynamicObject> = Api::all_with(client.as_ref().clone(), &ar);
 
-    let crd = api.get(name).await.unwrap();
+    let crd = api.get(name).await?;
     let mut details_items = details.lock().unwrap();
     let metadata = crd.metadata.clone();
 
