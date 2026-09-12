@@ -93,17 +93,56 @@ pub fn progress_color(p: f32) -> Color32 {
     }
 }
 
+fn sum_node_resource<F>(nodes: &[crate::watchers::NodeItem], resource: F) -> Option<f32>
+where
+    F: Fn(&crate::watchers::NodeItem) -> Option<f32>,
+{
+    if nodes.is_empty() || nodes.iter().any(|node| resource(node).is_none()) {
+        return None;
+    }
+
+    Some(nodes.iter().map(|node| resource(node).unwrap_or_default()).sum())
+}
+
+fn sum_node_pod_capacity(nodes: &[crate::watchers::NodeItem]) -> Option<u32> {
+    if nodes.is_empty() || nodes.iter().any(|node| node.pod_capacity.is_none()) {
+        return None;
+    }
+
+    Some(nodes.iter().map(|node| node.pod_capacity.unwrap_or_default()).sum())
+}
+
 pub fn compute_overview_stats(
-    pods: &Vec<crate::watchers::PodItem>,
-    deployments: &Vec<crate::watchers::DeploymentItem>,
-    daemonsets: &Vec<crate::watchers::DaemonSetItem>,
-    statefulsets: &Vec<crate::watchers::StatefulSetItem>,
-    replicasets: &Vec<crate::watchers::ReplicaSetItem>,
+    nodes: &[crate::watchers::NodeItem],
+    pods: &[crate::watchers::PodItem],
+    deployments: &[crate::watchers::DeploymentItem],
+    daemonsets: &[crate::watchers::DaemonSetItem],
+    statefulsets: &[crate::watchers::StatefulSetItem],
+    replicasets: &[crate::watchers::ReplicaSetItem],
 ) -> OverviewStats {
     let mut stats = OverviewStats::default();
 
+    stats.cpu_total = sum_node_resource(nodes, |node| node.cpu_total);
+    stats.cpu_available = sum_node_resource(nodes, |node| node.cpu_allocatable);
+    stats.cpu_used = sum_node_resource(nodes, |node| node.cpu_used);
+    stats.memory_total = sum_node_resource(nodes, |node| node.mem_total);
+    stats.memory_available = sum_node_resource(nodes, |node| node.mem_allocatable);
+    stats.memory_used = sum_node_resource(nodes, |node| node.mem_used);
+    stats.pods_capacity = sum_node_pod_capacity(nodes);
+
     // Pods
     for pod in pods {
+        if pod.phase.as_deref() == Some("Running") {
+            stats.pods_running_total += 1;
+        }
+
+        if !matches!(pod.phase.as_deref(), Some("Succeeded") | Some("Failed")) {
+            stats.cpu_requests += pod.cpu_request;
+            stats.memory_requests += pod.mem_request;
+            stats.cpu_limits += pod.cpu_limit;
+            stats.memory_limits += pod.mem_limit;
+        }
+
         if pod.ready_containers < pod.total_containers {
             if pod.phase.as_deref().unwrap_or("") != "Succeeded" {
                 stats.pods_pending += 1;

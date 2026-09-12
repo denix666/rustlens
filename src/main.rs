@@ -494,6 +494,12 @@ async fn main() {
         |c, s, l| {
         Box::pin(watch_nodes(c, s, l, nodes_metrics_active_for_watcher))
     });
+    let overview_metrics_active = Arc::new(AtomicBool::new(false));
+    spawn_node_metrics_loader(
+        Arc::clone(&client),
+        Arc::clone(&nodes),
+        Arc::clone(&overview_metrics_active),
+    );
 
     // NAMESPACES
     let namespaces = Arc::new(Mutex::new(Vec::<NamespaceItem>::new()));
@@ -512,6 +518,7 @@ async fn main() {
     let helm_releases_started = Arc::new(AtomicBool::new(false));
 
     let mut title_updated = false;
+    let mut overview_stats_cache = OverviewStats::default();
     eframe::run_ui_native(&title, options, move |ui: &mut egui::Ui, _frame| {
         let ctx = ui.ctx().clone();
         ctx.set_visuals(egui::Visuals::dark());
@@ -791,6 +798,7 @@ async fn main() {
 
             let current_category = selected_category_ui.lock().unwrap().clone();
             nodes_metrics_active.store(current_category == Category::Nodes, Ordering::Relaxed);
+            overview_metrics_active.store(current_category == Category::ClusterOverview, Ordering::Relaxed);
             match current_category {
                 Category::Leases => {
                     lazy_start!(leases_started, leases_loading, client, leases, |c, s, l| Box::pin(watch_leases(c, s, l)));
@@ -2349,41 +2357,64 @@ async fn main() {
 
                     ui.add_space(20.0);
 
-                    let stats = compute_overview_stats(
+                    let mut stats = compute_overview_stats(
+                        &nodes.lock().unwrap(),
                         &pods.lock().unwrap(),
                         &deployments.lock().unwrap(),
                         &daemonsets.lock().unwrap(),
                         &statefulsets.lock().unwrap(),
                         &replicasets.lock().unwrap(),
                     );
+                    stats.retain_previous_resource_values(&overview_stats_cache);
+                    overview_stats_cache = stats.clone();
                     egui::Frame::group(ui.style()).show(ui, |ui| {
                         show_overview(ui, &stats);
 
-                        if !stats.namespaces_with_pending_items.is_empty() {
-                            ui.add_space(50.0);
-                            ui.heading("List of namespaces with pending items:");
-                            egui::ScrollArea::vertical().auto_shrink(false).id_salt("ns_with_pending_items_scroll").show(ui, |ui| {
-                                ui.separator();
-                                egui::Grid::new("ns_with_pending_items_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
-                                    ui.label("");
-                                    ui.label("Namespace");
-                                    ui.label("Pending items");
-                                    ui.end_row();
-                                    for i in &stats.namespaces_with_pending_items {
-                                        if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap() == i.0 {
-                                            ui.colored_label(Color32::LIGHT_BLUE,"⏵");
-                                        } else {
-                                            ui.label("");
-                                        };
-                                        if ui.colored_label(Color32::WHITE,i.0).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                            *selected_namespace_clone.lock().unwrap() = Some(i.0.clone());
-                                        }
-                                        ui.label(i.1.to_string());
-                                        ui.end_row();
+                        ui.add_space(8.0);
+                        ui.separator();
+                        ui.add_space(8.0);
+                        let content_width = ui.available_width();
+                        let pending_width = (content_width * 0.28).clamp(280.0, 420.0);
+                        let metrics_width = (content_width - pending_width - ui.spacing().item_spacing.x).max(0.0);
+                        let content_height = ui.available_height();
+                        ui.horizontal_top(|ui| {
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(metrics_width, content_height),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| show_resource_overview(ui, &stats),
+                            );
+                            ui.separator();
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(pending_width, content_height),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| {
+                                    if !stats.namespaces_with_pending_items.is_empty() {
+                                        ui.heading("List of namespaces with pending items:");
+                                        egui::ScrollArea::vertical().auto_shrink(false).id_salt("ns_with_pending_items_scroll").show(ui, |ui| {
+                                            ui.separator();
+                                            egui::Grid::new("ns_with_pending_items_grid").striped(true).min_col_width(20.0).show(ui, |ui| {
+                                                ui.label("");
+                                                ui.label("Namespace");
+                                                ui.label("Pending items");
+                                                ui.end_row();
+                                                for i in &stats.namespaces_with_pending_items {
+                                                    if selected_namespace_clone.lock().unwrap().is_some() && selected_namespace_clone.lock().unwrap().as_ref().unwrap() == i.0 {
+                                                        ui.colored_label(Color32::LIGHT_BLUE,"⏵");
+                                                    } else {
+                                                        ui.label("");
+                                                    };
+                                                    if ui.colored_label(Color32::WHITE,i.0).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                                        *selected_namespace_clone.lock().unwrap() = Some(i.0.clone());
+                                                    }
+                                                    ui.label(i.1.to_string());
+                                                    ui.end_row();
+                                                }
+                                            });
+                                        });
                                     }
-                                });
-                            });
-                        }
+                                },
+                            );
+                        });
                     });
                 },
                 Category::ReplicaSets => {

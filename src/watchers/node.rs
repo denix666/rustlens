@@ -9,7 +9,7 @@ use tokio::sync::Semaphore;
 use http::{Request, Method};
 use kube::{Api, Client, runtime::watcher, runtime::watcher::Event};
 
-const NODE_METRICS_REFRESH_INTERVAL_SECS: u64 = 20;
+const NODE_METRICS_REFRESH_INTERVAL_SECS: u64 = 180;
 const NODE_METRICS_POLL_INTERVAL_SECS: u64 = 1;
 const NODE_METRICS_MAX_CONCURRENCY: usize = 4;
 
@@ -55,11 +55,14 @@ pub struct NodeItem {
     pub taints: Option<Vec<k8s_openapi::api::core::v1::Taint>>,
     pub creation_timestamp: Option<Time>,
     pub cpu_total: Option<f32>,
+    pub cpu_allocatable: Option<f32>,
     pub cpu_used: Option<f32>,
     pub cpu_percent: Option<f32>,
     pub mem_total: Option<f32>,
+    pub mem_allocatable: Option<f32>,
     pub mem_used: Option<f32>,
     pub mem_percent: Option<f32>,
+    pub pod_capacity: Option<u32>,
     pub version: Option<String>,
     pub storage_total: Option<f32>,
     pub storage_used: Option<f32>,
@@ -90,33 +93,87 @@ fn parse_cpu_quantity(value: &str) -> Option<f32> {
     }
 }
 
-fn parse_cpu_capacity(node: &Node) -> Option<f32> {
+fn parse_cpu_resource(node: &Node, resource_type: &str) -> Option<f32> {
     node.status
         .as_ref()
-        .and_then(|status| status.capacity.as_ref())
-        .and_then(|capacity| capacity.get("cpu"))
+        .and_then(|status| match resource_type {
+            "capacity" => status.capacity.as_ref(),
+            "allocatable" => status.allocatable.as_ref(),
+            _ => None,
+        })
+        .and_then(|resources| resources.get("cpu"))
         .and_then(|quantity| parse_cpu_quantity(&quantity.0))
 }
 
+fn parse_cpu_capacity(node: &Node) -> Option<f32> {
+    parse_cpu_resource(node, "capacity")
+}
+
+fn parse_cpu_allocatable(node: &Node) -> Option<f32> {
+    parse_cpu_resource(node, "allocatable")
+}
+
+fn parse_memory_quantity(value: &str) -> Option<f32> {
+    let (number, multiplier) = if let Some(value) = value.strip_suffix("Ki") {
+        (value, 1_024.0)
+    } else if let Some(value) = value.strip_suffix("Mi") {
+        (value, 1_048_576.0)
+    } else if let Some(value) = value.strip_suffix("Gi") {
+        (value, 1_073_741_824.0)
+    } else if let Some(value) = value.strip_suffix("Ti") {
+        (value, 1_099_511_627_776.0)
+    } else if let Some(value) = value.strip_suffix("Pi") {
+        (value, 1_125_899_906_842_624.0)
+    } else if let Some(value) = value.strip_suffix("Ei") {
+        (value, 1_152_921_504_606_846_976.0)
+    } else if let Some(value) = value.strip_suffix('K') {
+        (value, 1_000.0)
+    } else if let Some(value) = value.strip_suffix('M') {
+        (value, 1_000_000.0)
+    } else if let Some(value) = value.strip_suffix('G') {
+        (value, 1_000_000_000.0)
+    } else if let Some(value) = value.strip_suffix('T') {
+        (value, 1_000_000_000_000.0)
+    } else if let Some(value) = value.strip_suffix('P') {
+        (value, 1_000_000_000_000_000.0)
+    } else if let Some(value) = value.strip_suffix('E') {
+        (value, 1_000_000_000_000_000_000.0)
+    } else {
+        (value, 1.0)
+    };
+
+    number
+        .parse::<f32>()
+        .ok()
+        .map(|number| ((number * multiplier / 1_073_741_824.0) * 100.0).round() / 100.0)
+}
+
+fn parse_memory_resource(node: &Node, resource_type: &str) -> Option<f32> {
+    node.status
+        .as_ref()
+        .and_then(|status| match resource_type {
+            "capacity" => status.capacity.as_ref(),
+            "allocatable" => status.allocatable.as_ref(),
+            _ => None,
+        })
+        .and_then(|resources| resources.get("memory"))
+        .and_then(|quantity| parse_memory_quantity(&quantity.0))
+}
+
 fn parse_memory_capacity(node: &Node) -> Option<f32> {
+    parse_memory_resource(node, "capacity")
+}
+
+fn parse_memory_allocatable(node: &Node) -> Option<f32> {
+    parse_memory_resource(node, "allocatable")
+}
+
+fn parse_pod_capacity(node: &Node) -> Option<u32> {
     node.status
         .as_ref()
         .and_then(|status| status.capacity.as_ref())
-        .and_then(|capacity| capacity.get("memory"))
-        .and_then(|quantity| {
-            let value = quantity.0.as_str();
-            let bytes = if let Some(value) = value.strip_suffix("Ki") {
-                value.parse::<f32>().ok().map(|value| value * 1024.0)
-            } else if let Some(value) = value.strip_suffix("Mi") {
-                value.parse::<f32>().ok().map(|value| value * 1_048_576.0)
-            } else if let Some(value) = value.strip_suffix("Gi") {
-                value.parse::<f32>().ok().map(|value| value * 1_073_741_824.0)
-            } else {
-                value.parse::<f32>().ok()
-            };
-
-            bytes.map(|bytes| ((bytes / 1_073_741_824.0) * 100.0).round() / 100.0)
-        })
+        .and_then(|capacity| capacity.get("pods"))
+        .and_then(|quantity| quantity.0.parse::<u32>().ok())
 }
 
 #[cfg(test)]
@@ -231,7 +288,10 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
     let name = metadata.name.clone()?;
     let creation_timestamp = metadata.creation_timestamp.clone();
     let cpu_total = parse_cpu_capacity(&node);
+    let cpu_allocatable = parse_cpu_allocatable(&node);
     let mem_total = parse_memory_capacity(&node);
+    let mem_allocatable = parse_memory_allocatable(&node);
+    let pod_capacity = parse_pod_capacity(&node);
     let version = node.status
         .as_ref()
         .and_then(|status| status.node_info.as_ref()).map(|info| info.kubelet_version.clone());
@@ -286,12 +346,99 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
         storage_used: None,
         storage_percent: None,
         cpu_total,
+        cpu_allocatable,
         cpu_used: None,
         cpu_percent: None,
         mem_total,
+        mem_allocatable,
         mem_used: None,
         mem_percent: None,
+        pod_capacity,
     })
+}
+
+pub fn spawn_node_metrics_loader(
+    client: Arc<Client>,
+    list: Arc<Mutex<Vec<NodeItem>>>,
+    metrics_active: Arc<AtomicBool>,
+) {
+    let metrics_semaphore = Arc::new(Semaphore::new(NODE_METRICS_MAX_CONCURRENCY));
+    task::spawn(async move {
+        loop {
+            while !metrics_active.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
+            }
+
+            let nodes_snapshot = {
+                let guard = list.lock().unwrap();
+                guard.clone()
+            };
+
+            if nodes_snapshot.is_empty() {
+                tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
+                continue;
+            }
+
+            let mut tasks = FuturesUnordered::new();
+            for node in nodes_snapshot {
+                let client = client.clone();
+                let list = Arc::clone(&list);
+                let metrics_active = Arc::clone(&metrics_active);
+                let metrics_semaphore = Arc::clone(&metrics_semaphore);
+
+                tasks.push(async move {
+                    let Ok(_permit) = metrics_semaphore.acquire_owned().await else {
+                        return;
+                    };
+
+                    if !metrics_active.load(Ordering::Relaxed) {
+                        return;
+                    }
+
+                    if let Ok((
+                        disk_used,
+                        disk_total,
+                        disk_percent,
+                        cpu_used_cores,
+                        _cpu_total,
+                        cpu_percent,
+                        mem_used,
+                        _mem_total,
+                        mem_percent,
+                    )) = fetch_node_metrics(
+                        client.as_ref().clone(),
+                        &node.name,
+                        node.cpu_total,
+                        node.mem_total,
+                    ).await {
+                        if !metrics_active.load(Ordering::Relaxed) {
+                            return;
+                        }
+
+                        let mut list_guard = list.lock().unwrap();
+                        if let Some(target) = list_guard.iter_mut().find(|n| n.name == node.name) {
+                            target.storage_used = disk_used;
+                            target.storage_total = disk_total;
+                            target.storage_percent = disk_percent;
+                            target.cpu_used = cpu_used_cores;
+                            target.cpu_percent = cpu_percent;
+                            target.mem_used = mem_used;
+                            target.mem_percent = mem_percent;
+                        }
+                    }
+                });
+            }
+
+            while tasks.next().await.is_some() {}
+
+            for _ in 0..NODE_METRICS_REFRESH_INTERVAL_SECS {
+                if !metrics_active.load(Ordering::Relaxed) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
+            }
+        }
+    });
 }
 
 pub async fn watch_nodes(
@@ -307,90 +454,7 @@ pub async fn watch_nodes(
     let mut initialized = false;
     load_status.store(true, Ordering::Relaxed);
 
-    {
-        let client = client.clone();
-        let list = Arc::clone(&list);
-        let metrics_active = Arc::clone(&metrics_active);
-        let metrics_semaphore = Arc::new(Semaphore::new(NODE_METRICS_MAX_CONCURRENCY));
-        task::spawn(async move {
-            loop {
-                while !metrics_active.load(Ordering::Relaxed) {
-                    tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
-                }
-
-                let nodes_snapshot = {
-                    let guard = list.lock().unwrap();
-                    guard.clone()
-                };
-
-                if nodes_snapshot.is_empty() {
-                    tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
-                    continue;
-                }
-
-                let mut tasks = FuturesUnordered::new();
-                for node in nodes_snapshot {
-                    let client = client.clone();
-                    let list = Arc::clone(&list);
-                    let metrics_active = Arc::clone(&metrics_active);
-                    let metrics_semaphore = Arc::clone(&metrics_semaphore);
-
-                    tasks.push(async move {
-                        let Ok(_permit) = metrics_semaphore.acquire_owned().await else {
-                            return;
-                        };
-
-                        if !metrics_active.load(Ordering::Relaxed) {
-                            return;
-                        }
-
-                        if let Ok((
-                            disk_used,
-                            disk_total,
-                            disk_percent,
-                            cpu_used_cores,
-                            cpu_total,
-                            cpu_percent,
-                            mem_used,
-                            mem_total,
-                            mem_percent,
-                        )) = fetch_node_metrics(
-                            client.as_ref().clone(),
-                            &node.name,
-                            node.cpu_total,
-                            node.mem_total,
-                        ).await {
-                            if !metrics_active.load(Ordering::Relaxed) {
-                                return;
-                            }
-
-                            let mut list_guard = list.lock().unwrap();
-                            if let Some(target) = list_guard.iter_mut().find(|n| n.name == node.name) {
-                                target.storage_used = disk_used;
-                                target.storage_total = disk_total;
-                                target.storage_percent = disk_percent;
-                                target.cpu_used = cpu_used_cores;
-                                target.cpu_total = cpu_total;
-                                target.cpu_percent = cpu_percent;
-                                target.mem_used = mem_used;
-                                target.mem_total = mem_total;
-                                target.mem_percent = mem_percent;
-                            }
-                        }
-                    });
-                }
-
-                while tasks.next().await.is_some() {}
-
-                for _ in 0..NODE_METRICS_REFRESH_INTERVAL_SECS {
-                    if !metrics_active.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
-                }
-            }
-        });
-    }
+    spawn_node_metrics_loader(Arc::clone(&client), Arc::clone(&list), metrics_active);
 
     while let Some(event) = stream.next().await {
         match event {
@@ -405,6 +469,17 @@ pub async fn watch_nodes(
 
                 Event::InitDone => {
                     let mut list_guard = list.lock().unwrap();
+                    for item in &mut initial {
+                        if let Some(existing) = list_guard.iter().find(|node| node.name == item.name) {
+                            item.storage_total = existing.storage_total;
+                            item.storage_used = existing.storage_used;
+                            item.storage_percent = existing.storage_percent;
+                            item.cpu_used = existing.cpu_used;
+                            item.cpu_percent = existing.cpu_percent;
+                            item.mem_used = existing.mem_used;
+                            item.mem_percent = existing.mem_percent;
+                        }
+                    }
                     *list_guard = initial.clone();
                     initialized = true;
                     load_status.store(false, Ordering::Relaxed);
@@ -418,7 +493,15 @@ pub async fn watch_nodes(
                     if let Some(item) = convert_node(obj.clone()) {
                         let mut list_guard = list.lock().unwrap();
                         if let Some(existing) = list_guard.iter_mut().find(|n| n.name == item.name) {
-                            *existing = item;
+                            let mut replacement = item;
+                            replacement.storage_total = existing.storage_total;
+                            replacement.storage_used = existing.storage_used;
+                            replacement.storage_percent = existing.storage_percent;
+                            replacement.cpu_used = existing.cpu_used;
+                            replacement.cpu_percent = existing.cpu_percent;
+                            replacement.mem_used = existing.mem_used;
+                            replacement.mem_percent = existing.mem_percent;
+                            *existing = replacement;
                         } else {
                             list_guard.push(item);
                         }

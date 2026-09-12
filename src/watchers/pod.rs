@@ -1,6 +1,6 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
 use futures_util::StreamExt;
-use k8s_openapi::{api::{core::v1::Pod}, apimachinery::pkg::apis::meta::v1::Time};
+use k8s_openapi::{api::core::v1::{Container, Pod}, apimachinery::pkg::apis::meta::v1::Time};
 use kube::Client;
 use kube::{Api, runtime::watcher};
 
@@ -26,9 +26,132 @@ pub struct PodItem {
     pub controller: Option<String>,
     pub namespace: Option<String>,
     pub qos_class: Option<String>,
+    pub cpu_request: f32,
+    pub mem_request: f32,
+    pub cpu_limit: f32,
+    pub mem_limit: f32,
+}
+
+#[derive(Default)]
+struct PodResourceTotals {
+    cpu_request: f32,
+    mem_request: f32,
+    cpu_limit: f32,
+    mem_limit: f32,
+}
+
+fn parse_cpu_quantity(value: &str) -> Option<f32> {
+    if let Some(value) = value.strip_suffix('m') {
+        value.parse::<f32>().ok().map(|value| value / 1_000.0)
+    } else if let Some(value) = value.strip_suffix('u') {
+        value.parse::<f32>().ok().map(|value| value / 1_000_000.0)
+    } else if let Some(value) = value.strip_suffix('n') {
+        value.parse::<f32>().ok().map(|value| value / 1_000_000_000.0)
+    } else {
+        value.parse::<f32>().ok()
+    }
+}
+
+fn parse_memory_quantity(value: &str) -> Option<f32> {
+    let (number, multiplier) = if let Some(value) = value.strip_suffix("Ki") {
+        (value, 1_024.0)
+    } else if let Some(value) = value.strip_suffix("Mi") {
+        (value, 1_048_576.0)
+    } else if let Some(value) = value.strip_suffix("Gi") {
+        (value, 1_073_741_824.0)
+    } else if let Some(value) = value.strip_suffix("Ti") {
+        (value, 1_099_511_627_776.0)
+    } else if let Some(value) = value.strip_suffix("Pi") {
+        (value, 1_125_899_906_842_624.0)
+    } else if let Some(value) = value.strip_suffix("Ei") {
+        (value, 1_152_921_504_606_846_976.0)
+    } else if let Some(value) = value.strip_suffix('K') {
+        (value, 1_000.0)
+    } else if let Some(value) = value.strip_suffix('M') {
+        (value, 1_000_000.0)
+    } else if let Some(value) = value.strip_suffix('G') {
+        (value, 1_000_000_000.0)
+    } else if let Some(value) = value.strip_suffix('T') {
+        (value, 1_000_000_000_000.0)
+    } else if let Some(value) = value.strip_suffix('P') {
+        (value, 1_000_000_000_000_000.0)
+    } else if let Some(value) = value.strip_suffix('E') {
+        (value, 1_000_000_000_000_000_000.0)
+    } else {
+        (value, 1.0)
+    };
+
+    number
+        .parse::<f32>()
+        .ok()
+        .map(|number| number * multiplier / 1_073_741_824.0)
+}
+
+fn container_resource(container: &Container, resource: &str, limits: bool) -> f32 {
+    let Some(resources) = container.resources.as_ref() else {
+        return 0.0;
+    };
+
+    let quantity = if limits {
+        resources.limits.as_ref().and_then(|values| values.get(resource))
+    } else {
+        resources.requests.as_ref().and_then(|values| values.get(resource))
+    };
+
+    match (resource, quantity) {
+        ("cpu", Some(quantity)) => parse_cpu_quantity(&quantity.0).unwrap_or(0.0),
+        ("memory", Some(quantity)) => parse_memory_quantity(&quantity.0).unwrap_or(0.0),
+        _ => 0.0,
+    }
+}
+
+fn sum_container_resources(containers: &[Container]) -> PodResourceTotals {
+    containers.iter().fold(PodResourceTotals::default(), |mut total, container| {
+        total.cpu_request += container_resource(container, "cpu", false);
+        total.mem_request += container_resource(container, "memory", false);
+        total.cpu_limit += container_resource(container, "cpu", true);
+        total.mem_limit += container_resource(container, "memory", true);
+        total
+    })
+}
+
+fn pod_resource_totals(pod: &Pod) -> PodResourceTotals {
+    let Some(spec) = pod.spec.as_ref() else {
+        return PodResourceTotals::default();
+    };
+
+    let app_resources = sum_container_resources(&spec.containers);
+    let init_resources = spec.init_containers.as_ref()
+        .map(|containers| {
+            containers.iter().fold(PodResourceTotals::default(), |mut max_resources, container| {
+                max_resources.cpu_request = max_resources.cpu_request.max(container_resource(container, "cpu", false));
+                max_resources.mem_request = max_resources.mem_request.max(container_resource(container, "memory", false));
+                max_resources.cpu_limit = max_resources.cpu_limit.max(container_resource(container, "cpu", true));
+                max_resources.mem_limit = max_resources.mem_limit.max(container_resource(container, "memory", true));
+                max_resources
+            })
+        })
+        .unwrap_or_default();
+
+    let overhead_cpu = spec.overhead.as_ref()
+        .and_then(|resources| resources.get("cpu"))
+        .and_then(|quantity| parse_cpu_quantity(&quantity.0))
+        .unwrap_or(0.0);
+    let overhead_memory = spec.overhead.as_ref()
+        .and_then(|resources| resources.get("memory"))
+        .and_then(|quantity| parse_memory_quantity(&quantity.0))
+        .unwrap_or(0.0);
+
+    PodResourceTotals {
+        cpu_request: app_resources.cpu_request.max(init_resources.cpu_request) + overhead_cpu,
+        mem_request: app_resources.mem_request.max(init_resources.mem_request) + overhead_memory,
+        cpu_limit: app_resources.cpu_limit.max(init_resources.cpu_limit),
+        mem_limit: app_resources.mem_limit.max(init_resources.mem_limit),
+    }
 }
 
 fn convert_pod(pod: Pod) -> Option<PodItem> {
+    let resource_totals = pod_resource_totals(&pod);
     let name = pod.metadata.name?;
     let phase = pod.status.as_ref().and_then(|s| s.phase.clone());
     let node_name = pod.spec.as_ref().and_then(|s| s.node_name.clone());
@@ -108,6 +231,10 @@ fn convert_pod(pod: Pod) -> Option<PodItem> {
         controller,
         namespace,
         qos_class,
+        cpu_request: resource_totals.cpu_request,
+        mem_request: resource_totals.mem_request,
+        cpu_limit: resource_totals.cpu_limit,
+        mem_limit: resource_totals.mem_limit,
     })
 }
 
