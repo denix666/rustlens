@@ -3,10 +3,15 @@ use futures::stream::FuturesUnordered;
 use k8s_openapi::{api::core::v1::Node, apimachinery::pkg::apis::meta::v1::Time};
 use futures_util::StreamExt;
 use serde::Deserialize;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::task;
+use tokio::sync::Semaphore;
 use http::{Request, Method};
 use kube::{Api, Client, runtime::watcher, runtime::watcher::Event};
+
+const NODE_METRICS_REFRESH_INTERVAL_SECS: u64 = 20;
+const NODE_METRICS_POLL_INTERVAL_SECS: u64 = 1;
+const NODE_METRICS_MAX_CONCURRENCY: usize = 4;
 
 #[derive(Debug, Deserialize)]
 struct Summary {
@@ -73,14 +78,70 @@ async fn get_cpu_usage_nanos(client: &Client, node_name: &str) -> anyhow::Result
         .ok_or_else(|| anyhow::anyhow!("Missing usage_core_nano_seconds"))
 }
 
+fn parse_cpu_quantity(value: &str) -> Option<f32> {
+    if let Some(value) = value.strip_suffix('m') {
+        value.parse::<f32>().ok().map(|value| value / 1_000.0)
+    } else if let Some(value) = value.strip_suffix('u') {
+        value.parse::<f32>().ok().map(|value| value / 1_000_000.0)
+    } else if let Some(value) = value.strip_suffix('n') {
+        value.parse::<f32>().ok().map(|value| value / 1_000_000_000.0)
+    } else {
+        value.parse::<f32>().ok()
+    }
+}
+
+fn parse_cpu_capacity(node: &Node) -> Option<f32> {
+    node.status
+        .as_ref()
+        .and_then(|status| status.capacity.as_ref())
+        .and_then(|capacity| capacity.get("cpu"))
+        .and_then(|quantity| parse_cpu_quantity(&quantity.0))
+}
+
+fn parse_memory_capacity(node: &Node) -> Option<f32> {
+    node.status
+        .as_ref()
+        .and_then(|status| status.capacity.as_ref())
+        .and_then(|capacity| capacity.get("memory"))
+        .and_then(|quantity| {
+            let value = quantity.0.as_str();
+            let bytes = if let Some(value) = value.strip_suffix("Ki") {
+                value.parse::<f32>().ok().map(|value| value * 1024.0)
+            } else if let Some(value) = value.strip_suffix("Mi") {
+                value.parse::<f32>().ok().map(|value| value * 1_048_576.0)
+            } else if let Some(value) = value.strip_suffix("Gi") {
+                value.parse::<f32>().ok().map(|value| value * 1_073_741_824.0)
+            } else {
+                value.parse::<f32>().ok()
+            };
+
+            bytes.map(|bytes| ((bytes / 1_073_741_824.0) * 100.0).round() / 100.0)
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_cpu_quantity;
+
+    #[test]
+    fn parses_kubernetes_cpu_quantities_as_cores() {
+        assert_eq!(parse_cpu_quantity("4"), Some(4.0));
+        assert_eq!(parse_cpu_quantity("4000m"), Some(4.0));
+        assert_eq!(parse_cpu_quantity("2500000u"), Some(2.5));
+        assert_eq!(parse_cpu_quantity("500000000n"), Some(0.5));
+    }
+}
+
 pub async fn fetch_node_metrics(
     client: kube::Client,
     node_name: &str,
+    cpu_total: Option<f32>,
+    mem_total: Option<f32>,
 ) -> anyhow::Result<(
     Option<f32>, // disk_used
     Option<f32>, // disk_total
     Option<f32>, // disk_percent
-    Option<f32>, // cpu_usage
+    Option<f32>, // cpu_used_cores
     Option<f32>, // cpu_capacity
     Option<f32>, // cpu_percent
     Option<f32>, // mem_used
@@ -107,21 +168,13 @@ pub async fn fetch_node_metrics(
         (None, None, None)
     };
 
-    // CPU
-    let usage1 = match tokio::time::timeout(
-        Duration::from_secs(3),
-        get_cpu_usage_nanos(&client, node_name)
-    ).await {
-        Ok(Ok(usage)) => usage,
-        Ok(Err(e)) => {
-            log::error!("Error getting CPU usage 1: {}", e);
-            0
-        },
-        Err(_) => {
-            log::error!("Timeout getting CPU usage 1");
-            0
-        }
-    };
+    // CPU usage is a cumulative counter. Use the first sample from the summary
+    // request above and take one additional sample after the one-second interval.
+    let usage1 = summary.node.cpu
+        .as_ref()
+        .and_then(|cpu| cpu.usage_core_nano_seconds)
+        .ok_or_else(|| anyhow::anyhow!("Missing usage_core_nano_seconds in first sample"))?;
+    let sample1_at = Instant::now();
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -132,85 +185,53 @@ pub async fn fetch_node_metrics(
         Ok(Ok(usage)) => usage,
         Ok(Err(e)) => {
             log::error!("Error getting CPU usage 2: {}", e);
-            usage1
+            return Err(e);
         },
         Err(_) => {
             log::error!("Timeout getting CPU usage 2");
-            usage1
+            return Err(anyhow::anyhow!("Timeout getting CPU usage 2"));
         }
     };
+    let sample2_at = Instant::now();
 
+    let elapsed_secs = sample2_at.duration_since(sample1_at).as_secs_f32();
     let delta_nanos = usage2.saturating_sub(usage1) as f32;
-    let cpu_usage = Some((delta_nanos / 1_000_000_000.0 * 100.0).round() / 100.0);
-
-    let api: Api<Node> = Api::all(client.clone());
-    let node = match api.get(node_name).await {
-        Ok(n) => n,
-        Err(e) => {
-            log::error!("Error getting node info: {}", e);
-            return Ok((None, None, None, None, None, None, None, None, None));
-        }
+    let cpu_used = if elapsed_secs > 0.0 {
+        Some((delta_nanos / 1_000_000_000.0 / elapsed_secs * 100.0).round() / 100.0)
+    } else {
+        None
     };
 
-    let cpu_total = node.status
-        .as_ref()
-        .and_then(|s| s.capacity.as_ref())
-        .and_then(|c| c.get("cpu"))
-        .and_then(|q| q.0.parse::<f32>().ok());
-
-    let cpu_percent = if let Some(total) = cpu_total {
-        if total > 0.0 {
-            Some(((delta_nanos / (1_000_000_000.0 * total) * 100.0) * 100.0).round() / 100.0)
-        } else {
-            Some(0.0)
+    let cpu_percent = match (cpu_used, cpu_total) {
+        (Some(used), Some(total)) if total > 0.0 => {
+            Some(((used / total) * 100.0 * 100.0).round() / 100.0)
         }
-    } else {
-        Some(((delta_nanos / 1_000_000_000.0) * 100.0).round() / 100.0)
+        (Some(_), Some(_)) => Some(0.0),
+        _ => None,
     };
 
     // Memory
     let (mem_used, mem_total, mem_percent) = if let Some(memory) = summary.node.memory {
         let used = memory.working_set_bytes.map(|b| ((b as f32 / 1_073_741_824.0) * 100.0).round() / 100.0);
-
-        let api: Api<Node> = Api::all(client.clone());
-        let node = api.get(node_name).await?;
-
-        let total = node.status
-            .as_ref()
-            .and_then(|s| s.capacity.as_ref())
-            .and_then(|c| c.get("memory"))
-            .and_then(|q| {
-                // Convert Ki, Mi, Gi to bytes
-                let s = q.0.clone();
-                if s.ends_with("Ki") {
-                    s[..s.len()-2].parse::<f32>().ok().map(|v| v * 1024.0)
-                } else if s.ends_with("Mi") {
-                    s[..s.len()-2].parse::<f32>().ok().map(|v| v * 1_048_576.0)
-                } else if s.ends_with("Gi") {
-                    s[..s.len()-2].parse::<f32>().ok().map(|v| v * 1_073_741_824.0)
-                } else {
-                    s.parse::<f32>().ok()
-                }
-            })
-            .map(|bytes| ((bytes / 1_073_741_824.0) * 100.0).round() / 100.0);
-
-        let percent = match (used, total) {
+        let percent = match (used, mem_total) {
             (Some(u), Some(t)) if t > 0.0 => Some(((u / t) * 100.0 * 100.0).round() / 100.0),
             _ => None,
         };
 
-        (used, total, percent)
+        (used, mem_total, percent)
     } else {
-        (None, None, None)
+        (None, mem_total, None)
     };
 
-    Ok((disk_used, disk_total, disk_percent, cpu_usage, cpu_total, cpu_percent, mem_used, mem_total, mem_percent))
+    Ok((disk_used, disk_total, disk_percent, cpu_used, cpu_total, cpu_percent, mem_used, mem_total, mem_percent))
 }
 
 pub fn convert_node(node: Node) -> Option<NodeItem> {
     let metadata = &node.metadata;
     let name = metadata.name.clone()?;
     let creation_timestamp = metadata.creation_timestamp.clone();
+    let cpu_total = parse_cpu_capacity(&node);
+    let mem_total = parse_memory_capacity(&node);
     let version = node.status
         .as_ref()
         .and_then(|status| status.node_info.as_ref()).map(|info| info.kubelet_version.clone());
@@ -264,16 +285,21 @@ pub fn convert_node(node: Node) -> Option<NodeItem> {
         storage_total: None,
         storage_used: None,
         storage_percent: None,
-        cpu_total: None,
+        cpu_total,
         cpu_used: None,
         cpu_percent: None,
-        mem_total: None,
+        mem_total,
         mem_used: None,
         mem_percent: None,
     })
 }
 
-pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<NodeItem>>>, load_status: Arc<AtomicBool>) {
+pub async fn watch_nodes(
+    client: Arc<Client>,
+    list: Arc<Mutex<Vec<NodeItem>>>,
+    load_status: Arc<AtomicBool>,
+    metrics_active: Arc<AtomicBool>,
+) {
     let api: Api<Node> = Api::all(client.as_ref().clone());
     let mut stream = watcher(api, watcher::Config::default().page_size(crate::WATCHER_PAGE_SIZE)).boxed();
 
@@ -284,36 +310,66 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<NodeItem>>>, l
     {
         let client = client.clone();
         let list = Arc::clone(&list);
+        let metrics_active = Arc::clone(&metrics_active);
+        let metrics_semaphore = Arc::new(Semaphore::new(NODE_METRICS_MAX_CONCURRENCY));
         task::spawn(async move {
             loop {
+                while !metrics_active.load(Ordering::Relaxed) {
+                    tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
+                }
+
                 let nodes_snapshot = {
                     let guard = list.lock().unwrap();
                     guard.clone()
                 };
 
+                if nodes_snapshot.is_empty() {
+                    tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
+                    continue;
+                }
+
                 let mut tasks = FuturesUnordered::new();
                 for node in nodes_snapshot {
                     let client = client.clone();
                     let list = Arc::clone(&list);
+                    let metrics_active = Arc::clone(&metrics_active);
+                    let metrics_semaphore = Arc::clone(&metrics_semaphore);
 
                     tasks.push(async move {
+                        let Ok(_permit) = metrics_semaphore.acquire_owned().await else {
+                            return;
+                        };
+
+                        if !metrics_active.load(Ordering::Relaxed) {
+                            return;
+                        }
+
                         if let Ok((
                             disk_used,
                             disk_total,
                             disk_percent,
-                            cpu_usage,
+                            cpu_used_cores,
                             cpu_total,
                             cpu_percent,
                             mem_used,
                             mem_total,
                             mem_percent,
-                        )) = fetch_node_metrics(client.as_ref().clone(), &node.name).await {
+                        )) = fetch_node_metrics(
+                            client.as_ref().clone(),
+                            &node.name,
+                            node.cpu_total,
+                            node.mem_total,
+                        ).await {
+                            if !metrics_active.load(Ordering::Relaxed) {
+                                return;
+                            }
+
                             let mut list_guard = list.lock().unwrap();
                             if let Some(target) = list_guard.iter_mut().find(|n| n.name == node.name) {
                                 target.storage_used = disk_used;
                                 target.storage_total = disk_total;
                                 target.storage_percent = disk_percent;
-                                target.cpu_used = cpu_usage;
+                                target.cpu_used = cpu_used_cores;
                                 target.cpu_total = cpu_total;
                                 target.cpu_percent = cpu_percent;
                                 target.mem_used = mem_used;
@@ -325,7 +381,13 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<NodeItem>>>, l
                 }
 
                 while tasks.next().await.is_some() {}
-                tokio::time::sleep(Duration::from_secs(180)).await;
+
+                for _ in 0..NODE_METRICS_REFRESH_INTERVAL_SECS {
+                    if !metrics_active.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_secs(NODE_METRICS_POLL_INTERVAL_SECS)).await;
+                }
             }
         });
     }
@@ -337,37 +399,7 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<NodeItem>>>, l
 
                 Event::InitApply(obj) => {
                     if let Some(item) = convert_node(obj.clone()) {
-                        let item_clone = item.clone();
                         initial.push(item);
-
-                        let client = client.clone();
-                        let list = Arc::clone(&list);
-                        task::spawn(async move {
-                            if let Ok((
-                                disk_used,
-                                disk_total,
-                                disk_percent,
-                                cpu_usage,
-                                cpu_total,
-                                cpu_percent,
-                                mem_used,
-                                mem_total,
-                                mem_percent,
-                            )) = fetch_node_metrics(client.as_ref().clone(), &item_clone.name).await {
-                                let mut list_guard = list.lock().unwrap();
-                                if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
-                                    target.storage_used = disk_used;
-                                    target.storage_total = disk_total;
-                                    target.storage_percent = disk_percent;
-                                    target.cpu_used = cpu_usage;
-                                    target.cpu_total = cpu_total;
-                                    target.cpu_percent = cpu_percent;
-                                    target.mem_used = mem_used;
-                                    target.mem_total = mem_total;
-                                    target.mem_percent = mem_percent;
-                                }
-                            }
-                        });
                     }
                 }
 
@@ -384,42 +416,12 @@ pub async fn watch_nodes(client: Arc<Client>, list: Arc<Mutex<Vec<NodeItem>>>, l
                     }
 
                     if let Some(item) = convert_node(obj.clone()) {
-                        let item_clone = item.clone();
                         let mut list_guard = list.lock().unwrap();
                         if let Some(existing) = list_guard.iter_mut().find(|n| n.name == item.name) {
                             *existing = item;
                         } else {
                             list_guard.push(item);
                         }
-
-                        let client = client.clone();
-                        let list = Arc::clone(&list);
-                        task::spawn(async move {
-                            if let Ok((
-                                disk_used,
-                                disk_total,
-                                disk_percent,
-                                cpu_usage,
-                                cpu_total,
-                                cpu_percent,
-                                mem_used,
-                                mem_total,
-                                mem_percent,
-                            )) = fetch_node_metrics(client.as_ref().clone(), &item_clone.name).await {
-                                let mut list_guard = list.lock().unwrap();
-                                if let Some(target) = list_guard.iter_mut().find(|n| n.name == item_clone.name) {
-                                    target.storage_used = disk_used;
-                                    target.storage_total = disk_total;
-                                    target.storage_percent = disk_percent;
-                                    target.cpu_used = cpu_usage;
-                                    target.cpu_total = cpu_total;
-                                    target.cpu_percent = cpu_percent;
-                                    target.mem_used = mem_used;
-                                    target.mem_total = mem_total;
-                                    target.mem_percent = mem_percent;
-                                }
-                            }
-                        });
                     }
                 }
 

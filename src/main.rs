@@ -485,12 +485,14 @@ async fn main() {
     let nodes = Arc::new(Mutex::new(Vec::<NodeItem>::new()));
     let node_details = Arc::new(Mutex::new(NodeDetails::new()));
     let nodes_loading = Arc::new(AtomicBool::new(true));
+    let nodes_metrics_active = Arc::new(AtomicBool::new(false));
+    let nodes_metrics_active_for_watcher = Arc::clone(&nodes_metrics_active);
     spawn_watcher(
         Arc::clone(&client),
         Arc::clone(&nodes),
         Arc::clone(&nodes_loading),
         |c, s, l| {
-        Box::pin(watch_nodes(c, s, l))
+        Box::pin(watch_nodes(c, s, l, nodes_metrics_active_for_watcher))
     });
 
     // NAMESPACES
@@ -788,6 +790,7 @@ async fn main() {
             }
 
             let current_category = selected_category_ui.lock().unwrap().clone();
+            nodes_metrics_active.store(current_category == Category::Nodes, Ordering::Relaxed);
             match current_category {
                 Category::Leases => {
                     lazy_start!(leases_started, leases_loading, client, leases, |c, s, l| Box::pin(watch_leases(c, s, l)));
@@ -3826,7 +3829,7 @@ async fn main() {
                                                 });
                                             }
                                             if let Some(p) = &item.cpu_percent {
-                                                let hover_text = format!("Used: {} / Total: {}", item.cpu_used.unwrap_or(0.0), item.cpu_total.unwrap_or(0.0));
+                                                let hover_text = format!("Used: {:.2} cores / Total: {:.2} cores", item.cpu_used.unwrap_or(0.0), item.cpu_total.unwrap_or(0.0));
                                                 ui.add(egui::ProgressBar::new(p / 100.0).fill(progress_color(*p)).show_percentage()).on_hover_text(hover_text);
                                             } else {
                                                 ui.add(egui::ProgressBar::new(0.0).fill(progress_color(0.0)).show_percentage()).on_hover_text("Loading...");
