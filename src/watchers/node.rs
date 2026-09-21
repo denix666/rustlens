@@ -11,7 +11,7 @@ use kube::{Api, Client, runtime::watcher, runtime::watcher::Event};
 
 const NODE_METRICS_REFRESH_INTERVAL_SECS: u64 = 180;
 const NODE_METRICS_POLL_INTERVAL_SECS: u64 = 1;
-const NODE_METRICS_MAX_CONCURRENCY: usize = 4;
+const NODE_METRICS_MAX_CONCURRENCY: usize = 10;
 
 #[derive(Debug, Deserialize)]
 struct Summary {
