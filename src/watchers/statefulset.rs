@@ -16,7 +16,7 @@ pub struct StatefulSetItem {
 }
 
 pub fn convert_statefulset(ss: StatefulSet) -> Option<StatefulSetItem> {
-    let spec = ss.spec.unwrap();
+    let spec = ss.spec;
     let namespace = ss.metadata.namespace.clone();
     Some(StatefulSetItem {
         name: ss.metadata.name.clone()?,

@@ -17,7 +17,7 @@ pub struct ReplicaSetItem {
 pub fn convert_replicaset(rs: ReplicaSet) -> Option<ReplicaSetItem> {
     Some(ReplicaSetItem {
         name: rs.metadata.name.clone()?,
-        desired: rs.spec.as_ref()?.replicas.unwrap_or(0),
+        desired: rs.spec.replicas.unwrap_or(0),
         current: rs.status.as_ref()?.replicas,
         ready: rs.status.as_ref()?.ready_replicas.unwrap_or(0),
         creation_timestamp: rs.metadata.creation_timestamp,

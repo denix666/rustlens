@@ -414,7 +414,7 @@ pub fn open_logs_for_pod(pod_name: String, namespace: String, containers: Vec<cr
 pub async fn patch_resource(cl: Arc<Client>, yaml_str: &str) -> Result<(), anyhow::Error> {
     let client = cl.as_ref().clone();
     let mut value: yaml_serde::Value = yaml_serde::from_str(yaml_str)?;
-    let meta: kube_discovery::kube::api::TypeMeta = yaml_serde::from_value(value.clone())?;
+    let meta: kube::api::TypeMeta = yaml_serde::from_value(value.clone())?;
 
     // Remove metadata.managedFields, if exists
     if let Some(metadata) = value.get_mut("metadata")

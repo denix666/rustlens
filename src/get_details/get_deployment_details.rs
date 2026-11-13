@@ -46,19 +46,16 @@ pub async fn get_deployment_details(client: Arc<Client>, name: &str, ns: Option<
     details_items.labels = metadata.labels;
     details_items.namespace = Some(ns);
     details_items.annotations = metadata.annotations;
-    if let Some(spec) = deployment_spec {
-        details_items.strategy = spec.strategy.unwrap().type_;
-        details_items.selector = spec.selector.match_labels
-            .clone()
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-    }
+    details_items.strategy = deployment_spec.strategy.unwrap().type_;
+    details_items.selector = deployment_spec.selector.match_labels
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
 
     if let Some(status) = status {
         details_items.conditions = status.conditions.clone().unwrap_or_default().into_iter().map(|c| {
             ConditionDetails {
-                type_: c.type_,
+                type_: c.type_.unwrap_or_default(),
                 // status: c.status,
                 // reason: c.reason,
                 // message: c.message,

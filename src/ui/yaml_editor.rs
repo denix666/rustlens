@@ -53,7 +53,7 @@ fn show_status_banner(ctx: &egui::Context, editor: &mut YamlEditorWindow) {
             Color32::from_rgba_unmultiplied(180, 60, 60, (255.0 * alpha) as u8)
         };
 
-        egui::Area::new(egui::Id::new("status_banner"))
+        egui::Area::new(egui::Id::unique("status_banner"))
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-20.0, 20.0)) // правый верх
             .show(ctx, |ui| {
                 egui::Frame::new()

@@ -1,5 +1,5 @@
 pkgname=rustlens
-pkgver=0.6.9
+pkgver=0.7.0
 pkgrel=1
 pkgdesc="A powerful and intuitive ui tool for managing your Kubernetes (k8s) cluster."
 arch=('x86_64')
@@ -16,6 +16,6 @@ package() {
     install -D -m644 rustlens.png ${pkgdir}/usr/share/pixmaps/rustlens.png
     install -D -m644 rustlens.desktop ${pkgdir}/usr/share/applications/rustlens.desktop
 }
-sha256sums=('1791704f88332a167d303eb6a47e81561e6eb5eb82308369dd4e556352c43e2d'
+sha256sums=('de504a46160753e16d51124978c55d81871c44f218d2f6d4138c21d0cde7751a'
             'a617640eb2d3407407d6f50a9d58f6e9977de9b5f4a76cc2f38ac8a5d6197962'
             'dd6f94ac91911c31a6a7faba68b74baf6b25ff0987770d79b0348ef685185e4a')
